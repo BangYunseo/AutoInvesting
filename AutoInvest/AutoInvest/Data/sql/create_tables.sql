@@ -1,0 +1,62 @@
+﻿-- Data/sql/create_tables.sql
+
+CREATE TABLE IF NOT EXISTS TB_ASSET_MASTER (
+    TICKER        TEXT PRIMARY KEY,
+    NAME          TEXT NOT NULL,
+    CURRENCY      TEXT NOT NULL DEFAULT 'USD',
+    IS_ACTIVE     INTEGER NOT NULL DEFAULT 1,
+    CREATED_AT    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS TB_INVEST_STRATEGY (
+    STRATEGY_ID   INTEGER PRIMARY KEY AUTOINCREMENT,
+    STRATEGY_NAME TEXT NOT NULL,
+    TICKER        TEXT NOT NULL,
+    WEIGHT        REAL NOT NULL,
+    FOREIGN KEY (TICKER) REFERENCES TB_ASSET_MASTER(TICKER)
+);
+
+CREATE TABLE IF NOT EXISTS TB_TRADE_HISTORY (
+    TRADE_ID      INTEGER PRIMARY KEY AUTOINCREMENT,
+    TRADE_DATE    TEXT NOT NULL,
+    TICKER        TEXT NOT NULL,
+    ORDER_TYPE    TEXT NOT NULL,  -- BUY / SELL
+    QTY           INTEGER NOT NULL,
+    PRICE         REAL NOT NULL,
+    STATUS        TEXT NOT NULL DEFAULT 'PENDING', -- PENDING / FILLED / FAILED
+    ORDER_NO      TEXT,
+    CREATED_AT    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS TB_APP_CONFIG (
+    CONFIG_KEY    TEXT PRIMARY KEY,
+    CONFIG_VALUE  TEXT NOT NULL,
+    DESCRIPTION   TEXT
+);
+
+-- 초기 마스터 데이터
+INSERT OR IGNORE INTO TB_ASSET_MASTER (TICKER, NAME, CURRENCY) VALUES
+    ('SCHD',  'Schwab US Dividend Equity ETF', 'USD'),
+    ('QQQM',  'Invesco NASDAQ 100 ETF',        'USD'),
+    ('GLD',   'SPDR Gold Shares',              'USD'),
+    ('JEPI',  'JPMorgan Equity Premium Income','USD'),
+    ('SPLG',  'SPDR Portfolio S&P 500 ETF',    'USD');
+
+-- 초기 전략 데이터 (공격형)
+INSERT OR IGNORE INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT) VALUES
+    ('공격형', 'QQQM', 0.50),
+    ('공격형', 'SPLG', 0.30),
+    ('공격형', 'GLD',  0.20);
+
+-- 초기 전략 데이터 (안정형)
+INSERT OR IGNORE INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT) VALUES
+    ('안정형', 'SCHD', 0.40),
+    ('안정형', 'JEPI', 0.40),
+    ('안정형', 'GLD',  0.20);
+
+-- 앱 기본 설정
+INSERT OR IGNORE INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE, DESCRIPTION) VALUES
+    ('IS_PAPER_TRADING', '1',        '1=모의투자 0=실거래'),
+    ('INVEST_AMOUNT_KRW','1000000',  '월 투자금액(원)'),
+    ('ACTIVE_STRATEGY',  '안정형',   '현재 활성 전략'),
+    ('ORDER_SCHEDULE',   '22:30',    '주문 실행 시각(KST)');
