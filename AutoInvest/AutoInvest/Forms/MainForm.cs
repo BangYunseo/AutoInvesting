@@ -2,8 +2,6 @@
 using AutoInvest.Data;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
-using MaterialSkin;
-using MaterialSkin.Controls;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -11,26 +9,12 @@ using System.Windows.Forms;
 
 namespace AutoInvest.Forms
 {
-    public partial class MainForm : MaterialForm
+    public partial class MainForm : Form
     {
-        private readonly MaterialSkinManager _skinManager;
 
         public MainForm()
         {
             InitializeComponent();
-
-            _skinManager = MaterialSkinManager.Instance;
-            _skinManager.AddFormToManage(this);
-            _skinManager.Theme = MaterialSkinManager.Themes.DARK;
-            _skinManager.ColorScheme = new ColorScheme(
-                Primary.Grey900,
-                Primary.Grey900,
-                Primary.Grey800,
-                Accent.Cyan200,
-                TextShade.WHITE
-            );
-
-
             this.Load += MainForm_Load;
         }
 
@@ -52,8 +36,8 @@ namespace AutoInvest.Forms
             lbl_card1_value.Text = $"{int.Parse(amount):N0}원";
             lbl_card4_value.Text = isPaper == "1" ? "모의투자" : "실거래";
             lbl_card4_value.ForeColor = isPaper == "1"
-                ? System.Drawing.Color.FromArgb(230, 100, 0)
-                : System.Drawing.Color.FromArgb(15, 110, 86);
+                ? Color.FromArgb(230, 100, 0)
+                : Color.FromArgb(15, 110, 86);
 
             // 다음 주문 시각 계산
             var timeParts = schedule.Split(':');
@@ -77,5 +61,37 @@ namespace AutoInvest.Forms
                 sb.AppendLine(item.ToString());
             Clipboard.SetText(sb.ToString());
         }
+
+        private void SetActiveMenu(System.Windows.Forms.Button activeBtn)
+        {
+            foreach (var btn in new[] { btn_dashboard, btn_allocation, btn_history, btn_config, btn_log })
+            {
+                btn.BackColor = Color.FromArgb(38, 50, 56);
+                btn.ForeColor = Color.FromArgb(180, 200, 210);
+            }
+            activeBtn.BackColor = Color.FromArgb(60, 80, 90);
+            activeBtn.ForeColor = Color.White;
+        }
+
+        private void btn_dashboard_Click(object sender, EventArgs e) 
+            => SetActiveMenu(btn_dashboard);
+
+        private void btn_allocation_Click(object sender, EventArgs e)
+            => SetActiveMenu(btn_allocation);
+
+        private void btn_history_Click(object sender, EventArgs e)
+        { 
+            SetActiveMenu(btn_history);
+            new HistoryForm().ShowDialog();
+        }
+
+        private void btn_config_Click(object sender, EventArgs e)
+        {
+            SetActiveMenu(btn_config);
+            new ConfigForm().ShowDialog();
+        }
+
+        private void btn_log_Click(object sender, EventArgs e)
+            => SetActiveMenu(btn_log);
     }
 }
