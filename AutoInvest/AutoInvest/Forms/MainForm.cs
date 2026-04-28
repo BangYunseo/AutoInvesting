@@ -1,5 +1,7 @@
-﻿using AutoInvest.Core;
+using AutoInvest.Controls;
+using AutoInvest.Core;
 using AutoInvest.Data;
+using AutoInvest.Data.DAO;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using System;
@@ -39,18 +41,15 @@ namespace AutoInvest.Forms
                 ? Color.FromArgb(230, 100, 0)
                 : Color.FromArgb(15, 110, 86);
 
-            // 다음 주문 시각 계산
-            var timeParts = schedule.Split(':');
-            var orderHour = int.Parse(timeParts[0]);
-            var orderMin = int.Parse(timeParts[1]);
-            var now = DateTime.Now;
-            var orderToday = new DateTime(now.Year, now.Month, now.Day, orderHour, orderMin, 0);
-            var nextOrder = now < orderToday ? orderToday : orderToday.AddDays(1);
+            // 다음 주문 시각 계산 (DateTimeHelper 활용 — DST 자동 대응)
+            var nextOrder = DateTimeHelper.GetNextNYSEOpen();
 
             lbl_card3_value.Text = nextOrder.ToString("M월 d일 HH:mm");
 
             Logger.Info($"전략: {strategy} / 투자금: {amount}원 / 다음주문: {nextOrder:M월 d일 HH:mm}");
-        
+
+            // 배분 결과 로드
+            LoadAllocationCards(strategy, decimal.Parse(amount));
         }
 
         private void 복사ToolStripMenuItem_Click(object sender, EventArgs e)
@@ -77,7 +76,12 @@ namespace AutoInvest.Forms
             => SetActiveMenu(btn_dashboard);
 
         private void btn_allocation_Click(object sender, EventArgs e)
-            => SetActiveMenu(btn_allocation);
+        {
+            SetActiveMenu(btn_allocation);
+            new AllocationSetupForm().ShowDialog();
+            // 배분 설정 Form 닫힌 후 대시보드 갱신
+            LoadDashboard();
+        }
 
         private void btn_history_Click(object sender, EventArgs e)
         { 
@@ -93,5 +97,47 @@ namespace AutoInvest.Forms
 
         private void btn_log_Click(object sender, EventArgs e)
             => SetActiveMenu(btn_log);
+
+        // ─── 배분 결과 카드 로드 ────────────────────────────
+
+        private void LoadAllocationCards(string strategyName, decimal investAmountKrw)
+        {
+            flp_allocation.Controls.Clear();
+
+            var strategies = StrategyDAO.GetStrategy(strategyName);
+            if (strategies.Count == 0)
+            {
+                var emptyLabel = new Label
+                {
+                    Text = "배분 설정이 없습니다. [배분 설정] 메뉴에서 종목을 추가하세요.",
+                    Font = new Font("맑은 고딕", 9F),
+                    ForeColor = Color.FromArgb(150, 150, 150),
+                    AutoSize = true,
+                    Padding = new Padding(10, 10, 0, 0)
+                };
+                flp_allocation.Controls.Add(emptyLabel);
+                return;
+            }
+
+            // 전체 비중 합계 (사용자정의 전략에서는 Weight=수량이므로 합계 계산)
+            double totalWeight = 0;
+            foreach (var s in strategies)
+                totalWeight += s.Weight;
+
+            if (totalWeight <= 0) totalWeight = 1;
+
+            foreach (var s in strategies)
+            {
+                double normalizedWeight = s.Weight / totalWeight;
+                int qty = (int)s.Weight; // 사용자정의 전략에서는 Weight에 수량 저장
+                decimal allocKrw = investAmountKrw * (decimal)normalizedWeight;
+
+                var card = new AllocationCardControl();
+                card.SetData(s.Ticker, normalizedWeight, qty, allocKrw);
+                flp_allocation.Controls.Add(card);
+            }
+
+            Logger.Info($"[대시보드] 배분 결과 로드: {strategyName} ({strategies.Count}종목)");
+        }
     }
 }
