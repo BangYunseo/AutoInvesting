@@ -1,0 +1,5 @@
+[*.cs]
+
+# IDE1006: 명명 규칙 위반 — WinForms 디자이너가 생성하는
+# {컨트롤명}_{이벤트명} 패턴(예: btn_save_Click)을 허용하기 위해 비활성화
+dotnet_diagnostic.IDE1006.severity = none
