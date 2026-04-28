@@ -61,14 +61,27 @@
       <DependentUpon>AllocationCardControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Core\AllocationEngine.cs" />
+    <Compile Include="Core\IBrokerClient.cs" />
+    <Compile Include="Core\SimBrokerClient.cs" />
+    <Compile Include="Core\SmartOrderEngine.cs" />
+    <Compile Include="Core\SchedulerModule.cs" />
+    <Compile Include="Core\SessionManager.cs" />
     <Compile Include="Data\AppConfigManager.cs" />
     <Compile Include="Data\DAO\AssetDAO.cs" />
     <Compile Include="Data\DAO\StrategyDAO.cs" />
     <Compile Include="Data\DAO\TradeHistoryDAO.cs" />
     <Compile Include="Data\DBManager.cs" />
     <Compile Include="Data\DTO\AssetDto.cs" />
+    <Compile Include="Data\DTO\HoldingDto.cs" />
+    <Compile Include="Data\DTO\PriceRangeDto.cs" />
     <Compile Include="Data\DTO\StrategyDto.cs" />
     <Compile Include="Data\DTO\TradeHistoryDto.cs" />
+    <Compile Include="Forms\AllocationSetupForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\AllocationSetupForm.Designer.cs">
+      <DependentUpon>AllocationSetupForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\ConfigForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -91,6 +104,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utils\DateTimeHelper.cs" />
     <Compile Include="Utils\Logger.cs" />
+    <Compile Include="Utils\AppTheme.cs" />
+    <EmbeddedResource Include="Forms\AllocationSetupForm.resx">
+      <DependentUpon>AllocationSetupForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Forms\MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
     </EmbeddedResource>

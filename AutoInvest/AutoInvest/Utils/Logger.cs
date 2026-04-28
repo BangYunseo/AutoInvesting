@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Windows.Forms;
 
@@ -39,7 +39,7 @@ namespace AutoInvest.Utils
             Console.WriteLine(logMsg);
             if (_listBox != null)
             {
-                _listBox.Invoke(new Action(() => _listBox.Items.Add(logMsg)));
+                _listBox.Invoke(new Action(() => AppendToListBox(logMsg)));
             }
             Directory.CreateDirectory(LogDir);
             File.AppendAllText(Path.Combine(LogDir, $"{DateTime.Now:yyyy-MM-dd}.log"), logMsg + Environment.NewLine);
