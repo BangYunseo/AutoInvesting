@@ -20,7 +20,7 @@ namespace AutoInvest.Forms
             this.Load += MainForm_Load;
         }
 
-        private void MainForm_Load(object sender, EventArgs e)
+        private void MainForm_Load(object? sender, EventArgs e)
         {
             Logger.Initialize(lbx_log);
             Logger.Info("투자 자동화 시작");
@@ -31,7 +31,6 @@ namespace AutoInvest.Forms
         private void LoadDashboard()
         {
             var amount = AppConfigManager.Get("INVEST_AMOUNT_KRW", "0");
-            var schedule = AppConfigManager.Get("ORDER_SCHEDULE", "22:30");
             var strategy = AppConfigManager.Get("ACTIVE_STRATEGY", "미설정");
             var isPaper = AppConfigManager.Get("IS_PAPER_TRADING", "1");
 
@@ -52,7 +51,7 @@ namespace AutoInvest.Forms
             LoadAllocationCards(strategy, decimal.Parse(amount));
         }
 
-        private void 복사ToolStripMenuItem_Click(object sender, EventArgs e)
+        private void 복사ToolStripMenuItem_Click(object? sender, EventArgs e)
         {
             if (lbx_log.SelectedItems.Count == 0) return;
             var sb = new System.Text.StringBuilder();
@@ -72,10 +71,10 @@ namespace AutoInvest.Forms
             activeBtn.ForeColor = Color.White;
         }
 
-        private void btn_dashboard_Click(object sender, EventArgs e) 
+        private void btn_dashboard_Click(object? sender, EventArgs e) 
             => SetActiveMenu(btn_dashboard);
 
-        private void btn_allocation_Click(object sender, EventArgs e)
+        private void btn_allocation_Click(object? sender, EventArgs e)
         {
             SetActiveMenu(btn_allocation);
             new AllocationSetupForm().ShowDialog();
@@ -83,19 +82,19 @@ namespace AutoInvest.Forms
             LoadDashboard();
         }
 
-        private void btn_history_Click(object sender, EventArgs e)
+        private void btn_history_Click(object? sender, EventArgs e)
         { 
             SetActiveMenu(btn_history);
             new HistoryForm().ShowDialog();
         }
 
-        private void btn_config_Click(object sender, EventArgs e)
+        private void btn_config_Click(object? sender, EventArgs e)
         {
             SetActiveMenu(btn_config);
             new ConfigForm().ShowDialog();
         }
 
-        private void btn_log_Click(object sender, EventArgs e)
+        private void btn_log_Click(object? sender, EventArgs e)
             => SetActiveMenu(btn_log);
 
         // ─── 배분 결과 카드 로드 ────────────────────────────

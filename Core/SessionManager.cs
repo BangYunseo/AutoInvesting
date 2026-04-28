@@ -19,7 +19,7 @@ namespace AutoInvest.Core
     /// </summary>
     public class SessionManager
     {
-        private IBrokerClient _client;
+        private IBrokerClient? _client;
 
         /// <summary>
         /// 현재 활성 브로커 클라이언트를 반환합니다.

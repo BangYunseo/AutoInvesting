@@ -13,7 +13,7 @@ namespace AutoInvest.Core
     /// </summary>
     public class SchedulerModule : IDisposable
     {
-        private readonly Timer _timer;
+        private readonly System.Timers.Timer _timer;
         private readonly SessionManager _session;
         private DateTime _lastExecutedDate = DateTime.MinValue;
 
@@ -21,12 +21,12 @@ namespace AutoInvest.Core
         public bool IsRunning => _timer.Enabled;
 
         /// <summary>이벤트: 스마트 주문 실행 완료 시 발생</summary>
-        public event Action<string> OnOrderExecuted;
+        public event Action<string>? OnOrderExecuted;
 
         public SchedulerModule(SessionManager session)
         {
             _session = session;
-            _timer = new Timer(60_000); // 1분 간격
+            _timer = new System.Timers.Timer(60_000); // 1분 간격
             _timer.Elapsed += OnTimerTick;
             _timer.AutoReset = true;
         }
@@ -45,7 +45,7 @@ namespace AutoInvest.Core
             Logger.Info("[Scheduler] 예약 주문 스케줄러 중지됨");
         }
 
-        private async void OnTimerTick(object sender, ElapsedEventArgs e)
+        private async void OnTimerTick(object? sender, ElapsedEventArgs e)
         {
             try
             {

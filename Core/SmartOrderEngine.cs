@@ -12,10 +12,10 @@ namespace AutoInvest.Core
 
     public class SmartOrderResult
     {
-        public string Ticker { get; set; }
+        public string Ticker { get; set; } = string.Empty;
         public SmartOrderSignal Signal { get; set; }
-        public PriceRangeDto PriceRange { get; set; }
-        public string Reason { get; set; }
+        public PriceRangeDto PriceRange { get; set; } = null!;
+        public string Reason { get; set; } = string.Empty;
     }
 
     /// <summary>

@@ -1,11 +1,18 @@
-﻿using AutoInvest.Data;
+using AutoInvest.Data;
 using AutoInvest.Utils;
 using System;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace AutoInvest.Forms
 {
     public partial class ConfigForm : Form
+    {
+        [GeneratedRegex(@"^\d{2}:\d{2}$")]
+        private static partial Regex ScheduleRegex();
+    }
+
+    public partial class ConfigForm
     {
         public ConfigForm()
         {
@@ -13,7 +20,7 @@ namespace AutoInvest.Forms
             this.Load += ConfigForm_Load;
         }
 
-        private void ConfigForm_Load(object sender, EventArgs e)
+        private void ConfigForm_Load(object? sender, EventArgs e)
         {
             txt_amount.Text = AppConfigManager.Get("INVEST_AMOUNT_KRW", "1000000");
             txt_schedule.Text = AppConfigManager.Get("ORDER_SCHEDULE", "22:30");
@@ -24,7 +31,7 @@ namespace AutoInvest.Forms
             rdb_aggressive.Checked = strategy == "공격형";
         }
 
-        private void btn_save_Click(object sender, EventArgs e)
+        private void btn_save_Click(object? sender, EventArgs e)
         {
             // 유효성 검사
             if (!int.TryParse(txt_amount.Text, out int amount) || amount <= 0)
@@ -33,7 +40,7 @@ namespace AutoInvest.Forms
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            if (!System.Text.RegularExpressions.Regex.IsMatch(txt_schedule.Text, @"^\d{2}:\d{2}$"))
+            if (!ScheduleRegex().IsMatch(txt_schedule.Text))
             {
                 MessageBox.Show("주문 시각을 HH:mm 형식으로 입력해주세요.", "입력 오류",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -49,7 +56,7 @@ namespace AutoInvest.Forms
             this.Close();
         }
 
-        private void btn_cancel_Click(object sender, EventArgs e)
+        private void btn_cancel_Click(object? sender, EventArgs e)
             => this.Close();
     }
 }

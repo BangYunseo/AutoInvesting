@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
@@ -7,7 +7,7 @@ namespace AutoInvest.Core
 {
     public class AllocationResult
     {
-        public string Ticker { get; set; }
+        public string Ticker { get; set; } = string.Empty;
         public decimal Weight { get; set; }
         public decimal Price { get; set; } // 현재가 (원화 환산)
         public int Qty { get; set; } // 매수 수량

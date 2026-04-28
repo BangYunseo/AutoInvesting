@@ -14,7 +14,7 @@ namespace AutoInvest.Utils
 
     public static class Logger
     {
-        private static ListBox _listBox;
+        private static ListBox? _listBox;
         private static readonly string LogDir =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
 
@@ -37,18 +37,16 @@ namespace AutoInvest.Utils
         {
             string logMsg = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {msg}";
             Console.WriteLine(logMsg);
-            if (_listBox != null)
-            {
-                _listBox.Invoke(new Action(() => AppendToListBox(logMsg)));
-            }
+            _listBox?.Invoke(new Action(() => AppendToListBox(logMsg)));
             Directory.CreateDirectory(LogDir);
             File.AppendAllText(Path.Combine(LogDir, $"{DateTime.Now:yyyy-MM-dd}.log"), logMsg + Environment.NewLine);
         }
 
         private static void AppendToListBox(string line)
         {
-            _listBox.Items.Add(line);
-            _listBox.TopIndex = _listBox.Items.Count - 1; 
+            _listBox?.Items.Add(line);
+            if (_listBox != null)
+                _listBox.TopIndex = _listBox.Items.Count - 1; 
         }
 
         private static void DeleteOldLogs()

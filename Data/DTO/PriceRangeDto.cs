@@ -2,7 +2,7 @@ namespace AutoInvest.Data.DTO
 {
     public class PriceRangeDto
     {
-        public string Ticker { get; set; }
+        public string Ticker { get; set; } = string.Empty;
         public decimal High { get; set; }       // N일 최고가 (USD)
         public decimal Low { get; set; }        // N일 최저가 (USD)
         public decimal Current { get; set; }    // 현재가 (USD)

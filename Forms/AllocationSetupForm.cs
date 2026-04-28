@@ -31,7 +31,7 @@ namespace AutoInvest.Forms
             this.txt_targetAmount.TextChanged += (s, e) => RecalculateSummary();
         }
 
-        private async void AllocationSetupForm_Load(object sender, EventArgs e)
+        private async void AllocationSetupForm_Load(object? sender, EventArgs e)
         {
             // 목표 금액 기본값
             txt_targetAmount.Text = AppConfigManager.Get("INVEST_AMOUNT_KRW", "1000000");
@@ -84,7 +84,7 @@ namespace AutoInvest.Forms
 
         // ─── 종목 추가 ──────────────────────────────────────
 
-        private async void btn_addTicker_Click(object sender, EventArgs e)
+        private async void btn_addTicker_Click(object? sender, EventArgs e)
         {
             string ticker = txt_ticker.Text.Trim().ToUpper();
             if (string.IsNullOrEmpty(ticker))
@@ -140,7 +140,7 @@ namespace AutoInvest.Forms
 
         // ─── 종목 삭제 ──────────────────────────────────────
 
-        private void btn_removeTicker_Click(object sender, EventArgs e)
+        private void btn_removeTicker_Click(object? sender, EventArgs e)
         {
             if (dgv_allocation.SelectedRows.Count == 0)
             {
@@ -153,7 +153,7 @@ namespace AutoInvest.Forms
             {
                 if (!row.IsNewRow)
                 {
-                    string ticker = row.Cells["col_ticker"].Value?.ToString();
+                    string? ticker = row.Cells["col_ticker"].Value?.ToString();
                     dgv_allocation.Rows.Remove(row);
                     Logger.Info($"[배분설정] 종목 삭제: {ticker}");
                 }
@@ -164,7 +164,7 @@ namespace AutoInvest.Forms
 
         // ─── 수량 변경 시 금액 재계산 ───────────────────────
 
-        private void dgv_allocation_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        private void dgv_allocation_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
         {
             if (dgv_allocation.Columns[e.ColumnIndex].Name != "col_qty")
                 return;
@@ -224,7 +224,7 @@ namespace AutoInvest.Forms
 
         // ─── 가격 새로고침 ──────────────────────────────────
 
-        private async void btn_refresh_Click(object sender, EventArgs e)
+        private async void btn_refresh_Click(object? sender, EventArgs e)
         {
             try
             {
@@ -240,7 +240,7 @@ namespace AutoInvest.Forms
                 // 전 종목 가격 재조회
                 foreach (DataGridViewRow row in dgv_allocation.Rows)
                 {
-                    string ticker = row.Cells["col_ticker"].Value?.ToString();
+                    string? ticker = row.Cells["col_ticker"].Value?.ToString();
                     if (string.IsNullOrEmpty(ticker)) continue;
 
                     decimal priceUsd = await client.GetCurrentPriceAsync(ticker);
@@ -272,7 +272,7 @@ namespace AutoInvest.Forms
 
         // ─── 저장 ───────────────────────────────────────────
 
-        private void btn_save_Click(object sender, EventArgs e)
+        private void btn_save_Click(object? sender, EventArgs e)
         {
             if (dgv_allocation.Rows.Count == 0)
             {
@@ -287,7 +287,7 @@ namespace AutoInvest.Forms
 
             foreach (DataGridViewRow row in dgv_allocation.Rows)
             {
-                string ticker = row.Cells["col_ticker"].Value?.ToString();
+                string? ticker = row.Cells["col_ticker"].Value?.ToString();
                 string qtyStr = row.Cells["col_qty"].Value?.ToString() ?? "0";
                 int.TryParse(qtyStr, out int qty);
 
@@ -300,7 +300,7 @@ namespace AutoInvest.Forms
                 items.Add(new StrategyDto
                 {
                     StrategyName = "사용자정의",
-                    Ticker = ticker,
+                    Ticker = ticker ?? string.Empty,
                     Weight = qty  // Weight 필드에 수량을 저장
                 });
             }
@@ -345,7 +345,7 @@ namespace AutoInvest.Forms
             }
         }
 
-        private void btn_cancel_Click(object sender, EventArgs e)
+        private void btn_cancel_Click(object? sender, EventArgs e)
             => this.Close();
     }
 }

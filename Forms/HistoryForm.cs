@@ -1,4 +1,4 @@
-﻿using AutoInvest.Data.DAO;
+using AutoInvest.Data.DAO;
 using System;
 using System.Windows.Forms;
 
@@ -29,7 +29,7 @@ namespace AutoInvest.Forms
             }
         }
 
-        private void btn_refresh_Click(object sender, EventArgs e)
+        private void btn_refresh_Click(object? sender, EventArgs e)
             => LoadHistory();
     }
 }
