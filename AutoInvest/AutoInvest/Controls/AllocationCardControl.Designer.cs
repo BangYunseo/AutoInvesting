@@ -1,4 +1,4 @@
-﻿namespace AutoInvest.Controls
+namespace AutoInvest.Controls
 {
     partial class AllocationCardControl
     {
@@ -40,72 +40,77 @@
 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             //
-            // pnl_bar_bg
+            // pnl_bar_bg - 인라인 프로그레스 바
             //
-            this.pnl_bar_bg.BackColor = System.Drawing.Color.FromArgb(80, 80, 80);
+            this.pnl_bar_bg.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(70)))), ((int)(((byte)(70)))), ((int)(((byte)(70)))));
             this.pnl_bar_bg.Controls.Add(this.pnl_bar_fg);
-            this.pnl_bar_bg.Location = new System.Drawing.Point(12, 38);
+            this.pnl_bar_bg.Location = new System.Drawing.Point(90, 14);
             this.pnl_bar_bg.Name = "pnl_bar_bg";
-            this.pnl_bar_bg.Size = new System.Drawing.Size(176, 4);
+            this.pnl_bar_bg.Size = new System.Drawing.Size(100, 6);
             //
             // pnl_bar_fg
-            this.pnl_bar_fg.BackColor = System.Drawing.Color.FromArgb(24, 95, 165);
+            //
+            this.pnl_bar_fg.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(130)))), ((int)(((byte)(200)))));
             this.pnl_bar_fg.Location = new System.Drawing.Point(0, 0);
             this.pnl_bar_fg.Name = "pnl_bar_fg";
-            this.pnl_bar_fg.Size = new System.Drawing.Size(0, 4);
+            this.pnl_bar_fg.Size = new System.Drawing.Size(0, 6);
             //
             // lbl_ticker
             //
-            this.lbl_ticker.AutoSize = true;
-            this.lbl_ticker.Font = new System.Drawing.Font("맑은 고딕", 13f, System.Drawing.FontStyle.Bold);
-            this.lbl_ticker.ForeColor = System.Drawing.Color.White;
-            this.lbl_ticker.Location = new System.Drawing.Point(12, 10);
+            this.lbl_ticker.Font = new System.Drawing.Font("맑은 고딕", 10F, System.Drawing.FontStyle.Bold);
+            this.lbl_ticker.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
+            this.lbl_ticker.Location = new System.Drawing.Point(12, 6);
             this.lbl_ticker.Name = "lbl_ticker";
+            this.lbl_ticker.Size = new System.Drawing.Size(70, 22);
             this.lbl_ticker.Text = "TICKER";
+            this.lbl_ticker.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             //
-            // lbl_weight
+            // lbl_weight (숨김 - 바로 시각적 표현)
             //
-            this.lbl_weight.AutoSize = true;
-            this.lbl_weight.Font = new System.Drawing.Font("맑은 고딕", 9f);
-            this.lbl_weight.ForeColor = System.Drawing.Color.FromArgb(160, 160, 160);
-            this.lbl_weight.Location = new System.Drawing.Point(12, 48);
+            this.lbl_weight.Font = new System.Drawing.Font("맑은 고딕", 1F);
+            this.lbl_weight.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.lbl_weight.Location = new System.Drawing.Point(0, 0);
             this.lbl_weight.Name = "lbl_weight";
-            this.lbl_weight.Text = "0%";
+            this.lbl_weight.Size = new System.Drawing.Size(1, 1);
+            this.lbl_weight.Text = "";
+            this.lbl_weight.Visible = false;
             //
             // lbl_qty
             //
-            this.lbl_qty.AutoSize = true;
-            this.lbl_qty.Font = new System.Drawing.Font("맑은 고딕", 11f, System.Drawing.FontStyle.Bold);
-            this.lbl_qty.ForeColor = System.Drawing.Color.White;
-            this.lbl_qty.Location = new System.Drawing.Point(130, 10);
+            this.lbl_qty.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.lbl_qty.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
+            this.lbl_qty.Location = new System.Drawing.Point(220, 6);
             this.lbl_qty.Name = "lbl_qty";
+            this.lbl_qty.Size = new System.Drawing.Size(60, 22);
             this.lbl_qty.Text = "0주";
+            this.lbl_qty.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             //
             // lbl_amount
             //
-            this.lbl_amount.AutoSize = true;
-            this.lbl_amount.Font = new System.Drawing.Font("맑은 고딕", 9f);
-            this.lbl_amount.ForeColor = System.Drawing.Color.FromArgb(160, 160, 160);
-            this.lbl_amount.Location = new System.Drawing.Point(110, 70);
+            this.lbl_amount.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.lbl_amount.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
+            this.lbl_amount.Location = new System.Drawing.Point(290, 6);
             this.lbl_amount.Name = "lbl_amount";
+            this.lbl_amount.Size = new System.Drawing.Size(110, 22);
             this.lbl_amount.Text = "0원";
+            this.lbl_amount.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             //
             // AllocationCardControl
             //
-            this.BackColor = System.Drawing.Color.FromArgb(50, 50, 50);
+            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(45)))));
             this.Controls.AddRange(new System.Windows.Forms.Control[] {
                 this.lbl_ticker, 
                 this.pnl_bar_bg,
-                this.lbl_weight, 
                 this.lbl_qty, 
-                this.lbl_amount
+                this.lbl_amount,
+                this.lbl_weight
             });
+            this.Margin = new System.Windows.Forms.Padding(0, 2, 0, 2);
             this.Name = "AllocationCardControl";
-            this.Size = new System.Drawing.Size(200, 100);
+            this.Size = new System.Drawing.Size(408, 34);
 
             this.pnl_bar_bg.ResumeLayout(false);
             this.ResumeLayout(false);
-            this.PerformLayout();
         }
 
         private System.Windows.Forms.Label lbl_ticker;

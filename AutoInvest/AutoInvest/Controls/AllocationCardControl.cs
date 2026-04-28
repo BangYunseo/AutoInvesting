@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -23,11 +23,7 @@ namespace AutoInvest.Controls
             lbl_weight.Text = $"{weight:P0}";
             lbl_qty.Text = $"{qty}주";
             lbl_amount.Text = $"{amount:N0}원";
-            pnl_bar_fg.Width = (int)(176 * weight);
-
-            // 우측 정렬은 AutoSize 후 위치 보정
-            lbl_qty.Left = this.Width - lbl_qty.PreferredWidth - 12;
-            lbl_amount.Left = this.Width - lbl_amount.PreferredWidth - 12;
+            pnl_bar_fg.Width = (int)(100 * weight);
         }
     }
 }

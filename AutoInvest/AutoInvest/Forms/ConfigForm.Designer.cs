@@ -1,4 +1,4 @@
-﻿namespace AutoInvest.Forms
+namespace AutoInvest.Forms
 {
     partial class ConfigForm
     {
@@ -12,6 +12,7 @@
 
         private void InitializeComponent()
         {
+            this.lbl_title = new System.Windows.Forms.Label();
             this.lbl_amount = new System.Windows.Forms.Label();
             this.txt_amount = new System.Windows.Forms.TextBox();
             this.lbl_strategy = new System.Windows.Forms.Label();
@@ -24,80 +25,122 @@
             this.btn_cancel = new System.Windows.Forms.Button();
             this.SuspendLayout();
             //
+            // lbl_title
+            //
+            this.lbl_title.Font = new System.Drawing.Font("맑은 고딕", 14F, System.Drawing.FontStyle.Bold);
+            this.lbl_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
+            this.lbl_title.Location = new System.Drawing.Point(20, 15);
+            this.lbl_title.Name = "lbl_title";
+            this.lbl_title.Size = new System.Drawing.Size(200, 30);
+            this.lbl_title.Text = "환경 설정";
+            //
             // lbl_amount
             //
             this.lbl_amount.Text = "월 투자금액 (원)";
-            this.lbl_amount.Font = new System.Drawing.Font("맑은 고딕", 10f);
-            this.lbl_amount.Location = new System.Drawing.Point(30, 80);
+            this.lbl_amount.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.lbl_amount.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
+            this.lbl_amount.Location = new System.Drawing.Point(30, 65);
             this.lbl_amount.AutoSize = true;
             //
             // txt_amount
             //
-            this.txt_amount.Location = new System.Drawing.Point(30, 105);
-            this.txt_amount.Size = new System.Drawing.Size(300, 28);
-            this.txt_amount.Font = new System.Drawing.Font("맑은 고딕", 11f);
+            this.txt_amount.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(55)))), ((int)(((byte)(71)))), ((int)(((byte)(79)))));
+            this.txt_amount.ForeColor = System.Drawing.Color.White;
+            this.txt_amount.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.txt_amount.Location = new System.Drawing.Point(30, 90);
+            this.txt_amount.Size = new System.Drawing.Size(300, 27);
+            this.txt_amount.Font = new System.Drawing.Font("맑은 고딕", 11F);
             //
             // lbl_strategy
             //
             this.lbl_strategy.Text = "투자 전략";
-            this.lbl_strategy.Font = new System.Drawing.Font("맑은 고딕", 10f);
-            this.lbl_strategy.Location = new System.Drawing.Point(30, 155);
+            this.lbl_strategy.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.lbl_strategy.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
+            this.lbl_strategy.Location = new System.Drawing.Point(30, 135);
             this.lbl_strategy.AutoSize = true;
             //
             // rdb_balanced
             //
             this.rdb_balanced.Text = "안정형";
-            this.rdb_balanced.Font = new System.Drawing.Font("맑은 고딕", 10f);
-            this.rdb_balanced.Location = new System.Drawing.Point(30, 180);
+            this.rdb_balanced.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.rdb_balanced.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
+            this.rdb_balanced.Location = new System.Drawing.Point(30, 160);
             this.rdb_balanced.AutoSize = true;
             //
             // rdb_aggressive
             //
             this.rdb_aggressive.Text = "공격형";
-            this.rdb_aggressive.Font = new System.Drawing.Font("맑은 고딕", 10f);
-            this.rdb_aggressive.Location = new System.Drawing.Point(30, 210);
+            this.rdb_aggressive.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.rdb_aggressive.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
+            this.rdb_aggressive.Location = new System.Drawing.Point(30, 190);
             this.rdb_aggressive.AutoSize = true;
             //
             // lbl_schedule
             //
             this.lbl_schedule.Text = "자동 주문 시각 (HH:mm)";
-            this.lbl_schedule.Font = new System.Drawing.Font("맑은 고딕", 10f);
-            this.lbl_schedule.Location = new System.Drawing.Point(30, 260);
+            this.lbl_schedule.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.lbl_schedule.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
+            this.lbl_schedule.Location = new System.Drawing.Point(30, 235);
             this.lbl_schedule.AutoSize = true;
             //
             // txt_schedule
             //
-            this.txt_schedule.Location = new System.Drawing.Point(30, 285);
-            this.txt_schedule.Size = new System.Drawing.Size(120, 28);
-            this.txt_schedule.Font = new System.Drawing.Font("맑은 고딕", 11f);
+            this.txt_schedule.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(55)))), ((int)(((byte)(71)))), ((int)(((byte)(79)))));
+            this.txt_schedule.ForeColor = System.Drawing.Color.White;
+            this.txt_schedule.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.txt_schedule.Location = new System.Drawing.Point(30, 260);
+            this.txt_schedule.Size = new System.Drawing.Size(120, 27);
+            this.txt_schedule.Font = new System.Drawing.Font("맑은 고딕", 11F);
             //
             // chk_paper
             //
             this.chk_paper.Text = "모의투자 모드 (체크 해제 시 실거래)";
-            this.chk_paper.Font = new System.Drawing.Font("맑은 고딕", 10f);
-            this.chk_paper.Location = new System.Drawing.Point(30, 335);
+            this.chk_paper.Font = new System.Drawing.Font("맑은 고딕", 10F);
+            this.chk_paper.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
+            this.chk_paper.Location = new System.Drawing.Point(30, 310);
             this.chk_paper.AutoSize = true;
             //
             // btn_save
             //
             this.btn_save.Text = "저장";
-            this.btn_save.Location = new System.Drawing.Point(30, 390);
-            this.btn_save.Size = new System.Drawing.Size(120, 36);
+            this.btn_save.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(150)))), ((int)(((byte)(136)))));
+            this.btn_save.ForeColor = System.Drawing.Color.White;
+            this.btn_save.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btn_save.FlatAppearance.BorderSize = 0;
+            this.btn_save.Font = new System.Drawing.Font("맑은 고딕", 11F, System.Drawing.FontStyle.Bold);
+            this.btn_save.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btn_save.Location = new System.Drawing.Point(30, 365);
+            this.btn_save.Size = new System.Drawing.Size(140, 36);
+            this.btn_save.UseVisualStyleBackColor = false;
             this.btn_save.Click += new System.EventHandler(this.btn_save_Click);
             //
             // btn_cancel
             //
             this.btn_cancel.Text = "취소";
-            this.btn_cancel.Location = new System.Drawing.Point(165, 390);
-            this.btn_cancel.Size = new System.Drawing.Size(120, 36);
+            this.btn_cancel.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(55)))), ((int)(((byte)(71)))), ((int)(((byte)(79)))));
+            this.btn_cancel.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
+            this.btn_cancel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btn_cancel.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(80)))), ((int)(((byte)(100)))), ((int)(((byte)(110)))));
+            this.btn_cancel.FlatAppearance.BorderSize = 1;
+            this.btn_cancel.Font = new System.Drawing.Font("맑은 고딕", 11F);
+            this.btn_cancel.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btn_cancel.Location = new System.Drawing.Point(185, 365);
+            this.btn_cancel.Size = new System.Drawing.Size(140, 36);
+            this.btn_cancel.UseVisualStyleBackColor = false;
             this.btn_cancel.Click += new System.EventHandler(this.btn_cancel_Click);
             //
             // ConfigForm
             //
-            this.ClientSize = new System.Drawing.Size(400, 460);
-            this.MinimumSize = new System.Drawing.Size(400, 460);
+            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
+            this.ClientSize = new System.Drawing.Size(400, 430);
+            this.MinimumSize = new System.Drawing.Size(400, 430);
             this.Text = "환경 설정";
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Controls.AddRange(new System.Windows.Forms.Control[] {
+                this.lbl_title,
                 this.lbl_amount, 
                 this.txt_amount,
                 this.lbl_strategy, 
@@ -114,6 +157,7 @@
             this.PerformLayout();
         }
 
+        private System.Windows.Forms.Label lbl_title;
         private System.Windows.Forms.Label lbl_amount;
         private System.Windows.Forms.TextBox txt_amount;
         private System.Windows.Forms.Label lbl_strategy;

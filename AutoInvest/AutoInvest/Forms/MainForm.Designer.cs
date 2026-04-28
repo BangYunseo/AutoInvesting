@@ -1,4 +1,4 @@
-﻿namespace AutoInvest.Forms
+namespace AutoInvest.Forms
 {
     partial class MainForm
     {
@@ -58,10 +58,10 @@
             this.lbl_log_title = new System.Windows.Forms.Label();
             this.lbx_log = new System.Windows.Forms.ListBox();
             this.pnl_btmbar = new System.Windows.Forms.Panel();
+            this.btn_reservation = new System.Windows.Forms.Button();
+            this.btn_order = new System.Windows.Forms.Button();
             this.pnl_topbar = new System.Windows.Forms.Panel();
             this.btn_login = new System.Windows.Forms.Button();
-            this.btn_order = new System.Windows.Forms.Button();
-            this.btn_reservation = new System.Windows.Forms.Button();
             this.cms_tool.SuspendLayout();
             this.pnl_sidebar.SuspendLayout();
             this.pnl_card1.SuspendLayout();
@@ -100,7 +100,7 @@
             this.pnl_sidebar.Controls.Add(this.btn_config);
             this.pnl_sidebar.Controls.Add(this.btn_log);
             this.pnl_sidebar.Location = new System.Drawing.Point(0, 0);
-            this.pnl_sidebar.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.pnl_sidebar.Margin = new System.Windows.Forms.Padding(2);
             this.pnl_sidebar.Name = "pnl_sidebar";
             this.pnl_sidebar.Size = new System.Drawing.Size(160, 660);
             this.pnl_sidebar.TabIndex = 1;
@@ -126,8 +126,8 @@
             this.btn_dashboard.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_dashboard.Font = new System.Drawing.Font("맑은 고딕", 12F);
             this.btn_dashboard.ForeColor = System.Drawing.Color.White;
-            this.btn_dashboard.Location = new System.Drawing.Point(0, 40);
-            this.btn_dashboard.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.btn_dashboard.Location = new System.Drawing.Point(0, 50);
+            this.btn_dashboard.Margin = new System.Windows.Forms.Padding(2);
             this.btn_dashboard.Name = "btn_dashboard";
             this.btn_dashboard.Size = new System.Drawing.Size(160, 35);
             this.btn_dashboard.TabIndex = 1;
@@ -145,7 +145,7 @@
             this.btn_allocation.Font = new System.Drawing.Font("맑은 고딕", 12F);
             this.btn_allocation.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
             this.btn_allocation.Location = new System.Drawing.Point(0, 90);
-            this.btn_allocation.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.btn_allocation.Margin = new System.Windows.Forms.Padding(2);
             this.btn_allocation.Name = "btn_allocation";
             this.btn_allocation.Size = new System.Drawing.Size(160, 35);
             this.btn_allocation.TabIndex = 2;
@@ -162,8 +162,8 @@
             this.btn_history.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_history.Font = new System.Drawing.Font("맑은 고딕", 12F);
             this.btn_history.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
-            this.btn_history.Location = new System.Drawing.Point(0, 140);
-            this.btn_history.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.btn_history.Location = new System.Drawing.Point(0, 130);
+            this.btn_history.Margin = new System.Windows.Forms.Padding(2);
             this.btn_history.Name = "btn_history";
             this.btn_history.Size = new System.Drawing.Size(160, 35);
             this.btn_history.TabIndex = 3;
@@ -193,7 +193,7 @@
             this.btn_config.Font = new System.Drawing.Font("맑은 고딕", 12F);
             this.btn_config.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
             this.btn_config.Location = new System.Drawing.Point(0, 230);
-            this.btn_config.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.btn_config.Margin = new System.Windows.Forms.Padding(2);
             this.btn_config.Name = "btn_config";
             this.btn_config.Size = new System.Drawing.Size(160, 35);
             this.btn_config.TabIndex = 5;
@@ -210,8 +210,8 @@
             this.btn_log.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_log.Font = new System.Drawing.Font("맑은 고딕", 12F);
             this.btn_log.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
-            this.btn_log.Location = new System.Drawing.Point(0, 280);
-            this.btn_log.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.btn_log.Location = new System.Drawing.Point(0, 270);
+            this.btn_log.Margin = new System.Windows.Forms.Padding(2);
             this.btn_log.Name = "btn_log";
             this.btn_log.Size = new System.Drawing.Size(160, 35);
             this.btn_log.TabIndex = 6;
@@ -221,12 +221,12 @@
             // 
             // pnl_card1
             // 
-            this.pnl_card1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(245)))), ((int)(((byte)(245)))), ((int)(((byte)(245)))));
-            this.pnl_card1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.pnl_card1.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.pnl_card1.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.pnl_card1.Controls.Add(this.lbl_card1_title);
             this.pnl_card1.Controls.Add(this.lbl_card1_value);
             this.pnl_card1.Location = new System.Drawing.Point(191, 70);
-            this.pnl_card1.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.pnl_card1.Margin = new System.Windows.Forms.Padding(2);
             this.pnl_card1.Name = "pnl_card1";
             this.pnl_card1.Size = new System.Drawing.Size(137, 101);
             this.pnl_card1.TabIndex = 2;
@@ -235,7 +235,7 @@
             // 
             this.lbl_card1_title.AutoSize = true;
             this.lbl_card1_title.Font = new System.Drawing.Font("맑은 고딕", 9F);
-            this.lbl_card1_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(120)))), ((int)(((byte)(120)))), ((int)(((byte)(120)))));
+            this.lbl_card1_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(170)))), ((int)(((byte)(180)))));
             this.lbl_card1_title.Location = new System.Drawing.Point(8, 8);
             this.lbl_card1_title.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_card1_title.Name = "lbl_card1_title";
@@ -247,7 +247,7 @@
             // 
             this.lbl_card1_value.AutoSize = true;
             this.lbl_card1_value.Font = new System.Drawing.Font("맑은 고딕", 15F, System.Drawing.FontStyle.Bold);
-            this.lbl_card1_value.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
+            this.lbl_card1_value.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
             this.lbl_card1_value.Location = new System.Drawing.Point(8, 25);
             this.lbl_card1_value.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_card1_value.Name = "lbl_card1_value";
@@ -257,12 +257,12 @@
             // 
             // pnl_card2
             // 
-            this.pnl_card2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(245)))), ((int)(((byte)(245)))), ((int)(((byte)(245)))));
-            this.pnl_card2.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.pnl_card2.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.pnl_card2.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.pnl_card2.Controls.Add(this.lbl_card2_title);
             this.pnl_card2.Controls.Add(this.lbl_card2_value);
             this.pnl_card2.Location = new System.Drawing.Point(361, 70);
-            this.pnl_card2.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.pnl_card2.Margin = new System.Windows.Forms.Padding(2);
             this.pnl_card2.Name = "pnl_card2";
             this.pnl_card2.Size = new System.Drawing.Size(137, 101);
             this.pnl_card2.TabIndex = 3;
@@ -271,7 +271,7 @@
             // 
             this.lbl_card2_title.AutoSize = true;
             this.lbl_card2_title.Font = new System.Drawing.Font("맑은 고딕", 9F);
-            this.lbl_card2_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(120)))), ((int)(((byte)(120)))), ((int)(((byte)(120)))));
+            this.lbl_card2_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(170)))), ((int)(((byte)(180)))));
             this.lbl_card2_title.Location = new System.Drawing.Point(8, 8);
             this.lbl_card2_title.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_card2_title.Name = "lbl_card2_title";
@@ -283,7 +283,7 @@
             // 
             this.lbl_card2_value.AutoSize = true;
             this.lbl_card2_value.Font = new System.Drawing.Font("맑은 고딕", 15F, System.Drawing.FontStyle.Bold);
-            this.lbl_card2_value.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
+            this.lbl_card2_value.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
             this.lbl_card2_value.Location = new System.Drawing.Point(8, 25);
             this.lbl_card2_value.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_card2_value.Name = "lbl_card2_value";
@@ -293,12 +293,12 @@
             // 
             // pnl_card3
             // 
-            this.pnl_card3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(245)))), ((int)(((byte)(245)))), ((int)(((byte)(245)))));
-            this.pnl_card3.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.pnl_card3.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.pnl_card3.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.pnl_card3.Controls.Add(this.lbl_card3_title);
             this.pnl_card3.Controls.Add(this.lbl_card3_value);
             this.pnl_card3.Location = new System.Drawing.Point(531, 70);
-            this.pnl_card3.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.pnl_card3.Margin = new System.Windows.Forms.Padding(2);
             this.pnl_card3.Name = "pnl_card3";
             this.pnl_card3.Size = new System.Drawing.Size(137, 101);
             this.pnl_card3.TabIndex = 4;
@@ -307,7 +307,7 @@
             // 
             this.lbl_card3_title.AutoSize = true;
             this.lbl_card3_title.Font = new System.Drawing.Font("맑은 고딕", 9F);
-            this.lbl_card3_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(120)))), ((int)(((byte)(120)))), ((int)(((byte)(120)))));
+            this.lbl_card3_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(170)))), ((int)(((byte)(180)))));
             this.lbl_card3_title.Location = new System.Drawing.Point(8, 8);
             this.lbl_card3_title.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_card3_title.Name = "lbl_card3_title";
@@ -319,7 +319,7 @@
             // 
             this.lbl_card3_value.AutoSize = true;
             this.lbl_card3_value.Font = new System.Drawing.Font("맑은 고딕", 11F, System.Drawing.FontStyle.Bold);
-            this.lbl_card3_value.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(33)))), ((int)(((byte)(33)))), ((int)(((byte)(33)))));
+            this.lbl_card3_value.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(230)))), ((int)(((byte)(230)))));
             this.lbl_card3_value.Location = new System.Drawing.Point(8, 24);
             this.lbl_card3_value.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_card3_value.Name = "lbl_card3_value";
@@ -329,12 +329,12 @@
             // 
             // pnl_card4
             // 
-            this.pnl_card4.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(245)))), ((int)(((byte)(245)))), ((int)(((byte)(245)))));
-            this.pnl_card4.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.pnl_card4.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
+            this.pnl_card4.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.pnl_card4.Controls.Add(this.lbl_card4_title);
             this.pnl_card4.Controls.Add(this.lbl_card4_value);
             this.pnl_card4.Location = new System.Drawing.Point(701, 70);
-            this.pnl_card4.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.pnl_card4.Margin = new System.Windows.Forms.Padding(2);
             this.pnl_card4.Name = "pnl_card4";
             this.pnl_card4.Size = new System.Drawing.Size(137, 101);
             this.pnl_card4.TabIndex = 5;
@@ -343,7 +343,7 @@
             // 
             this.lbl_card4_title.AutoSize = true;
             this.lbl_card4_title.Font = new System.Drawing.Font("맑은 고딕", 9F);
-            this.lbl_card4_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(120)))), ((int)(((byte)(120)))), ((int)(((byte)(120)))));
+            this.lbl_card4_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(160)))), ((int)(((byte)(170)))), ((int)(((byte)(180)))));
             this.lbl_card4_title.Location = new System.Drawing.Point(8, 8);
             this.lbl_card4_title.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_card4_title.Name = "lbl_card4_title";
@@ -365,19 +365,19 @@
             // 
             // pnl_alloc_header
             // 
-            this.pnl_alloc_header.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(236)))), ((int)(((byte)(239)))), ((int)(((byte)(241)))));
+            this.pnl_alloc_header.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.pnl_alloc_header.Controls.Add(this.lbl_alloc_title);
             this.pnl_alloc_header.Location = new System.Drawing.Point(180, 185);
-            this.pnl_alloc_header.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.pnl_alloc_header.Margin = new System.Windows.Forms.Padding(2);
             this.pnl_alloc_header.Name = "pnl_alloc_header";
-            this.pnl_alloc_header.Size = new System.Drawing.Size(670, 30);
+            this.pnl_alloc_header.Size = new System.Drawing.Size(420, 30);
             this.pnl_alloc_header.TabIndex = 6;
             // 
             // lbl_alloc_title
             // 
             this.lbl_alloc_title.AutoSize = true;
             this.lbl_alloc_title.Font = new System.Drawing.Font("맑은 고딕", 9F, System.Drawing.FontStyle.Bold);
-            this.lbl_alloc_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.lbl_alloc_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.lbl_alloc_title.Location = new System.Drawing.Point(7, 5);
             this.lbl_alloc_title.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_alloc_title.Name = "lbl_alloc_title";
@@ -387,29 +387,30 @@
             // 
             // flp_allocation
             // 
-            this.flp_allocation.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(250)))), ((int)(((byte)(250)))), ((int)(((byte)(250)))));
+            this.flp_allocation.AutoScroll = true;
+            this.flp_allocation.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
             this.flp_allocation.Location = new System.Drawing.Point(180, 215);
-            this.flp_allocation.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.flp_allocation.Margin = new System.Windows.Forms.Padding(2);
             this.flp_allocation.Name = "flp_allocation";
-            this.flp_allocation.Padding = new System.Windows.Forms.Padding(6, 5, 6, 5);
-            this.flp_allocation.Size = new System.Drawing.Size(670, 100);
+            this.flp_allocation.Padding = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.flp_allocation.Size = new System.Drawing.Size(420, 345);
             this.flp_allocation.TabIndex = 7;
             // 
             // pnl_log_header
             // 
-            this.pnl_log_header.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(236)))), ((int)(((byte)(239)))), ((int)(((byte)(241)))));
+            this.pnl_log_header.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(50)))));
             this.pnl_log_header.Controls.Add(this.lbl_log_title);
-            this.pnl_log_header.Location = new System.Drawing.Point(180, 330);
-            this.pnl_log_header.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.pnl_log_header.Location = new System.Drawing.Point(610, 185);
+            this.pnl_log_header.Margin = new System.Windows.Forms.Padding(2);
             this.pnl_log_header.Name = "pnl_log_header";
-            this.pnl_log_header.Size = new System.Drawing.Size(670, 30);
+            this.pnl_log_header.Size = new System.Drawing.Size(240, 30);
             this.pnl_log_header.TabIndex = 8;
             // 
             // lbl_log_title
             // 
             this.lbl_log_title.AutoSize = true;
             this.lbl_log_title.Font = new System.Drawing.Font("맑은 고딕", 9F, System.Drawing.FontStyle.Bold);
-            this.lbl_log_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(60)))));
+            this.lbl_log_title.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.lbl_log_title.Location = new System.Drawing.Point(7, 5);
             this.lbl_log_title.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_log_title.Name = "lbl_log_title";
@@ -419,15 +420,18 @@
             // 
             // lbx_log
             // 
+            this.lbx_log.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(40)))), ((int)(((byte)(40)))), ((int)(((byte)(40)))));
+            this.lbx_log.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(200)))), ((int)(((byte)(200)))), ((int)(((byte)(200)))));
             this.lbx_log.ContextMenuStrip = this.cms_tool;
+            this.lbx_log.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.lbx_log.FormattingEnabled = true;
             this.lbx_log.HorizontalScrollbar = true;
             this.lbx_log.ItemHeight = 12;
-            this.lbx_log.Location = new System.Drawing.Point(180, 360);
-            this.lbx_log.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.lbx_log.Location = new System.Drawing.Point(610, 215);
+            this.lbx_log.Margin = new System.Windows.Forms.Padding(2);
             this.lbx_log.Name = "lbx_log";
             this.lbx_log.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
-            this.lbx_log.Size = new System.Drawing.Size(670, 196);
+            this.lbx_log.Size = new System.Drawing.Size(240, 345);
             this.lbx_log.TabIndex = 9;
             // 
             // pnl_btmbar
@@ -440,50 +444,6 @@
             this.pnl_btmbar.Name = "pnl_btmbar";
             this.pnl_btmbar.Size = new System.Drawing.Size(725, 80);
             this.pnl_btmbar.TabIndex = 7;
-            // 
-            // pnl_topbar
-            // 
-            this.pnl_topbar.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(38)))), ((int)(((byte)(50)))), ((int)(((byte)(56)))));
-            this.pnl_topbar.Controls.Add(this.btn_login);
-            this.pnl_topbar.Location = new System.Drawing.Point(160, 0);
-            this.pnl_topbar.Margin = new System.Windows.Forms.Padding(2);
-            this.pnl_topbar.Name = "pnl_topbar";
-            this.pnl_topbar.Size = new System.Drawing.Size(725, 56);
-            this.pnl_topbar.TabIndex = 7;
-            // 
-            // btn_login
-            // 
-            this.btn_login.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
-            this.btn_login.Cursor = System.Windows.Forms.Cursors.Hand;
-            this.btn_login.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
-            this.btn_login.FlatAppearance.BorderSize = 0;
-            this.btn_login.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btn_login.Font = new System.Drawing.Font("맑은 고딕", 11F);
-            this.btn_login.ForeColor = System.Drawing.Color.White;
-            this.btn_login.Location = new System.Drawing.Point(636, 11);
-            this.btn_login.Margin = new System.Windows.Forms.Padding(2);
-            this.btn_login.Name = "btn_login";
-            this.btn_login.Size = new System.Drawing.Size(70, 30);
-            this.btn_login.TabIndex = 1;
-            this.btn_login.Text = "로그인";
-            this.btn_login.UseVisualStyleBackColor = false;
-            // 
-            // btn_order
-            // 
-            this.btn_order.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
-            this.btn_order.Cursor = System.Windows.Forms.Cursors.Hand;
-            this.btn_order.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
-            this.btn_order.FlatAppearance.BorderSize = 0;
-            this.btn_order.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btn_order.Font = new System.Drawing.Font("맑은 고딕", 11F);
-            this.btn_order.ForeColor = System.Drawing.Color.White;
-            this.btn_order.Location = new System.Drawing.Point(600, 25);
-            this.btn_order.Margin = new System.Windows.Forms.Padding(2);
-            this.btn_order.Name = "btn_order";
-            this.btn_order.Size = new System.Drawing.Size(100, 30);
-            this.btn_order.TabIndex = 2;
-            this.btn_order.Text = "즉시 주문";
-            this.btn_order.UseVisualStyleBackColor = false;
             // 
             // btn_reservation
             // 
@@ -502,10 +462,55 @@
             this.btn_reservation.Text = "예약 주문";
             this.btn_reservation.UseVisualStyleBackColor = false;
             // 
+            // btn_order
+            // 
+            this.btn_order.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
+            this.btn_order.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btn_order.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
+            this.btn_order.FlatAppearance.BorderSize = 0;
+            this.btn_order.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btn_order.Font = new System.Drawing.Font("맑은 고딕", 11F);
+            this.btn_order.ForeColor = System.Drawing.Color.White;
+            this.btn_order.Location = new System.Drawing.Point(600, 25);
+            this.btn_order.Margin = new System.Windows.Forms.Padding(2);
+            this.btn_order.Name = "btn_order";
+            this.btn_order.Size = new System.Drawing.Size(100, 30);
+            this.btn_order.TabIndex = 2;
+            this.btn_order.Text = "즉시 주문";
+            this.btn_order.UseVisualStyleBackColor = false;
+            // 
+            // pnl_topbar
+            // 
+            this.pnl_topbar.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(38)))), ((int)(((byte)(50)))), ((int)(((byte)(56)))));
+            this.pnl_topbar.Controls.Add(this.btn_login);
+            this.pnl_topbar.Location = new System.Drawing.Point(160, 0);
+            this.pnl_topbar.Margin = new System.Windows.Forms.Padding(2);
+            this.pnl_topbar.Name = "pnl_topbar";
+            this.pnl_topbar.Size = new System.Drawing.Size(725, 50);
+            this.pnl_topbar.TabIndex = 7;
+            // 
+            // btn_login
+            // 
+            this.btn_login.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
+            this.btn_login.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btn_login.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(80)))), ((int)(((byte)(90)))));
+            this.btn_login.FlatAppearance.BorderSize = 0;
+            this.btn_login.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btn_login.Font = new System.Drawing.Font("맑은 고딕", 11F);
+            this.btn_login.ForeColor = System.Drawing.Color.White;
+            this.btn_login.Location = new System.Drawing.Point(630, 10);
+            this.btn_login.Margin = new System.Windows.Forms.Padding(2);
+            this.btn_login.Name = "btn_login";
+            this.btn_login.Size = new System.Drawing.Size(70, 30);
+            this.btn_login.TabIndex = 1;
+            this.btn_login.Text = "로그인";
+            this.btn_login.UseVisualStyleBackColor = false;
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.ClientSize = new System.Drawing.Size(884, 661);
             this.Controls.Add(this.pnl_topbar);
             this.Controls.Add(this.pnl_btmbar);
@@ -518,7 +523,7 @@
             this.Controls.Add(this.flp_allocation);
             this.Controls.Add(this.pnl_log_header);
             this.Controls.Add(this.lbx_log);
-            this.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.Margin = new System.Windows.Forms.Padding(2);
             this.MinimumSize = new System.Drawing.Size(900, 700);
             this.Name = "MainForm";
             this.Text = "Auto Investing";
