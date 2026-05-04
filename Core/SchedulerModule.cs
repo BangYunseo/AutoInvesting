@@ -1,3 +1,4 @@
+using AutoInvest.Core.Quant;
 using AutoInvest.Data;
 using AutoInvest.Data.DAO;
 using AutoInvest.Utils;
@@ -7,8 +8,9 @@ using System.Timers;
 namespace AutoInvest.Core
 {
     /// <summary>
-    /// 예약 주문 스케줄러.
+    /// 예약 주문 스케줄러 (Phase 2.5 — 퀀트 + 리밸런싱 통합).
     /// 설정된 시각(ORDER_SCHEDULE)에 도달하면 SmartOrderEngine을 실행합니다.
+    /// 리밸런싱 주기가 도래한 경우 RebalancingEngine도 실행합니다.
     /// 1분 간격으로 현재 시각을 확인하며, 당일 중복 실행을 방지합니다.
     /// </summary>
     public class SchedulerModule : IDisposable
@@ -93,12 +95,25 @@ namespace AutoInvest.Core
                 var amountStr = AppConfigManager.Get("INVEST_AMOUNT_KRW", "1000000");
                 decimal investAmount = decimal.Parse(amountStr);
 
-                // 스마트 주문 실행
+                // ── 스마트 주문 실행 (퀀트 조건 판단 포함) ──
                 var engine = new SmartOrderEngine(client);
                 var results = await engine.ExecuteSmartOrdersAsync(strategies, investAmount);
 
                 var summary = $"전략={strategyName}, 분석 {results.Count}건 완료";
                 Logger.Info($"[Scheduler] ✔ 예약 주문 완료 — {summary}");
+
+                // ── 리밸런싱 주기 확인 + 실행 ──
+                if (RebalancingEngine.IsDue())
+                {
+                    Logger.Info("[Scheduler] ▶ 리밸런싱 주기 도래 — 리밸런싱 실행 시작");
+                    var thresholdStr = AppConfigManager.Get("REBALANCE_THRESHOLD", "0.05");
+                    decimal threshold = decimal.Parse(thresholdStr);
+                    var rebalancer = new RebalancingEngine(client, threshold);
+                    var rebalOrders = await rebalancer.ExecuteAsync(strategies);
+                    summary += $", 리밸런싱 {rebalOrders.Count}건";
+                    Logger.Info($"[Scheduler] ✔ 리밸런싱 완료 — {rebalOrders.Count}건 조정");
+                }
+
                 OnOrderExecuted?.Invoke(summary);
             }
             catch (Exception ex)

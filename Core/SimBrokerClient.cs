@@ -2,6 +2,7 @@ using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace AutoInvest.Core
@@ -16,7 +17,10 @@ namespace AutoInvest.Core
     /// </summary>
     public class SimBrokerClient : IBrokerClient
     {
+        // 로그인 상태 여부
         private bool _isLoggedIn;
+
+        // 가상 시세 생성을 위한 난수 생성기
         private readonly Random _rng = new Random();
 
         /// <summary>
@@ -90,6 +94,43 @@ namespace AutoInvest.Core
             return Task.FromResult(list);
         }
 
+        /// <summary>
+        /// 가상 OHLCV 일봉 데이터 생성.
+        /// 기준가를 중심으로 현실적인 랜덤 워크(Random Walk)를 시뮬레이션합니다.
+        /// </summary>
+        public Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days)
+        {
+            var result = new List<OhlcvDto>();
+            decimal basePrice = GetBasePrice(ticker);
+            decimal price = basePrice * 0.95m; // 과거 시작점은 현재보다 약간 낮게
+
+            for (int i = days; i >= 1; i--)
+            {
+                // 일일 변동률: -2% ~ +2% 랜덤
+                decimal dailyChange = (decimal)(_rng.NextDouble() * 0.04 - 0.02);
+                price = Math.Max(price * 0.80m, price * (1 + dailyChange)); // 최소 80% 바닥
+                price = Math.Round(price, 2);
+
+                decimal dayHigh = Math.Round(price * (1 + (decimal)(_rng.NextDouble() * 0.015)), 2);
+                decimal dayLow = Math.Round(price * (1 - (decimal)(_rng.NextDouble() * 0.015)), 2);
+                decimal dayOpen = Math.Round(dayLow + (dayHigh - dayLow) * (decimal)_rng.NextDouble(), 2);
+                long volume = _rng.Next(500_000, 5_000_000);
+
+                result.Add(new OhlcvDto
+                {
+                    Date = DateTime.Today.AddDays(-i),
+                    Open = dayOpen,
+                    High = dayHigh,
+                    Low = dayLow,
+                    Close = price,
+                    Volume = volume
+                });
+            }
+
+            Logger.Info($"[SimBroker] OHLCV 조회: {ticker} {days}일치 ({result.Count}건)");
+            return Task.FromResult(result);
+        }
+
         public Task<string> PlaceBuyOrderAsync(string ticker, int qty, decimal price)
         {
             string orderNo = Guid.NewGuid().ToString("N").Substring(0, 12).ToUpper();
@@ -136,3 +177,4 @@ namespace AutoInvest.Core
         }
     }
 }
+

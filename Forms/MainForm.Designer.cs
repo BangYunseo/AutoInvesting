@@ -36,6 +36,7 @@ namespace AutoInvest.Forms
             this.btn_dashboard = new System.Windows.Forms.Button();
             this.btn_allocation = new System.Windows.Forms.Button();
             this.btn_history = new System.Windows.Forms.Button();
+            this.btn_backtest = new System.Windows.Forms.Button();
             this.lbl_system_section = new System.Windows.Forms.Label();
             this.btn_config = new System.Windows.Forms.Button();
             this.btn_log = new System.Windows.Forms.Button();
@@ -96,6 +97,7 @@ namespace AutoInvest.Forms
             this.pnl_sidebar.Controls.Add(this.btn_dashboard);
             this.pnl_sidebar.Controls.Add(this.btn_allocation);
             this.pnl_sidebar.Controls.Add(this.btn_history);
+            this.pnl_sidebar.Controls.Add(this.btn_backtest);
             this.pnl_sidebar.Controls.Add(this.lbl_system_section);
             this.pnl_sidebar.Controls.Add(this.btn_config);
             this.pnl_sidebar.Controls.Add(this.btn_log);
@@ -171,12 +173,30 @@ namespace AutoInvest.Forms
             this.btn_history.UseVisualStyleBackColor = false;
             this.btn_history.Click += new System.EventHandler(this.btn_history_Click);
             // 
+            // btn_backtest
+            // 
+            this.btn_backtest.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(38)))), ((int)(((byte)(50)))), ((int)(((byte)(56)))));
+            this.btn_backtest.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btn_backtest.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(38)))), ((int)(((byte)(50)))), ((int)(((byte)(56)))));
+            this.btn_backtest.FlatAppearance.BorderSize = 0;
+            this.btn_backtest.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btn_backtest.Font = new System.Drawing.Font("맑은 고딕", 12F);
+            this.btn_backtest.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
+            this.btn_backtest.Location = new System.Drawing.Point(0, 170);
+            this.btn_backtest.Margin = new System.Windows.Forms.Padding(2);
+            this.btn_backtest.Name = "btn_backtest";
+            this.btn_backtest.Size = new System.Drawing.Size(160, 35);
+            this.btn_backtest.TabIndex = 7;
+            this.btn_backtest.Text = "백테스팅";
+            this.btn_backtest.UseVisualStyleBackColor = false;
+            this.btn_backtest.Click += new System.EventHandler(this.btn_backtest_Click);
+            // 
             // lbl_system_section
             // 
             this.lbl_system_section.AutoSize = true;
             this.lbl_system_section.Font = new System.Drawing.Font("맑은 고딕", 10F);
             this.lbl_system_section.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(140)))), ((int)(((byte)(160)))), ((int)(((byte)(170)))));
-            this.lbl_system_section.Location = new System.Drawing.Point(10, 200);
+            this.lbl_system_section.Location = new System.Drawing.Point(10, 240);
             this.lbl_system_section.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lbl_system_section.Name = "lbl_system_section";
             this.lbl_system_section.Size = new System.Drawing.Size(51, 19);
@@ -192,7 +212,7 @@ namespace AutoInvest.Forms
             this.btn_config.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_config.Font = new System.Drawing.Font("맑은 고딕", 12F);
             this.btn_config.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
-            this.btn_config.Location = new System.Drawing.Point(0, 230);
+            this.btn_config.Location = new System.Drawing.Point(0, 270);
             this.btn_config.Margin = new System.Windows.Forms.Padding(2);
             this.btn_config.Name = "btn_config";
             this.btn_config.Size = new System.Drawing.Size(160, 35);
@@ -210,7 +230,7 @@ namespace AutoInvest.Forms
             this.btn_log.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_log.Font = new System.Drawing.Font("맑은 고딕", 12F);
             this.btn_log.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(200)))), ((int)(((byte)(210)))));
-            this.btn_log.Location = new System.Drawing.Point(0, 270);
+            this.btn_log.Location = new System.Drawing.Point(0, 310);
             this.btn_log.Margin = new System.Windows.Forms.Padding(2);
             this.btn_log.Name = "btn_log";
             this.btn_log.Size = new System.Drawing.Size(160, 35);
@@ -586,5 +606,6 @@ namespace AutoInvest.Forms
         private System.Windows.Forms.Button btn_login;
         private System.Windows.Forms.Button btn_order;
         private System.Windows.Forms.Button btn_reservation;
+        private System.Windows.Forms.Button btn_backtest;
     }
 }

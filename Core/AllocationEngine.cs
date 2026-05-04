@@ -7,11 +7,20 @@ namespace AutoInvest.Core
 {
     public class AllocationResult
     {
+        // 종목 코드 (예: QQQM)
         public string Ticker { get; set; } = string.Empty;
+        
+        // 목표 비중 (0.0 ~ 1.0)
         public decimal Weight { get; set; }
-        public decimal Price { get; set; } // 현재가 (원화 환산)
-        public int Qty { get; set; } // 매수 수량
-        public decimal Amount { get; set; } // 실제 투자금액
+        
+        // 현재가 (원화 환산 기준, USD * 환율)
+        public decimal Price { get; set; }
+        
+        // 매수 수량 (주 단위)
+        public int Qty { get; set; }
+        
+        // 실제 투자금액 (원화, 단가 * 수량)
+        public decimal Amount { get; set; }
     }
 
     public static class AllocationEngine

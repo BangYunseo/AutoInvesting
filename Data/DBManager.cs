@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data.SQLite;
 using System.IO;
 using AutoInvest.Utils;
@@ -42,6 +42,10 @@ namespace AutoInvest.Data
                     var sql = File.ReadAllText(sqlPath);
                     using (var cmd = new SQLiteCommand(sql, conn))
                         cmd.ExecuteNonQuery();
+
+                    // Phase 2.5 마이그레이션: STRATEGY_TYPE 컬럼 추가
+                    RunMigration(conn,
+                        "ALTER TABLE TB_INVEST_STRATEGY ADD COLUMN STRATEGY_TYPE TEXT DEFAULT 'MEAN_REVERSION'");
                 }
                 Logger.Info("DB 초기화 완료");
             }
@@ -49,6 +53,22 @@ namespace AutoInvest.Data
             {
                 Logger.Fatal($"DB 초기화 실패: {ex.Message}");
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// DB 마이그레이션 쿼리를 실행합니다. 이미 적용된 경우 무시합니다.
+        /// </summary>
+        private void RunMigration(SQLiteConnection conn, string sql)
+        {
+            try
+            {
+                using (var cmd = new SQLiteCommand(sql, conn))
+                    cmd.ExecuteNonQuery();
+            }
+            catch (SQLiteException)
+            {
+                // 이미 컬럼이 존재하는 경우 등 — 무시
             }
         }
     }

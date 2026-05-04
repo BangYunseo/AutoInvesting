@@ -1,0 +1,85 @@
+using AutoInvest.Data.DTO;
+using System;
+using System.Collections.Generic;
+using System.Data.SQLite;
+
+namespace AutoInvest.Data.DAO
+{
+    /// <summary>
+    /// 시장 스냅샷 DAO.
+    /// 매매 시점의 퀀트 지표값을 TB_MARKET_SNAPSHOT에 저장/조회합니다.
+    /// Phase 4 AI 학습 데이터의 원본이 됩니다.
+    /// </summary>
+    public static class MarketSnapshotDAO
+    {
+        /// <summary>
+        /// 시장 스냅샷을 저장합니다.
+        /// </summary>
+        public static void Insert(MarketSnapshotDto dto)
+        {
+            using (var conn = DBManager.Instance.GetConnection())
+            using (var cmd = new SQLiteCommand(@"
+                INSERT INTO TB_MARKET_SNAPSHOT
+                    (SNAP_DATE, TICKER, PRICE, POSITION_20D, RSI_14,
+                     MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL)
+                VALUES
+                    (@snapDate, @ticker, @price, @position, @rsi,
+                     @macdValue, @macdSignal, @bbUpper, @bbLower, @signal)", conn))
+            {
+                cmd.Parameters.AddWithValue("@snapDate", dto.SnapDate.ToString("yyyy-MM-dd HH:mm:ss"));
+                cmd.Parameters.AddWithValue("@ticker", dto.Ticker);
+                cmd.Parameters.AddWithValue("@price", (double)dto.Price);
+                cmd.Parameters.AddWithValue("@position", (double)dto.Position20d);
+                cmd.Parameters.AddWithValue("@rsi", (double)dto.Rsi14);
+                cmd.Parameters.AddWithValue("@macdValue", (double)dto.MacdValue);
+                cmd.Parameters.AddWithValue("@macdSignal", (double)dto.MacdSignal);
+                cmd.Parameters.AddWithValue("@bbUpper", (double)dto.BbUpper);
+                cmd.Parameters.AddWithValue("@bbLower", (double)dto.BbLower);
+                cmd.Parameters.AddWithValue("@signal", dto.Signal);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
+        /// 특정 종목의 최근 N일 스냅샷을 조회합니다.
+        /// </summary>
+        public static List<MarketSnapshotDto> GetByTicker(string ticker, int days = 30)
+        {
+            var list = new List<MarketSnapshotDto>();
+            using (var conn = DBManager.Instance.GetConnection())
+            using (var cmd = new SQLiteCommand(@"
+                SELECT SNAPSHOT_ID, SNAP_DATE, TICKER, PRICE, POSITION_20D,
+                       RSI_14, MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL
+                FROM TB_MARKET_SNAPSHOT
+                WHERE TICKER = @ticker
+                ORDER BY SNAP_DATE DESC
+                LIMIT @days", conn))
+            {
+                cmd.Parameters.AddWithValue("@ticker", ticker);
+                cmd.Parameters.AddWithValue("@days", days);
+
+                using (var rdr = cmd.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        list.Add(new MarketSnapshotDto
+                        {
+                            SnapshotId = rdr.GetInt32(0),
+                            SnapDate = DateTime.Parse(rdr.GetString(1)),
+                            Ticker = rdr.GetString(2),
+                            Price = rdr.GetDecimal(3),
+                            Position20d = rdr.GetDecimal(4),
+                            Rsi14 = rdr.GetDecimal(5),
+                            MacdValue = rdr.GetDecimal(6),
+                            MacdSignal = rdr.GetDecimal(7),
+                            BbUpper = rdr.GetDecimal(8),
+                            BbLower = rdr.GetDecimal(9),
+                            Signal = rdr.GetString(10)
+                        });
+                    }
+                }
+            }
+            return list;
+        }
+    }
+}

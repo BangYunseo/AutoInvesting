@@ -62,7 +62,7 @@ namespace AutoInvest.Forms
 
         private void SetActiveMenu(System.Windows.Forms.Button activeBtn)
         {
-            foreach (var btn in new[] { btn_dashboard, btn_allocation, btn_history, btn_config, btn_log })
+            foreach (var btn in new[] { btn_dashboard, btn_allocation, btn_history, btn_backtest, btn_config, btn_log })
             {
                 btn.BackColor = Color.FromArgb(38, 50, 56);
                 btn.ForeColor = Color.FromArgb(180, 200, 210);
@@ -86,6 +86,13 @@ namespace AutoInvest.Forms
         { 
             SetActiveMenu(btn_history);
             new HistoryForm().ShowDialog();
+        }
+
+        private void btn_backtest_Click(object? sender, EventArgs e)
+        {
+            SetActiveMenu(btn_backtest);
+            var session = new SessionManager();
+            new BacktestForm(session).ShowDialog();
         }
 
         private void btn_config_Click(object? sender, EventArgs e)

@@ -1,8 +1,10 @@
+using AutoInvest.Core.Quant;
 using AutoInvest.Data.DAO;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace AutoInvest.Core
@@ -16,28 +18,30 @@ namespace AutoInvest.Core
         public SmartOrderSignal Signal { get; set; }
         public PriceRangeDto PriceRange { get; set; } = null!;
         public string Reason { get; set; } = string.Empty;
+
+        /// <summary>퀀트 지표 계산 결과 (Phase 2.5)</summary>
+        public IndicatorDto? Indicators { get; set; }
+
+        /// <summary>충족된 퀀트 조건 목록</summary>
+        public List<string> QuantConditions { get; set; } = new();
+
+        /// <summary>상세 판단 근거 (로그용)</summary>
+        public string DecisionReason { get; set; } = string.Empty;
     }
 
     /// <summary>
-    /// 스마트 주문 엔진.
-    /// 종목별 N일 최고가/최저가를 조회하고, 현재가 위치에 따라
-    /// 매수(하위 10%) / 매도(상위 10%) / 보류를 판단합니다.
+    /// 스마트 주문 엔진 (Phase 2.5 — 퀀트 통합).
+    /// 종목별 N일 최고가/최저가 + 퀀트 지표(RSI, MACD, BB)를 조회하고,
+    /// 전략 유형에 따른 다중 조건 AND 필터를 통과해야만 매수/매도를 실행합니다.
+    ///
+    /// 전략 유형별 동작:
+    ///   MEAN_REVERSION — Position ≤ 0.10 AND RSI ≤ 30 AND BB 하단 근접
+    ///   MOMENTUM       — RSI ≥ 50 AND MACD 골든크로스 AND MACD Line 양수
+    ///   MIXED          — Position ≤ 0.10 AND RSI &lt; 70
     ///
     /// TODO [Phase 4] AI 시장분석 엔진 연동
-    ///   현재: position = (현재가 - 최저가) / (최고가 - 최저가)
-    ///         → 단순 가격 범위 기반 판단
-    ///
-    ///   미래: AI 모델이 아래 데이터를 학습하여 진입 기준 제공
-    ///     1. 차트 데이터 (일봉, 주봉, 기술적 지표)
-    ///     2. 뉴스 감성 분석 (국내외 금융 뉴스, 중앙은행 발표 등)
-    ///     3. 커뮤니티 감성 분석 (Reddit, X(Twitter), StockTwits 등)
-    ///     4. 매크로 지표 (금리, 환율, VIX 등)
-    ///
-    ///   확장 방향:
-    ///     - IMarketAnalyzer 인터페이스 도입
-    ///     - AnalyzeAsync(ticker) → confidence score + recommended action
-    ///     - SmartOrderEngine이 IMarketAnalyzer 결과를 position과 종합하여 판단
-    ///     - 학습 데이터 저장용 테이블 (TB_MARKET_FEATURES) 추가
+    ///   현재: position + 퀀트 지표(RSI, MACD, BB) 기반 판단
+    ///   미래: AI 모델이 차트/뉴스/커뮤니티/매크로 데이터를 학습하여 진입 기준 제공
     /// </summary>
     public class SmartOrderEngine
     {
@@ -63,16 +67,18 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 단일 종목 분석 → 매수/매도/보류 신호 반환
+        /// 단일 종목 분석 → 퀀트 조건 판단 → 매수/매도/보류 신호 반환
         /// </summary>
-        public async Task<SmartOrderResult> AnalyzeAsync(string ticker)
+        /// <param name="ticker">종목 코드</param>
+        /// <param name="strategyType">전략 유형 (MEAN_REVERSION / MOMENTUM / MIXED)</param>
+        public async Task<SmartOrderResult> AnalyzeAsync(string ticker, string strategyType = "MEAN_REVERSION")
         {
             var current = await _broker.GetCurrentPriceAsync(ticker);
             var (high, low) = await _broker.GetPriceRangeAsync(ticker, _rangeDays);
 
-            // 최고가 = 최저가인 경우(변동 없음) → HOLD
-            decimal position = (high == low) ? 0.5m : (current - low) / (high - low);
-            position = Math.Max(0m, Math.Min(1m, position));
+            // ── OHLCV 데이터 + 퀀트 지표 계산 (Phase 2.5) ──
+            var ohlcv = await _broker.GetOhlcvAsync(ticker, Math.Max(_rangeDays, 60));
+            var indicators = QuantIndicator.CalculateAll(ticker, ohlcv, current, high, low);
 
             var priceRange = new PriceRangeDto
             {
@@ -81,40 +87,61 @@ namespace AutoInvest.Core
                 Low = low,
                 Current = current,
                 Days = _rangeDays,
-                Position = Math.Round(position, 4)
+                Position = indicators.Position
             };
 
+            // ── 퀀트 필터 적용 ──
             SmartOrderSignal signal;
             string reason;
+            var quantConditions = new List<string>();
 
-            if (position <= _buyThreshold)
+            // 매수 조건 필터
+            var buyFilter = QuantFilter.CheckBuyCondition(indicators, strategyType, _buyThreshold);
+            // 매도 조건 필터
+            var sellFilter = QuantFilter.CheckSellCondition(indicators, strategyType, _sellThreshold);
+
+            if (buyFilter.Passed)
             {
                 signal = SmartOrderSignal.BUY;
-                reason = $"{_rangeDays}일 최저가(${low}) 대비 하위 {position:P1} — 매수 추천";
+                quantConditions = buyFilter.MetConditions;
+                reason = $"[{strategyType}] {buyFilter.Summary}";
             }
-            else if (position >= _sellThreshold)
+            else if (sellFilter.Passed)
             {
                 signal = SmartOrderSignal.SELL;
-                reason = $"{_rangeDays}일 최고가(${high}) 대비 상위 {(1 - position):P1} — 매도 추천";
+                quantConditions = sellFilter.MetConditions;
+                reason = $"[{strategyType}] {sellFilter.Summary}";
             }
             else
             {
                 signal = SmartOrderSignal.HOLD;
-                reason = $"현재가 ${current}는 범위 내 {position:P1} 위치 — 보류";
+                // 가장 가까운 미충족 조건을 표시
+                var unmet = buyFilter.UnmetConditions.Concat(sellFilter.UnmetConditions).ToList();
+                reason = $"[{strategyType}] 매수/매도 조건 미충족 — {string.Join(", ", unmet.Take(3))}";
             }
+
+            // ── 상세 판단 근거 로그 ──
+            string decisionDetail = $"[{strategyType}] {ticker}: " +
+                $"Pos={indicators.Position:F4}, RSI={indicators.Rsi14:F1}, " +
+                $"MACD={indicators.MacdLine:F4}/{indicators.MacdSignal:F4}, " +
+                $"BB={indicators.BbLower:F2}~{indicators.BbUpper:F2} → {signal}";
+
+            Logger.LogQuant(ticker, quantConditions, signal, strategyType);
+            Logger.Info($"[SmartOrder] {decisionDetail}");
 
             // TODO [Phase 4] AI 분석 결과와 종합하여 최종 signal 결정
             //   var aiResult = await _marketAnalyzer.AnalyzeAsync(ticker);
             //   signal = CombineSignals(signal, aiResult);
-
-            Logger.Info($"[SmartOrder] {ticker}: {signal} — {reason}");
 
             return new SmartOrderResult
             {
                 Ticker = ticker,
                 Signal = signal,
                 PriceRange = priceRange,
-                Reason = reason
+                Reason = reason,
+                Indicators = indicators,
+                QuantConditions = quantConditions,
+                DecisionReason = decisionDetail
             };
         }
 
@@ -130,14 +157,23 @@ namespace AutoInvest.Core
             var results = new List<SmartOrderResult>();
             var exchangeRate = await _broker.GetExchangeRateAsync();
 
-            Logger.Info($"[SmartOrder] === 스마트 주문 분석 시작 (종목 {strategies.Count}개) ===");
+            // 전략 유형은 첫 번째 종목의 설정을 사용 (동일 전략 내 모두 같은 유형)
+            string strategyType = strategies.FirstOrDefault()?.StrategyType ?? "MEAN_REVERSION";
+
+            Logger.Info($"[SmartOrder] === 스마트 주문 분석 시작 (종목 {strategies.Count}개, 전략={strategyType}) ===");
 
             foreach (var strategy in strategies)
             {
                 try
                 {
-                    var result = await AnalyzeAsync(strategy.Ticker);
+                    var result = await AnalyzeAsync(strategy.Ticker, strategyType);
                     results.Add(result);
+
+                    // ── 시장 스냅샷 저장 (AI 학습 데이터) ──
+                    if (result.Indicators != null)
+                    {
+                        SaveMarketSnapshot(result);
+                    }
 
                     switch (result.Signal)
                     {
@@ -192,7 +228,8 @@ namespace AutoInvest.Core
                 OrderNo = orderNo
             });
 
-            Logger.Info($"[SmartOrder] 매수 완료: {strategy.Ticker} {qty}주 @ ${result.PriceRange.Current}");
+            Logger.Info($"[SmartOrder] 매수 완료: {strategy.Ticker} {qty}주 @ ${result.PriceRange.Current} " +
+                $"(근거: {string.Join(" + ", result.QuantConditions)})");
         }
 
         private async Task ExecuteSellAsync(string ticker, SmartOrderResult result)
@@ -220,7 +257,36 @@ namespace AutoInvest.Core
                 OrderNo = orderNo
             });
 
-            Logger.Info($"[SmartOrder] 매도 완료: {ticker} {holding.Qty}주 @ ${result.PriceRange.Current}");
+            Logger.Info($"[SmartOrder] 매도 완료: {ticker} {holding.Qty}주 @ ${result.PriceRange.Current} " +
+                $"(근거: {string.Join(" + ", result.QuantConditions)})");
+        }
+
+        /// <summary>
+        /// 매매 시점의 시장 지표 스냅샷을 DB에 저장합니다 (Phase 4 AI 학습 데이터).
+        /// </summary>
+        private void SaveMarketSnapshot(SmartOrderResult result)
+        {
+            try
+            {
+                var ind = result.Indicators!;
+                MarketSnapshotDAO.Insert(new MarketSnapshotDto
+                {
+                    SnapDate = DateTime.Now,
+                    Ticker = result.Ticker,
+                    Price = result.PriceRange.Current,
+                    Position20d = ind.Position,
+                    Rsi14 = ind.Rsi14,
+                    MacdValue = ind.MacdLine,
+                    MacdSignal = ind.MacdSignal,
+                    BbUpper = ind.BbUpper,
+                    BbLower = ind.BbLower,
+                    Signal = result.Signal.ToString()
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[SmartOrder] 시장 스냅샷 저장 실패: {ex.Message}");
+            }
         }
     }
 }

@@ -41,6 +41,10 @@ namespace AutoInvest.Core
         /// <summary>보유 종목 목록 조회</summary>
         Task<List<HoldingDto>> GetHoldingsAsync();
 
+        // ─── 차트 데이터 ── 퀀트 지표 계산용 ────────────
+        /// <summary>N일치 OHLCV 일봉 데이터 조회 (퀀트 지표 계산용)</summary>
+        Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days);
+
         // ─── 주문 ── LS증권 [해외주식] 주문 ─────────────
         /// <summary>매수 주문. 성공 시 주문번호 반환</summary>
         Task<string> PlaceBuyOrderAsync(string ticker, int qty, decimal price);
