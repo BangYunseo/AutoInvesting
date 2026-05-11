@@ -62,8 +62,7 @@ namespace AutoInvest.Forms
                     decimal priceUsd = await client.GetCurrentPriceAsync(s.Ticker);
                     decimal priceKrw = Math.Round(priceUsd * _exchangeRate, 0);
 
-                    // Weight를 수량으로 활용 (사용자정의 전략에서는 Weight에 수량을 저장)
-                    int qty = (int)s.Weight;
+                    int qty = s.Qty;
 
                     dgv_allocation.Rows.Add(
                         s.Ticker,
@@ -301,7 +300,7 @@ namespace AutoInvest.Forms
                 {
                     StrategyName = "사용자정의",
                     Ticker = ticker ?? string.Empty,
-                    Weight = qty  // Weight 필드에 수량을 저장
+                    Qty = qty
                 });
             }
 

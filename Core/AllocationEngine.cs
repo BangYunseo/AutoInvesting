@@ -26,19 +26,23 @@ namespace AutoInvest.Core
     public static class AllocationEngine
     {
         /// <summary>
-        /// 투자금액과 전략 비중으로 종목별 매수 수량 계산
+        /// 전략의 종목별 수량과 현재가로 배분 결과를 계산합니다.
         /// </summary>
-        /// <param name="investAmountKrw">총 투자금액 (원)</param>
         /// <param name="exchangeRate">환율 (원/달러)</param>
-        /// <param name="strategies">전략 목록 (비중 합계 1.0)</param>
+        /// <param name="strategies">전략 목록 (종목별 수량)</param>
         /// <param name="prices">종목별 현재가 (달러)</param>
         public static List<AllocationResult> Calculate(
-            decimal investAmountKrw,
             decimal exchangeRate,
             List<StrategyDto> strategies,
             Dictionary<string, decimal> prices)
         {
             var results = new List<AllocationResult>();
+
+            // 전체 수량 합계 (비중 계산용)
+            int totalQty = 0;
+            foreach (var s in strategies)
+                totalQty += s.Qty;
+            if (totalQty <= 0) totalQty = 1;
 
             foreach (var s in strategies)
             {
@@ -48,22 +52,21 @@ namespace AutoInvest.Core
                     continue;
                 }
 
-                decimal allocKrw = investAmountKrw * (decimal)s.Weight;
                 decimal priceKrw = priceUsd * exchangeRate;
-                int qty = (int)Math.Floor(allocKrw / priceKrw); // 소수점 버림
-                decimal actualAmt = qty * priceKrw;
+                decimal actualAmt = s.Qty * priceKrw;
+                decimal weight = (decimal)s.Qty / totalQty;
 
                 results.Add(new AllocationResult
                 {
                     Ticker = s.Ticker,
-                    Weight = (decimal)s.Weight,
+                    Weight = weight,
                     Price = priceKrw,
-                    Qty = qty,
+                    Qty = s.Qty,
                     Amount = actualAmt
                 });
 
                 Logger.Info($"배분 계산: {s.Ticker} " +
-                    $"비중={s.Weight:P0} 단가={priceKrw:N0}원 수량={qty}주 금액={actualAmt:N0}원");
+                    $"수량={s.Qty}주 단가={priceKrw:N0}원 금액={actualAmt:N0}원");
             }
 
             return results;

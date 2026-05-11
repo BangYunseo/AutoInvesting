@@ -71,6 +71,12 @@ namespace AutoInvest.Core.Quant
                 return orders;
             }
 
+            // 전체 목표 수량 합계 (비중 계산용)
+            int totalTargetQty = 0;
+            foreach (var s in strategies)
+                totalTargetQty += s.Qty;
+            if (totalTargetQty <= 0) totalTargetQty = 1;
+
             Logger.Info($"[Rebalance] === 리밸런싱 분석 시작 (총 평가: {totalValue:N0}원, 임계값: {_threshold:P0}) ===");
 
             foreach (var strategy in strategies)
@@ -85,7 +91,7 @@ namespace AutoInvest.Core.Quant
                     currentWeight = currentValue / totalValue;
                 }
 
-                decimal targetWeight = (decimal)strategy.Weight;
+                decimal targetWeight = (decimal)strategy.Qty / totalTargetQty;
                 decimal deviation = currentWeight - targetWeight;
 
                 Logger.Info($"[Rebalance] {strategy.Ticker}: " +

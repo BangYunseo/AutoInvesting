@@ -204,9 +204,8 @@ namespace AutoInvest.Core
             StrategyDto strategy, decimal investAmountKrw,
             decimal exchangeRate, SmartOrderResult result)
         {
-            decimal allocKrw = investAmountKrw * (decimal)strategy.Weight;
-            decimal priceKrw = result.PriceRange.Current * exchangeRate;
-            int qty = (int)Math.Floor(allocKrw / priceKrw);
+            // 전략에 설정된 수량 사용
+            int qty = strategy.Qty;
 
             if (qty <= 0)
             {
