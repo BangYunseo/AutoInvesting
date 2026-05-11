@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS TB_INVEST_STRATEGY (
     STRATEGY_ID   INTEGER PRIMARY KEY AUTOINCREMENT,
     STRATEGY_NAME TEXT NOT NULL,
     TICKER        TEXT NOT NULL,
-    WEIGHT        REAL NOT NULL,
+    WEIGHT        INTEGER NOT NULL DEFAULT 1,  -- 매수 수량 (주)
     FOREIGN KEY (TICKER) REFERENCES TB_ASSET_MASTER(TICKER)
 );
 
@@ -42,23 +42,18 @@ INSERT OR IGNORE INTO TB_ASSET_MASTER (TICKER, NAME, CURRENCY) VALUES
     ('JEPI',  'JPMorgan Equity Premium Income','USD'),
     ('SPLG',  'SPDR Portfolio S&P 500 ETF',    'USD');
 
--- 초기 전략 데이터 (공격형)
+-- 초기 전략 데이터 (사용자정의)
 INSERT OR IGNORE INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT) VALUES
-    ('공격형', 'QQQM', 0.50),
-    ('공격형', 'SPLG', 0.30),
-    ('공격형', 'GLD',  0.20);
-
--- 초기 전략 데이터 (안정형)
-INSERT OR IGNORE INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT) VALUES
-    ('안정형', 'SCHD', 0.40),
-    ('안정형', 'JEPI', 0.40),
-    ('안정형', 'GLD',  0.20);
+    ('사용자정의', 'QQQM', 2),
+    ('사용자정의', 'SPLG', 1),
+    ('사용자정의', 'GLD',  1);
 
 -- 앱 기본 설정
 INSERT OR IGNORE INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE, DESCRIPTION) VALUES
     ('IS_PAPER_TRADING', '1',        '1=모의투자 0=실거래'),
     ('INVEST_AMOUNT_KRW','1000000',  '월 투자금액(원)'),
-    ('ACTIVE_STRATEGY',  '안정형',   '현재 활성 전략'),
+    ('ACTIVE_STRATEGY',  '사용자정의',   '현재 활성 전략'),
+    ('STRATEGY_TYPE',    'MEAN_REVERSION', '퀀트 전략 유형 (MEAN_REVERSION/MOMENTUM/MIXED)'),
     ('ORDER_SCHEDULE',   '22:30',    '주문 실행 시각(KST)'),
     ('REBALANCE_ENABLED','0',        '리밸런싱 활성화 여부'),
     ('REBALANCE_PERIOD', 'MONTHLY',  '리밸런싱 주기 (WEEKLY/MONTHLY)'),

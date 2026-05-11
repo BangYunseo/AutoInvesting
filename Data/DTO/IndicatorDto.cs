@@ -70,5 +70,12 @@ namespace AutoInvest.Data.DTO
         /// 현재가가 이 선 아래에 있으면 과매도 (평균회귀 매수 기회)
         /// </summary>
         public decimal BbLower { get; set; }
+
+        // ── 계산 시점 ──
+
+        /// <summary>
+        /// 지표가 계산된 시각
+        /// </summary>
+        public DateTime CalculatedAt { get; set; }
     }
 }

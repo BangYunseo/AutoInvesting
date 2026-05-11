@@ -12,7 +12,7 @@ namespace AutoInvest.Data.DAO
             var list = new List<StrategyDto>();
             using (var conn = DBManager.Instance.GetConnection())
             using (var cmd = new SQLiteCommand(
-                "SELECT STRATEGY_ID, STRATEGY_NAME, TICKER, WEIGHT, " +
+                "SELECT STRATEGY_ID, STRATEGY_NAME, TICKER, CAST(WEIGHT AS INTEGER) AS QTY, " +
                 "COALESCE(STRATEGY_TYPE, 'MEAN_REVERSION') AS STRATEGY_TYPE " +
                 "FROM TB_INVEST_STRATEGY WHERE STRATEGY_NAME=@name", conn))
             {
@@ -24,7 +24,7 @@ namespace AutoInvest.Data.DAO
                             StrategyId = rdr.GetInt32(0),
                             StrategyName = rdr.GetString(1),
                             Ticker = rdr.GetString(2),
-                            Weight = rdr.GetDouble(3),
+                            Qty = rdr.GetInt32(3),
                             StrategyType = rdr.GetString(4)
                         });
             }
@@ -54,11 +54,11 @@ namespace AutoInvest.Data.DAO
                     {
                         using (var insCmd = new SQLiteCommand(
                             "INSERT INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT, STRATEGY_TYPE) " +
-                            "VALUES (@name, @ticker, @weight, @type)", conn, tx))
+                            "VALUES (@name, @ticker, @qty, @type)", conn, tx))
                         {
                             insCmd.Parameters.AddWithValue("@name", strategyName);
                             insCmd.Parameters.AddWithValue("@ticker", item.Ticker);
-                            insCmd.Parameters.AddWithValue("@weight", item.Weight);
+                            insCmd.Parameters.AddWithValue("@qty", item.Qty);
                             insCmd.Parameters.AddWithValue("@type", item.StrategyType ?? "MEAN_REVERSION");
                             insCmd.ExecuteNonQuery();
                         }
