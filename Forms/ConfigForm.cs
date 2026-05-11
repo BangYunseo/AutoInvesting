@@ -26,9 +26,10 @@ namespace AutoInvest.Forms
             txt_schedule.Text = AppConfigManager.Get("ORDER_SCHEDULE", "22:30");
             chk_paper.Checked = AppConfigManager.Get("IS_PAPER_TRADING", "1") == "1";
 
-            var strategy = AppConfigManager.Get("ACTIVE_STRATEGY", "안정형");
-            rdb_balanced.Checked = strategy == "안정형";
-            rdb_aggressive.Checked = strategy == "공격형";
+            // 전략 유형 로드
+            var strategyType = AppConfigManager.Get("STRATEGY_TYPE", "MEAN_REVERSION");
+            int idx = cmb_strategyType.Items.IndexOf(strategyType);
+            cmb_strategyType.SelectedIndex = idx >= 0 ? idx : 0;
         }
 
         private void btn_save_Click(object? sender, EventArgs e)
@@ -50,7 +51,7 @@ namespace AutoInvest.Forms
             AppConfigManager.Set("INVEST_AMOUNT_KRW", txt_amount.Text);
             AppConfigManager.Set("ORDER_SCHEDULE", txt_schedule.Text);
             AppConfigManager.Set("IS_PAPER_TRADING", chk_paper.Checked ? "1" : "0");
-            AppConfigManager.Set("ACTIVE_STRATEGY", rdb_balanced.Checked ? "안정형" : "공격형");
+            AppConfigManager.Set("STRATEGY_TYPE", cmb_strategyType.SelectedItem?.ToString() ?? "MEAN_REVERSION");
 
             Logger.Info("설정 저장 완료");
             this.Close();
