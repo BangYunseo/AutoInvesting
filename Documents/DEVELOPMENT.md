@@ -5,13 +5,70 @@
 
 ---
 
-## 현재 상태: Phase 2.5 완료 ✅
+## 현재 상태: Phase 2.6 완료 ✅
 
 - **Phase 1** (기반): ✅ 완료
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
 - **Phase 2.5** (퀀트 엔진 모듈): ✅ 완료
+- **Phase 2.6** (구조 리팩토링): ✅ 완료
 - **Phase 3** (LS증권 실거래 연동): 📋 미착수
 - **Phase 4** (AI 시장분석): 📋 미착수
+
+---
+
+## Phase 2.6 상세 변경 이력 — 구조 리팩토링
+
+### 핵심 변경: "멀티 Form 팝업" → "단일 창 Panel 전환 (SPA)"
+
+```
+기존 흐름:
+  사이드바 버튼 클릭 → new ConfigForm().ShowDialog()  ← 별도 창 팝업
+
+리팩토링 후:
+  사이드바 버튼 클릭 → SwitchPanel(new ConfigPanel())  ← 단일 창 내 패널 교체
+```
+
+### 2.6-1. UI 구조 전환 (신규 5건)
+
+| 파일 | 설명 |
+|------|------|
+| `Panels/DashboardPanel.cs` | 대시보드 (카드 + 배분결과 + 로그) |
+| `Panels/AllocationPanel.cs` | 배분 설정 (종목/수량 관리) |
+| `Panels/HistoryPanel.cs` | 거래 내역 조회 |
+| `Panels/ConfigPanel.cs` | 환경 설정 (전략유형 ComboBox) |
+| `Panels/LogPanel.cs` | 전체 화면 로그 뷰 |
+
+### 2.6-2. 환율 API 연동 (신규 1건)
+
+| 파일 | 설명 |
+|------|------|
+| `Utils/ExchangeRateService.cs` | Frankfurter API + ExchangeRate-API fallback |
+
+### 2.6-3. Weight → Qty 통일 (수정 7건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Data/DTO/StrategyDto.cs` | `Weight(double)` → `Qty(int)` |
+| `Data/DAO/StrategyDAO.cs` | CAST(WEIGHT AS INTEGER), Qty 바인딩 |
+| `Core/AllocationEngine.cs` | 수량 기반 배분 계산으로 변경 |
+| `Core/SmartOrderEngine.cs` | `strategy.Qty` 직접 사용 |
+| `Core/Quant/RebalancingEngine.cs` | Qty 기반 비중 계산 |
+| `Data/sql/create_tables.sql` | `WEIGHT INTEGER`, 초기 데이터 수량화 |
+| `Forms/AllocationSetupForm.cs` | `s.Qty`, `Qty = qty` |
+
+### 2.6-4. 삭제/정리 (수정 2건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Forms/MainForm.cs` | SPA 방식 전면 재작성, ShowDialog 제거 |
+| `Forms/MainForm.Designer.cs` | btn_login/order/reservation/backtest 제거, pnl_content 추가 |
+
+### 2.6-5. 전략 프리셋 제거 (수정 2건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Forms/ConfigForm.cs` | 안정형/공격형 라디오 → 전략유형 ComboBox |
+| `Forms/ConfigForm.Designer.cs` | rdb_balanced/aggressive 제거, cmb_strategyType 추가 |
 
 ---
 
