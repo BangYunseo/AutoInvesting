@@ -70,11 +70,7 @@ AutoInvesting/
 │       └── MarketSnapshotDAO.cs        # TB_MARKET_SNAPSHOT CRUD
 │
 ├── Forms/                              # UI (WinForms) — 메인 쉘
-│   ├── MainForm.cs / .Designer.cs      # 메인 쉘 (사이드바 + Panel 전환)
-│   ├── AllocationSetupForm.cs          # (레거시 — AllocationPanel로 이전됨)
-│   ├── ConfigForm.cs                   # (레거시 — ConfigPanel로 이전됨)
-│   ├── HistoryForm.cs                  # (레거시 — HistoryPanel로 이전됨)
-│   └── BacktestForm.cs                # 백테스팅 UI (Phase 3까지 숨김)
+│   └── MainForm.cs / .Designer.cs      # 메인 쉘 (사이드바 + Panel 전환)
 │
 ├── Panels/                             # ★ SPA 방식 패널 (UserControl)
 │   ├── DashboardPanel.cs               # 대시보드 (카드 + 배분결과 + 로그)
@@ -166,7 +162,7 @@ MainForm
 ### Phase 2 — 엔진 코어 + 배분 UI (✅ 완료)
 - [x] `IBrokerClient` / `SimBrokerClient` / `SmartOrderEngine`
 - [x] `SchedulerModule` / `SessionManager`
-- [x] `AllocationSetupForm` — 배분 설정 UI
+- [x] `AllocationPanel` — 배분 설정 UI
 
 ### Phase 2.5 — 퀀트 엔진 모듈 (✅ 완료)
 - [x] `QuantIndicator` / `QuantFilter` / `BacktestEngine` / `RebalancingEngine`
@@ -180,6 +176,7 @@ MainForm
 - [x] 무료 환율 API 연동 (Frankfurter API)
 - [x] 멀티 Form(ShowDialog) → 단일 창 Panel 전환(SPA) UI 전환
 - [x] Panels/ 폴더 구조 추가
+- [x] 레거시 Form 파일 삭제 (ConfigForm, HistoryForm, AllocationSetupForm, BacktestForm)
 
 ### Phase 3 — LS증권 실거래 연동 (📋 예정)
 - [ ] `LsBrokerClient` — LS증권 REST API 실제 구현

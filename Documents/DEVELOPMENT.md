@@ -54,7 +54,7 @@
 | `Core/SmartOrderEngine.cs` | `strategy.Qty` 직접 사용 |
 | `Core/Quant/RebalancingEngine.cs` | Qty 기반 비중 계산 |
 | `Data/sql/create_tables.sql` | `WEIGHT INTEGER`, 초기 데이터 수량화 |
-| `Forms/AllocationSetupForm.cs` | `s.Qty`, `Qty = qty` |
+| `Forms/AllocationSetupForm.cs` | `s.Qty`, `Qty = qty` (이후 삭제됨) |
 
 ### 2.6-4. 삭제/정리 (수정 2건)
 
@@ -63,12 +63,25 @@
 | `Forms/MainForm.cs` | SPA 방식 전면 재작성, ShowDialog 제거 |
 | `Forms/MainForm.Designer.cs` | btn_login/order/reservation/backtest 제거, pnl_content 추가 |
 
-### 2.6-5. 전략 프리셋 제거 (수정 2건)
+### 2.6-5. 전략 프리셋 제거 (수정 2건 → 이후 삭제됨)
 
 | 파일 | 변경 내용 |
 |------|----------|
-| `Forms/ConfigForm.cs` | 안정형/공격형 라디오 → 전략유형 ComboBox |
-| `Forms/ConfigForm.Designer.cs` | rdb_balanced/aggressive 제거, cmb_strategyType 추가 |
+| `Forms/ConfigForm.cs` | 안정형/공격형 라디오 → 전략유형 ComboBox (이후 삭제됨) |
+| `Forms/ConfigForm.Designer.cs` | rdb_balanced/aggressive 제거, cmb_strategyType 추가 (이후 삭제됨) |
+
+### 2.6-6. 레거시 Form 파일 삭제 (삭제 8건)
+
+| 파일 | 사유 |
+|------|------|
+| `Forms/ConfigForm.cs` | ConfigPanel로 완전 이전 |
+| `Forms/ConfigForm.Designer.cs` | 상동 |
+| `Forms/HistoryForm.cs` | HistoryPanel로 완전 이전 |
+| `Forms/HistoryForm.Designer.cs` | 상동 |
+| `Forms/AllocationSetupForm.cs` | AllocationPanel로 완전 이전 |
+| `Forms/AllocationSetupForm.Designer.cs` | 상동 |
+| `Forms/AllocationSetupForm.resx` | 상동 |
+| `Forms/BacktestForm.cs` | 미사용 (MainForm에서 호출 없음) |
 
 ---
 
@@ -151,12 +164,12 @@
 | `Data/DTO/HoldingDto.cs` | DTO | 보유 종목 정보 (Ticker, Qty, AvgPrice, CurrentPrice, ProfitRate) |
 | `Data/DTO/PriceRangeDto.cs` | DTO | N일 가격 범위 (High, Low, Current, Position 0.0~1.0) |
 
-### 2-2. 배분 설정 Form (신규 파일 2건)
+### 2-2. 배분 설정 Form (신규 → 이후 AllocationPanel로 이전, 삭제됨)
 
 | 파일 | 설명 |
 |------|------|
-| `Forms/AllocationSetupForm.cs` | 배분 설정 비즈니스 로직 |
-| `Forms/AllocationSetupForm.Designer.cs` | UI 레이아웃 (VS Designer 호환) |
+| ~~`Forms/AllocationSetupForm.cs`~~ | 배분 설정 비즈니스 로직 (삭제됨) |
+| ~~`Forms/AllocationSetupForm.Designer.cs`~~ | UI 레이아웃 (삭제됨) |
 
 ---
 

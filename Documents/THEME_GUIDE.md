@@ -152,10 +152,12 @@ chk.ForeColor = Color.FromArgb(230, 230, 230);
 
 ## 현재 적용 현황
 
-| Form | 다크 테마 | 비고 |
+| Form/Panel | 다크 테마 | 비고 |
 |------|:---------:|------|
 | MainForm | ✅ | 배경, 카드, 섹션 헤더, 로그 모두 다크 |
-| AllocationSetupForm | ✅ | DGV, 입력 필드, 버튼 모두 다크 |
-| ConfigForm | ✅ | 입력 필드, 라디오 버튼, 체크박스 다크 |
-| HistoryForm | ✅ | ListView, 새로고침 버튼 다크 |
+| DashboardPanel | ✅ | 카드, 배분결과, 로그 영역 다크 |
+| AllocationPanel | ✅ | DGV, 입력 필드, 버튼 모두 다크 |
+| ConfigPanel | ✅ | 입력 필드, ComboBox, 체크박스 다크 |
+| HistoryPanel | ✅ | ListView, 새로고침 버튼 다크 |
+| LogPanel | ✅ | ListBox 로그 뷰 다크 |
 | AllocationCardControl | ✅ | 카드 행 배경 (45, 45, 45) |
