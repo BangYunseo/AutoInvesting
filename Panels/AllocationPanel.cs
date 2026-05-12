@@ -11,7 +11,7 @@ using System.Windows.Forms;
 namespace AutoInvest.Panels
 {
     /// <summary>
-    /// 배분 설정 패널 — AllocationSetupForm을 UserControl로 변환.
+    /// 배분 설정 패널 — 종목별 수량 배분을 설정합니다.
     /// 저장 완료 시 OnSaved 이벤트 발행.
     /// </summary>
     public class AllocationPanel : UserControl

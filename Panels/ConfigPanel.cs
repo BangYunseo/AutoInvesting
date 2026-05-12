@@ -8,7 +8,7 @@ using System.Windows.Forms;
 namespace AutoInvest.Panels
 {
     /// <summary>
-    /// 환경 설정 패널 — ConfigForm을 UserControl로 변환.
+    /// 환경 설정 패널 — 투자금/전략유형/주문시각 등을 설정합니다.
     /// 저장 완료 시 OnSaved 이벤트 발행.
     /// </summary>
     public partial class ConfigPanel : UserControl

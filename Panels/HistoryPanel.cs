@@ -7,7 +7,7 @@ using System.Windows.Forms;
 namespace AutoInvest.Panels
 {
     /// <summary>
-    /// 거래 내역 패널 — HistoryForm을 UserControl로 변환.
+    /// 거래 내역 패널 — 최근 거래 내역을 조회하고 표시합니다.
     /// </summary>
     public class HistoryPanel : UserControl
     {

@@ -6,7 +6,7 @@ namespace AutoInvest.Data.DTO
     /// <summary>
     /// 백테스팅 결과 DTO.
     /// BacktestEngine.RunAsync()의 반환값으로, 전략의 과거 수익성 검증 결과를 담습니다.
-    /// BacktestForm에서 수익률, MDD, 승률 등을 표시하는 데 사용됩니다.
+    /// 수익률, MDD, 승률 등 전략 검증 지표를 포함합니다.
     /// </summary>
     public class BacktestResultDto
     {
