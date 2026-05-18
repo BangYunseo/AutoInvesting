@@ -11,7 +11,7 @@
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
 - **Phase 2.5** (퀀트 엔진 모듈): ✅ 완료
 - **Phase 2.6** (구조 리팩토링): ✅ 완료
-- **Phase 3** (LS증권 실거래 연동): 📋 미착수
+- **Phase 3** (KIS 실거래 연동): 🚀 진행 중
 - **Phase 4** (AI 시장분석): 📋 미착수
 
 ---
@@ -173,52 +173,21 @@
 
 ---
 
-## Phase 3 개발 가이드 (다음 작업)
+## Phase 3 개발 가이드 (KIS API 전환)
 
-### 필요한 선행 작업
-1. LS증권 OPEN API 포털에서 **APP KEY / APP SECRET 발급**
-2. 해외주식 API TR 코드 확인 (시세/주문/계좌/차트)
-3. 모의투자 환경 APP KEY 별도 발급
+### 완료된 핵심 작업
+1. **하네스 엔지니어링 가이드 적용**: `.agents/rules/` 디렉토리에 5개의 아키텍처/컨벤션 규칙 파일 신설. (AI 코드 생성 안정성 확보)
+2. **`KisTokenManager` 구현**: KIS OAuth 토큰 발급 및 메모리 관리.
+3. **`KisBrokerClient` 구현**: IBrokerClient의 KIS 증권사 REST API 구현체.
+4. **`SessionManager` 분기**: App.config 설정을 통한 KIS/Sim 분기 로직 반영.
 
-### 구현 순서 (권장)
-
-#### 1단계: 로그인 Form
-```
-[NEW] Forms/LoginForm.cs
-- APP KEY, APP SECRET, 계좌번호 입력
-- "로그인" 버튼 → OAuth 토큰 발급 요청
-- 성공 시 SessionManager에 LsBrokerClient 등록
-- TB_APP_CONFIG에 인증 정보 저장 (암호화 권장)
-```
-
-#### 2단계: LsBrokerClient
-```
-[NEW] Core/LsBrokerClient.cs : IBrokerClient
-- LoginAsync: POST /oauth2/token → Access Token
-- GetCurrentPriceAsync: 해외주식 현재가 TR
-- GetPriceRangeAsync: 해외주식 일봉 차트 TR
-- GetOhlcvAsync: 해외주식 일봉 차트 TR (퀀트 지표 계산용)
-- GetExchangeRateAsync: 환율 조회 TR
-- GetHoldingsAsync: 해외주식 잔고 조회 TR
-- PlaceBuyOrderAsync: 해외주식 매수 주문 TR
-- PlaceSellOrderAsync: 해외주식 매도 주문 TR
-
-주의사항:
-- Access Token 유효기간: 익일 07시까지 → 자동 갱신 필요
-- TR별 TPS 제한 → 요청 간 딜레이 삽입
-- Authorization 헤더: "Bearer {ACCESS_TOKEN}"
-```
-
-#### 3단계: SessionManager 분기
-```
-[MODIFY] Core/SessionManager.cs
-- IS_PAPER_TRADING == "0" → new LsBrokerClient(appKey, appSecret, accountNo)
-- 현재 TODO 주석 위치에 구현
-```
+### 진행 예정 작업
+- 모의투자 환경 통합 검증 및 시연
+- LoginForm을 통한 인증 정보 세팅 UI 반영 (필요 시)
 
 ### 퀀트 엔진과의 연동 포인트
 
-Phase 3이 완료되면 `LsBrokerClient.GetOhlcvAsync()`가 LS증권 [해외주식] 차트 API에서 실제 OHLCV 데이터를 반환하게 됩니다. 이 데이터가 `QuantIndicator`에 입력되면 **실전 시장 데이터 기반의 퀀트 지표 계산**이 자동으로 작동합니다.
+Phase 3 연동에 따라 `KisBrokerClient.GetOhlcvAsync()`가 KIS [해외주식] 일별 시세 API에서 실제 OHLCV 데이터를 반환하게 됩니다. 이 데이터가 `QuantIndicator`에 입력되어 **실전 시장 데이터 기반의 퀀트 지표 계산**이 작동합니다.
 
 ---
 

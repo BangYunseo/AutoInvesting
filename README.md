@@ -20,12 +20,12 @@
 
 | 항목 | 내용 |
 |------|------|
-| 증권사 | **LS증권** |
-| API 형태 | REST API (HTTPS) + WebSocket (실시간 시세) |
+| 증권사 | **한국투자증권 (KIS)** |
+| API 형태 | REST API (HTTPS) |
 | 인증 | OAuth 2.0 (APP KEY / APP SECRET → Access Token) |
 | 대상 시장 | 미국 해외주식 (NYSE, NASDAQ) |
 
-> **참고**: LS증권 OPEN API 포털 — https://openapi.ls-sec.co.kr/
+> **참고**: KIS Developers 포털 — https://apiportal.koreainvestment.com/
 
 ---
 
@@ -144,7 +144,7 @@ MainForm
 | 언어 | C# |
 | 프레임워크 | .NET 8.0 / WinForms |
 | DB | SQLite (System.Data.SQLite) |
-| 증권사 API | LS증권 OPEN API (Phase 3 예정) |
+| 증권사 API | 한국투자증권 (KIS) REST API |
 | 환율 API | Frankfurter API (무료, 키 불필요) |
 | 빌드 | MSBuild / Visual Studio 2022 |
 
@@ -178,11 +178,11 @@ MainForm
 - [x] Panels/ 폴더 구조 추가
 - [x] 레거시 Form 파일 삭제 (ConfigForm, HistoryForm, AllocationSetupForm, BacktestForm)
 
-### Phase 3 — LS증권 실거래 연동 (📋 예정)
-- [ ] `LsBrokerClient` — LS증권 REST API 실제 구현
-- [ ] OAuth 토큰 발급 + 자동 갱신
-- [ ] 실시간 시세/환율 조회
-- [ ] 주문 실행 + 에러 핸들링
+### Phase 3 — KIS 실거래 연동 (🚀 진행 중)
+- [x] 하네스 엔지니어링 룰(.agents/rules) 적용
+- [x] `KisBrokerClient` — KIS REST API 실제 구현
+- [x] OAuth 토큰 발급 + 자동 갱신 (`KisTokenManager`)
+- [x] 실시간 시세/잔고 조회 및 주문 실행
 
 ### Phase 4 — AI 시장분석 엔진 (🎯 최종 목표)
 - [ ] AI 기반 주식 분류 (안정적/공격적)

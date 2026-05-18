@@ -9,10 +9,10 @@ namespace AutoInvest.Core
 {
     /// <summary>
     /// 시뮬레이션 브로커 클라이언트.
-    /// LS증권 API 키 없이도 SmartOrderEngine, SchedulerModule 등
+    /// 한국투자증권(KIS) API 키 없이도 SmartOrderEngine, SchedulerModule 등
     /// 전체 엔진 로직을 테스트할 수 있도록 가상 데이터를 반환합니다.
     ///
-    /// TODO [Phase 3] LsBrokerClient 구현 시 이 클래스를 참조 구현으로 활용
+    /// TODO [Phase 3] KisBrokerClient 구현 시 이 클래스를 참조 구현으로 활용
     /// TODO [Phase 4] AI 학습 데이터 생성 시, 시뮬레이션 결과를 학습 데이터로 저장하는 기능 추가
     /// </summary>
     public class SimBrokerClient : IBrokerClient
@@ -51,7 +51,7 @@ namespace AutoInvest.Core
         public Task<decimal> GetCurrentPriceAsync(string ticker)
         {
             decimal price = GetBasePrice(ticker);
-            // TODO [Phase 3] LS증권 API 연동 시 실제 시세 조회로 교체
+            // TODO [Phase 3] KIS API 연동 시 실제 시세 조회로 교체
             Logger.Info($"[SimBroker] 현재가 조회: {ticker} = ${price}");
             return Task.FromResult(price);
         }
