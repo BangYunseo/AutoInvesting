@@ -5,13 +5,7 @@ namespace AutoInvest.Core
 {
     /// <summary>
     /// IBrokerClient 인스턴스의 생명주기를 관리합니다.
-    /// 현재는 SimBrokerClient만 지원하며, LS증권 실거래 구현 시
-    /// IS_PAPER_TRADING 설정에 따라 구현체를 분기합니다.
-    ///
-    /// TODO [Phase 3] LS증권 실거래 구현체 분기
-    ///   - IS_PAPER_TRADING == "0" → new LsBrokerClient(appKey, appSecret)
-    ///   - 토큰 만료(익일 07시) 시 자동 재발급 로직
-    ///   - 모의투자 / 실전 서버 URL 분리
+    /// KIS증권(한국투자증권) 실거래 구현체(KisBrokerClient)와 SimBrokerClient를 분기합니다.
     ///
     /// TODO [Phase 4] AI 엔진 인스턴스도 SessionManager에서 관리
     ///   - IMarketAnalyzer 생성 + 모델 로딩
@@ -31,19 +25,34 @@ namespace AutoInvest.Core
                 return _client;
 
             var isPaper = AppConfigManager.Get("IS_PAPER_TRADING", "1");
+            var kisAppKey = AppConfigManager.Get("KIS_APP_KEY", "");
 
-            if (isPaper == "1")
+            if (isPaper == "1" && string.IsNullOrEmpty(kisAppKey))
             {
-                Logger.Info("[Session] 시뮬레이션 모드 — SimBrokerClient 생성");
+                Logger.Info("[Session] KIS API 키가 없어 시뮬레이션 모드(SimBrokerClient)로 시작합니다.");
                 _client = new SimBrokerClient();
+                return _client;
+            }
+
+            if (!string.IsNullOrEmpty(kisAppKey))
+            {
+                var appSecret = AppConfigManager.Get("KIS_APP_SECRET", "");
+                var accountNo = AppConfigManager.Get("KIS_ACCOUNT_NO", "");
+                var accountProd = AppConfigManager.Get("KIS_ACCOUNT_PROD", "01");
+                var server = AppConfigManager.Get("KIS_SERVER", "vps"); // vps=모의, prod=실전
+
+                string baseUrl = server == "prod" 
+                    ? "https://openapi.koreainvestment.com:9443" 
+                    : "https://openapivts.koreainvestment.com:29443";
+                
+                bool isPaperTrading = (server == "vps");
+
+                Logger.Info($"[Session] KIS API 클라이언트 생성 (서버: {server})");
+                _client = new KisBrokerClient(baseUrl, kisAppKey, appSecret, accountNo, accountProd, isPaperTrading);
             }
             else
             {
-                // TODO [Phase 3] LS증권 실거래 클라이언트 생성
-                //   var appKey = AppConfigManager.Get("LS_APP_KEY", "");
-                //   var appSecret = AppConfigManager.Get("LS_APP_SECRET", "");
-                //   _client = new LsBrokerClient(appKey, appSecret);
-                Logger.Warn("[Session] 실거래 모드가 선택되었으나 LsBrokerClient 미구현 — SimBroker로 대체");
+                Logger.Warn("[Session] API 설정이 없어 SimBrokerClient를 생성합니다.");
                 _client = new SimBrokerClient();
             }
 

@@ -1,4 +1,5 @@
-﻿using System.Data.SQLite;
+using System.Configuration;
+using System.Data.SQLite;
 using AutoInvest.Utils;
 
 namespace AutoInvest.Data
@@ -9,6 +10,14 @@ namespace AutoInvest.Data
         {
             try
             {
+                // 1. App.config 또는 환경변수 우선 확인 (보안 규칙)
+                string? envValue = System.Environment.GetEnvironmentVariable(key);
+                if (!string.IsNullOrEmpty(envValue)) return envValue;
+
+                string? appSettingValue = ConfigurationManager.AppSettings[key];
+                if (!string.IsNullOrEmpty(appSettingValue)) return appSettingValue;
+
+                // 2. DB 조회 (기존 방식)
                 using (var conn = DBManager.Instance.GetConnection())
                 using (var cmd = new SQLiteCommand(
                     "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
