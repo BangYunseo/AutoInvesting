@@ -1,34 +1,53 @@
 using AutoInvest.Utils;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using System;
-using System.Windows.Forms;
 
 namespace AutoInvest
 {
     /// <summary>
-    /// 애플리케이션 진입점.
-    /// WinForms 앱의 시작점이며, 전역 예외 처리를 설정합니다.
+    /// 자동 투자 시스템의 차세대 진입점 (ASP.NET Core Web API).
     /// </summary>
-    internal static class Program
+    public class Program
     {
-        /// <summary>
-        /// 해당 애플리케이션의 주 진입점입니다.
-        /// </summary>
-        [STAThread]
-        static void Main()
+        public static void Main(string[] args)
         {
-            // ── 전역 예외 처리 ──
-            // UI 스레드에서 발생하는 예외를 잡아 로그에 기록
-            Application.ThreadException += (s, e) =>
-                Logger.Fatal($"UI 스레드 예외: {e.Exception.Message}");
+            try
+            {
+                // 콘솔 출력을 지원하는 Logger로 변경하거나 파일 로그 유지
+                Logger.Info("자동 투자 API 서버 초기화 중...");
 
-            // 비관리 스레드(Task, Thread 등)에서 발생하는 예외를 잡아 로그에 기록
-            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
-                Logger.Fatal($"비관리 예외: {e.ExceptionObject}");
+                var builder = WebApplication.CreateBuilder(args);
 
-            // ── WinForms 초기화 ──
-            Application.EnableVisualStyles();                    // OS 기본 컨트롤 스타일 적용
-            Application.SetCompatibleTextRenderingDefault(false); // GDI+ 텍스트 렌더링 사용
-            Application.Run(new Forms.MainForm());               // 메인 폼 실행 (앱 루프 시작)
+                // 서비스 등록
+                builder.Services.AddControllers();
+                builder.Services.AddEndpointsApiExplorer();
+                builder.Services.AddSwaggerGen();
+
+                // 의존성 주입 및 백그라운드 서비스 등록
+                builder.Services.AddSingleton<AutoInvest.Core.SessionManager>();
+                builder.Services.AddHostedService<AutoInvest.Core.BackgroundServices.TradingBackgroundService>();
+
+                var app = builder.Build();
+
+                // 미들웨어 파이프라인 구성
+                if (app.Environment.IsDevelopment() || true) // 임시로 항상 Swagger 열기
+                {
+                    app.UseSwagger();
+                    app.UseSwaggerUI();
+                }
+
+                app.UseAuthorization();
+                app.MapControllers();
+
+                Logger.Info("자동 투자 API 서버가 포트에서 수신 대기 중입니다.");
+                app.Run();
+            }
+            catch (Exception ex)
+            {
+                Logger.Fatal($"서버 실행 중 치명적 오류 발생: {ex.Message}\n{ex.StackTrace}");
+            }
         }
     }
 }
