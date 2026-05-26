@@ -1,10 +1,10 @@
 # AutoInvesting
 
-> 해외 ETF 자동 투자 시스템 — WinForms (.NET 8.0)
+> 해외 ETF 자동 투자 시스템 — ASP.NET Core Web API (.NET 8.0)
 
 ## 📌 프로젝트 개요
 
-설정한 시각에 자동으로 해외 ETF를 매수·매도하는 데스크톱 애플리케이션입니다.
+설정한 시각에 자동으로 해외 ETF를 매수·매도하는 Headless 백그라운드 서비스입니다.
 **퀀트 엔진**을 통해 RSI, MACD, 볼린저밴드 등 다중 기술적 지표를 분석하고,
 모든 조건을 만족할 때만 주문을 실행하여 **감정을 배제한 데이터 기반 투자**를 실현합니다.
 
@@ -50,7 +50,7 @@ AutoInvesting/
 │
 ├── Data/                               # 데이터 액세스 계층
 │   ├── DBManager.cs                    # SQLite 연결 관리 (Singleton + 마이그레이션)
-│   ├── AppConfigManager.cs             # TB_APP_CONFIG CRUD
+│   ├── AppConfigManager.cs             # appsettings.json + DB 연동 설정 관리
 │   ├── sql/
 │   │   └── create_tables.sql           # DDL + 초기 마스터 데이터
 │   ├── DTO/                            # Data Transfer Objects
@@ -69,48 +69,34 @@ AutoInvesting/
 │       ├── TradeHistoryDAO.cs          # TB_TRADE_HISTORY CRUD
 │       └── MarketSnapshotDAO.cs        # TB_MARKET_SNAPSHOT CRUD
 │
-├── Forms/                              # UI (WinForms) — 메인 쉘
-│   └── MainForm.cs / .Designer.cs      # 메인 쉘 (사이드바 + Panel 전환)
-│
-├── Panels/                             # ★ SPA 방식 패널 (UserControl)
-│   ├── DashboardPanel.cs               # 대시보드 (카드 + 배분결과 + 로그)
-│   ├── AllocationPanel.cs              # 배분 설정 (종목/수량 관리)
-│   ├── HistoryPanel.cs                 # 거래 내역 조회
-│   ├── ConfigPanel.cs                  # 환경 설정 (전략유형/투자금/시각)
-│   └── LogPanel.cs                     # 전체 화면 로그 뷰
-│
-├── Controls/                           # 커스텀 UserControl
-│   └── AllocationCardControl.cs        # 종목별 배분 카드 (슬림 한 줄형)
+├── Controllers/                        # REST API 컨트롤러
+│   ├── ConfigController.cs             # 환경 설정 API
+│   ├── HistoryController.cs            # 거래 내역 및 로그 API
+│   ├── PortfolioController.cs          # 잔고 조회 API
+│   ├── StrategyController.cs           # 전략 CRUD API
+│   ├── OrderController.cs              # 수동 주문 트리거 API
+│   └── BacktestController.cs           # 백테스트 실행 API
 │
 ├── Utils/                              # 유틸리티
-│   ├── Logger.cs                       # 파일 + ListBox 로깅 (퀀트 로그 포함)
-│   ├── AppTheme.cs                     # 다크 테마 컬러 상수
+│   ├── Logger.cs                       # 파일 로깅 (퀀트 로그 포함)
 │   ├── DateTimeHelper.cs               # NYSE 개장시각(KST) 계산 (DST 대응)
-│   └── ExchangeRateService.cs          # ★ 무료 환율 API (Frankfurter + fallback)
+│   └── ExchangeRateService.cs          # 무료 환율 API (Frankfurter + fallback)
 │
+├── appsettings.json                    # 통합 설정 파일
 └── Documents/                          # 프로젝트 문서
     ├── DEVELOPMENT.md                  # 개발 진척도 + 변경 이력
-    └── THEME_GUIDE.md                  # 다크 테마 가이드
+    └── THEME_GUIDE.md                  # 레거시 테마 가이드
 ```
 
 ---
 
-## 🖥️ UI 아키텍처: 단일 창 Panel 전환 (SPA)
+## 🖥️ 아키텍처: Headless ASP.NET Core Web API
 
-```
-MainForm
-  ├── pnl_sidebar (좌측 고정 — 메뉴 버튼)
-  ├── pnl_topbar  (상단 고정 — 타이틀)
-  └── pnl_content (Dock=Fill — 패널 교체 영역)
-        ├── DashboardPanel   ← 대시보드
-        ├── AllocationPanel  ← 배분 설정
-        ├── HistoryPanel     ← 거래 내역
-        ├── ConfigPanel      ← 환경 설정
-        └── LogPanel         ← 시스템 로그
-```
+기존 WinForms 기반에서 **ASP.NET Core Web API** 기반의 백그라운드 서비스(Headless)로 구조가 개편되었습니다.
+UI 스레드 종속성을 제거하여 리눅스 서버나 Docker 등 서버 환경에서 24시간 무인으로 동작합니다.
 
-> 사이드바 메뉴 클릭 → `SwitchPanel()` → pnl_content에 새 UserControl 로드
-> 별도 창 팝업 없이 단일 창 내에서 모든 기능 전환
+- **BackgroundService**: `TradingBackgroundService`가 상시 동작하며 퀀트 지표 분석 및 주문 예약 실행
+- **REST API 컨트롤러**: 외부 애플리케이션(웹 대시보드, 모바일 등)에서 상태 조회 및 원격 제어를 위한 API 제공
 
 ---
 
@@ -142,7 +128,7 @@ MainForm
 | 분류 | 기술 |
 |------|------|
 | 언어 | C# |
-| 프레임워크 | .NET 8.0 / WinForms |
+| 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
 | DB | SQLite (System.Data.SQLite) |
 | 증권사 API | 한국투자증권 (KIS) REST API |
 | 환율 API | Frankfurter API (무료, 키 불필요) |
@@ -178,11 +164,17 @@ MainForm
 - [x] Panels/ 폴더 구조 추가
 - [x] 레거시 Form 파일 삭제 (ConfigForm, HistoryForm, AllocationSetupForm, BacktestForm)
 
-### Phase 3 — KIS 실거래 연동 (🚀 진행 중)
+### Phase 3 — KIS 실거래 연동 (✅ 완료)
 - [x] 하네스 엔지니어링 룰(.agents/rules) 적용
 - [x] `KisBrokerClient` — KIS REST API 실제 구현
 - [x] OAuth 토큰 발급 + 자동 갱신 (`KisTokenManager`)
 - [x] 실시간 시세/잔고 조회 및 주문 실행
+
+### Phase A — 프로젝트 정비 및 안정화 (✅ 완료)
+- [x] WinForms 레거시 완전 제거 (Form/Panel 삭제)
+- [x] 설정 체계 현대화 (`appsettings.json` + 환경변수)
+- [x] 컨트롤러 완성 (전략 CRUD, 수동주문, 백테스트 등 API 도입)
+- [x] DI(의존성 주입) 체계 정비
 
 ### Phase 4 — AI 시장분석 엔진 (🎯 최종 목표)
 - [ ] AI 기반 주식 분류 (안정적/공격적)

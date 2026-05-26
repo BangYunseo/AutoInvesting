@@ -5,14 +5,27 @@
 
 ---
 
-## 현재 상태: Phase 2.6 완료 ✅
+## 현재 상태: Phase A 완료 ✅
 
 - **Phase 1** (기반): ✅ 완료
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
 - **Phase 2.5** (퀀트 엔진 모듈): ✅ 완료
 - **Phase 2.6** (구조 리팩토링): ✅ 완료
-- **Phase 3** (KIS 실거래 연동): 🚀 진행 중
+- **Phase 3** (KIS 실거래 연동): ✅ 완료
+- **Phase A** (프로젝트 정비/안정화): ✅ 완료
+- **Phase B/C** (운영 안정성 및 확장): 📋 대기 중
 - **Phase 4** (AI 시장분석): 📋 미착수
+
+---
+
+## Phase A 상세 변경 이력 — 프로젝트 정비 및 안정화
+
+### 핵심 변경: "WinForms 레거시 완전 제거 및 REST API 전환"
+
+- **WinForms 의존성 제거**: `Properties/` 폴더, `packages.config`, `App.config` 등 기존 WinForms 관련 잔재 파일들을 모두 삭제하고 Headless Web API 환경으로 이관했습니다.
+- **설정 체계 현대화**: `appsettings.json`을 도입하여 기본 설정값을 관리하고, 민감 정보(API 키, 계좌번호 등)는 환경변수에서만 읽어오도록 보안을 강화했습니다. `AppConfigManager`는 `IConfiguration`과 SQLite DB를 함께 참조하도록 리팩토링되었습니다.
+- **의존성 주입(DI) 정비**: `DBManager` 등 핵심 컴포넌트를 `Program.cs`의 DI 컨테이너에 싱글턴으로 등록하고 컨트롤러에 주입하는 패턴을 확립했습니다.
+- **API 컨트롤러 도입**: 기존 Panel UI를 대체하는 `HistoryController`, `StrategyController`, `OrderController`, `BacktestController` 등 RESTful API 엔드포인트를 신설하여 외부 제어가 가능해졌습니다.
 
 ---
 
@@ -181,9 +194,9 @@
 3. **`KisBrokerClient` 구현**: IBrokerClient의 KIS 증권사 REST API 구현체.
 4. **`SessionManager` 분기**: App.config 설정을 통한 KIS/Sim 분기 로직 반영.
 
-### 진행 예정 작업
-- 모의투자 환경 통합 검증 및 시연
-- LoginForm을 통한 인증 정보 세팅 UI 반영 (필요 시)
+### 진행 상황: 완료 ✅
+- **모의투자 환경 통합 검증 완료**: Headless 환경에서 퀀트 조건 판단 및 주문 실행 루프가 정상 동작함을 확인.
+- REST API 컨트롤러를 통한 연동 테스트 완료.
 
 ### 퀀트 엔진과의 연동 포인트
 
