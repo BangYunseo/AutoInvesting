@@ -1,3 +1,4 @@
+using AutoInvest.Data;
 using AutoInvest.Utils;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,7 +8,9 @@ using System;
 namespace AutoInvest
 {
     /// <summary>
-    /// 자동 투자 시스템의 차세대 진입점 (ASP.NET Core Web API).
+    /// 자동 투자 시스템 진입점 (ASP.NET Core Web API).
+    /// Headless 백그라운드 서비스로 24시간 자동 매매를 수행하며,
+    /// REST API를 통해 외부에서 상태 조회 및 제어가 가능합니다.
     /// </summary>
     public class Program
     {
@@ -15,24 +18,29 @@ namespace AutoInvest
         {
             try
             {
-                // 콘솔 출력을 지원하는 Logger로 변경하거나 파일 로그 유지
-                Logger.Info("자동 투자 API 서버 초기화 중...");
+                Logger.Initialize();
+                Logger.Info("[서버] 자동 투자 API 서버 초기화 중...");
 
                 var builder = WebApplication.CreateBuilder(args);
 
-                // 서비스 등록
+                // ── 설정 체계 초기화 ──
+                // 환경변수(민감정보) → appsettings.json → SQLite DB 우선순위
+                AppConfigManager.Initialize(builder.Configuration);
+
+                // ── 서비스 등록 ──
                 builder.Services.AddControllers();
                 builder.Services.AddEndpointsApiExplorer();
                 builder.Services.AddSwaggerGen();
 
-                // 의존성 주입 및 백그라운드 서비스 등록
+                // ── 의존성 주입 ──
+                builder.Services.AddSingleton(DBManager.Instance);
                 builder.Services.AddSingleton<AutoInvest.Core.SessionManager>();
                 builder.Services.AddHostedService<AutoInvest.Core.BackgroundServices.TradingBackgroundService>();
 
                 var app = builder.Build();
 
-                // 미들웨어 파이프라인 구성
-                if (app.Environment.IsDevelopment() || true) // 임시로 항상 Swagger 열기
+                // ── 미들웨어 파이프라인 ──
+                if (app.Environment.IsDevelopment())
                 {
                     app.UseSwagger();
                     app.UseSwaggerUI();
@@ -41,12 +49,12 @@ namespace AutoInvest
                 app.UseAuthorization();
                 app.MapControllers();
 
-                Logger.Info("자동 투자 API 서버가 포트에서 수신 대기 중입니다.");
+                Logger.Info("[서버] 자동 투자 API 서버 시작 완료");
                 app.Run();
             }
             catch (Exception ex)
             {
-                Logger.Fatal($"서버 실행 중 치명적 오류 발생: {ex.Message}\n{ex.StackTrace}");
+                Logger.Fatal($"[서버] 치명적 오류: {ex.Message}\n{ex.StackTrace}");
             }
         }
     }

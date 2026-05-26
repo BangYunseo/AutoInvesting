@@ -1,23 +1,48 @@
-using System.Configuration;
+using System;
 using System.Data.SQLite;
 using AutoInvest.Utils;
+using Microsoft.Extensions.Configuration;
 
 namespace AutoInvest.Data
 {
+    /// <summary>
+    /// 애플리케이션 설정값을 통합 관리합니다.
+    /// 우선순위: 환경변수 → appsettings.json → SQLite DB (TB_APP_CONFIG)
+    /// 민감 정보(KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NO)는 환경변수 전용입니다.
+    /// </summary>
     public static class AppConfigManager
     {
+        private static IConfiguration? _configuration;
+
+        /// <summary>
+        /// ASP.NET Core IConfiguration을 주입합니다. Program.cs에서 호출.
+        /// </summary>
+        public static void Initialize(IConfiguration configuration)
+        {
+            _configuration = configuration;
+            Logger.Info("[Config] AppConfigManager 초기화 완료 (appsettings.json 연동)");
+        }
+
+        /// <summary>
+        /// 설정값 조회. 우선순위: 환경변수 → appsettings.json → DB → 기본값
+        /// </summary>
         public static string Get(string key, string defaultValue = "")
         {
             try
             {
-                // 1. App.config 또는 환경변수 우선 확인 (보안 규칙)
-                string? envValue = System.Environment.GetEnvironmentVariable(key);
+                // 1. 환경변수 (최우선 — 민감 정보용)
+                string? envValue = Environment.GetEnvironmentVariable(key);
                 if (!string.IsNullOrEmpty(envValue)) return envValue;
 
-                string? appSettingValue = ConfigurationManager.AppSettings[key];
-                if (!string.IsNullOrEmpty(appSettingValue)) return appSettingValue;
+                // 2. appsettings.json (IConfiguration)
+                if (_configuration != null)
+                {
+                    // 평탄화된 키 매핑: IS_PAPER_TRADING → Trading:IsPaperTrading 등
+                    string? configValue = ResolveFromConfiguration(key);
+                    if (!string.IsNullOrEmpty(configValue)) return configValue;
+                }
 
-                // 2. DB 조회 (기존 방식)
+                // 3. SQLite DB (런타임 수정 가능한 설정)
                 using (var conn = DBManager.Instance.GetConnection())
                 using (var cmd = new SQLiteCommand(
                     "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
@@ -27,13 +52,16 @@ namespace AutoInvest.Data
                     return result?.ToString() ?? defaultValue;
                 }
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 Logger.Error($"Config 조회 실패 [{key}]: {ex.Message}");
                 return defaultValue;
             }
         }
 
+        /// <summary>
+        /// 설정값 저장 (SQLite DB에 저장).
+        /// </summary>
         public static void Set(string key, string value)
         {
             try
@@ -44,14 +72,62 @@ namespace AutoInvest.Data
                 {
                     cmd.Parameters.AddWithValue("@v", value);
                     cmd.Parameters.AddWithValue("@k", key);
-                    cmd.ExecuteNonQuery();
+                    int affected = cmd.ExecuteNonQuery();
+
+                    if (affected == 0)
+                    {
+                        // 키가 없으면 INSERT
+                        using var insertCmd = new SQLiteCommand(
+                            "INSERT INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE) VALUES (@k, @v)", conn);
+                        insertCmd.Parameters.AddWithValue("@k", key);
+                        insertCmd.Parameters.AddWithValue("@v", value);
+                        insertCmd.ExecuteNonQuery();
+                    }
                 }
-                Logger.Info($"Config 저장: {key} = {value}");
+                Logger.Info($"[Config] 저장: {key} = {value}");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                Logger.Error($"Config 저장 실패 [{key}]: {ex.Message}");
+                Logger.Error($"[Config] 저장 실패 [{key}]: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 레거시 키명을 appsettings.json의 계층 구조 키로 매핑합니다.
+        /// </summary>
+        private static string? ResolveFromConfiguration(string key)
+        {
+            // 레거시 키 → appsettings.json 경로 매핑
+            string? mappedPath = key switch
+            {
+                "IS_PAPER_TRADING"      => "Trading:IsPaperTrading",
+                "INVEST_AMOUNT_KRW"     => "Trading:InvestAmountKrw",
+                "ACTIVE_STRATEGY"       => "Trading:ActiveStrategy",
+                "STRATEGY_TYPE"         => "Trading:StrategyType",
+                "ORDER_SCHEDULE"        => "Trading:OrderSchedule",
+                "REBALANCE_ENABLED"     => "Rebalance:Enabled",
+                "REBALANCE_PERIOD"      => "Rebalance:Period",
+                "REBALANCE_THRESHOLD"   => "Rebalance:Threshold",
+                "LAST_REBALANCE_DATE"   => null, // DB 전용
+                "KIS_SERVER"            => "Kis:Server",
+                "KIS_ACCOUNT_PROD"      => "Kis:AccountProd",
+                _ => null
+            };
+
+            if (mappedPath == null) return null;
+
+            string? value = _configuration?[mappedPath];
+
+            // bool → "1"/"0" 변환 (레거시 호환)
+            if (value != null && (key == "IS_PAPER_TRADING" || key == "REBALANCE_ENABLED"))
+            {
+                if (bool.TryParse(value, out bool boolVal))
+                {
+                    return boolVal ? "1" : "0";
+                }
+            }
+
+            return value;
         }
     }
 }

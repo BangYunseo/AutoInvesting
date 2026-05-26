@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <PackageReference Include="System.Data.SQLite" Version="1.0.118" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
     <!-- Swagger UI for Web API -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
