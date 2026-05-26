@@ -8,11 +8,6 @@ namespace AutoInvest.Core
     /// 증권사 API 추상화 인터페이스.
     /// SimBrokerClient(시뮬레이션) 또는 KisBrokerClient(한국투자증권 실거래)를 구현체로 사용.
     ///
-    /// TODO [Phase 3] KIS 실제 구현체 (KisBrokerClient) 추가
-    ///   - REST: https://openapi.koreainvestment.com:9443
-    ///   - OAuth: APP KEY + APP SECRET → Access Token (24시간 유효)
-    ///   - 해외주식 API 그룹: 시세, 주문, 계좌, 차트
-    ///
     /// TODO [Phase 4] AI 시장분석 엔진 통합
     ///   - AnalyzeMarketSentimentAsync(ticker) 메서드 추가 검토
     ///   - 차트 데이터 + 뉴스(해외 포함) + 커뮤니티 감성 분석 결과를
