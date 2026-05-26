@@ -2,7 +2,6 @@ using AutoInvest.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Windows.Forms;
 
 namespace AutoInvest.Utils
 {
@@ -17,13 +16,11 @@ namespace AutoInvest.Utils
 
     public static class Logger
     {
-        private static ListBox? _listBox;
         private static readonly string LogDir =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
 
-        public static void Initialize(ListBox listBox)
+        public static void Initialize()
         {
-            _listBox = listBox;
             if(!Directory.Exists(LogDir))
             {
                 Directory.CreateDirectory(LogDir);
@@ -61,16 +58,8 @@ namespace AutoInvest.Utils
         {
             string logMsg = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {msg}";
             Console.WriteLine(logMsg);
-            _listBox?.Invoke(new Action(() => AppendToListBox(logMsg)));
             Directory.CreateDirectory(LogDir);
             File.AppendAllText(Path.Combine(LogDir, $"{DateTime.Now:yyyy-MM-dd}.log"), logMsg + Environment.NewLine);
-        }
-
-        private static void AppendToListBox(string line)
-        {
-            _listBox?.Items.Add(line);
-            if (_listBox != null)
-                _listBox.TopIndex = _listBox.Items.Count - 1; 
         }
 
         private static void DeleteOldLogs()
