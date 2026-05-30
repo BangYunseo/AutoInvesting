@@ -7,7 +7,7 @@ namespace AutoInvest.Controllers
 {
     /// <summary>
     /// 시스템 설정 값 (API 키, 전략 등)을 조회하고 변경하는 API.
-    /// 기존 WinForms의 ConfigPanel 역할을 대체합니다.
+    /// ConfigPanel 역할을 대체합니다.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]

@@ -18,7 +18,7 @@ trigger: always_on
 - 토큰 발급: `POST /oauth2/tokenP`
 - 요청 Body: `{ "grant_type": "client_credentials", "appkey": "...", "appsecret": "..." }`
 - 토큰 유효기간: **24시간**
-- 만료 전 자동 갱신 로직 필수 구현
+- 만료 전 자동 갱신 로직 필수 구현 → `security.md` 참조
 
 ## REST API 공통 헤더
 ```
@@ -41,9 +41,17 @@ tr_id: {TR_CODE}
 | PlaceBuyOrderAsync | POST | /uapi/overseas-stock/v1/trading/order | TTTT1002U/VTTT1002U |
 | PlaceSellOrderAsync | POST | /uapi/overseas-stock/v1/trading/order | TTTT1006U/VTTT1006U |
 
+## 실전 vs 모의투자 분기
+`SessionManager`에서 `IS_PAPER_TRADING` 설정으로 분기:
+
+| 설정값 | 구현체 | 도메인 |
+|--------|--------|--------|
+| `"1"` | `SimBrokerClient` | (로컬 시뮬레이션) |
+| `"0"` | `KisBrokerClient` | `openapi.koreainvestment.com:9443` |
+
 ## Rate Limit
 - API별 초당 호출 제한 존재
-- 연속 호출 시 최소 200ms 딜레이 삽입
+- 연속 호출 시 최소 **200ms** 딜레이 삽입
 - 429 응답 시 지수 백오프(Exponential Backoff) 적용
 - 모의투자 환경은 Rate Limit이 더 낮으므로 주의
 
@@ -52,20 +60,16 @@ tr_id: {TR_CODE}
 // HttpClient는 반드시 재사용 (static 또는 싱글턴)
 private static readonly HttpClient _httpClient = new HttpClient();
 
-// 모든 API 호출은 async/await
 public async Task<decimal> GetCurrentPriceAsync(string ticker)
 {
-    // 토큰 만료 확인 → 자동 갱신
     await _tokenManager.EnsureValidTokenAsync();
-    
-    // 헤더 설정
+
     var request = new HttpRequestMessage(HttpMethod.Get, url);
     request.Headers.Add("authorization", $"Bearer {_token}");
     request.Headers.Add("appkey", _appKey);
     request.Headers.Add("appsecret", _appSecret);
     request.Headers.Add("tr_id", "HHDFS00000300");
-    
-    // 호출 + 역직렬화
+
     var response = await _httpClient.SendAsync(request);
     response.EnsureSuccessStatusCode();
     // ...
@@ -73,13 +77,9 @@ public async Task<decimal> GetCurrentPriceAsync(string ticker)
 ```
 
 ## 에러 처리
+- 응답의 `rt_cd` 필드로 성공/실패 판단: `"0"` = 성공, 그 외 = 실패
+- 실패 시 `msg_cd`와 `msg1` 필드로 에러 내용 확인
 - HTTP 4xx/5xx → 로그 + 재시도 (최대 3회)
 - 토큰 만료(401) → 자동 재발급 후 재시도
 - 네트워크 오류 → `Logger.Error()` + 안전한 실패 처리
 - 장 마감 시간대 주문 거부 → 사용자에게 알림
-
-## 보안
-- AppKey, AppSecret은 절대 소스코드에 하드코딩 금지
-- 설정 파일(App.config) 또는 환경변수로 관리
-- 토큰은 메모리에만 보관, 파일 저장 금지
-- .gitignore에 설정 파일이 포함되어 있는지 확인
