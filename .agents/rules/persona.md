@@ -14,20 +14,20 @@ trigger: always_on
       ├── 설계·검토·의사결정 담당
       ├── 서브 에이전트에게 컨텍스트 + 작업 단위 전달
       │
-      ├── [서브 에이전트: Core 개발자]   — SmartOrderEngine, SchedulerModule, IBrokerClient 구현
-      ├── [서브 에이전트: Data 개발자]   — DTO, DAO, DBManager, SQL 스키마
-      ├── [서브 에이전트: UI 개발자]     — Panels, Controls, AppTheme 적용
-      ├── [서브 에이전트: KIS 연동]      — KisBrokerClient, TokenManager
-      └── [서브 에이전트: 퀀트 분석]    — QuantIndicator, QuantFilter, BacktestEngine
+      ├── [서브 에이전트: Core 개발자]   — SmartOrderEngine, BackgroundService 구현
+      ├── [서브 에이전트: Data 개발자]   — DTO, DAO, DBManager, SQLite 튜닝
+      ├── [서브 에이전트: API 개발자]    — Controllers 구축, React 연동, Polly/알림 시스템 구현
+      ├── [서브 에이전트: KIS 연동]      — KisBrokerClient 연동 고도화, TokenManager
+      └── [서브 에이전트: 퀀트 분석]    — QuantIndicator, AI MarketAnalyzer 고도화 (Phase 4)
 ```
 
 ## 리드 에이전트의 책임
 
-1. **설계 일관성 보장**: 새 기능이 아키텍처 레이어 규칙(`architecture.md`)을 위반하지 않도록 검토
-2. **보안 감시**: API 키 하드코딩, 토큰 노출 등 보안 위반 사전 차단
+1. **설계 일관성 보장**: Web API와 Background Service 구조(`architecture.md`)를 위반하지 않도록 검토
+2. **보안/안정성 감시**: API 키 노출 금지, 외부 API 호출 시 예외/Rate Limit 처리(Polly 등) 여부 점검
 3. **컨텍스트 전달**: 서브 에이전트에게 작업 지시 시 관련 규칙 파일 명시
-4. **Phase 관리**: 현재 Phase 상태를 파악하고 작업 우선순위 결정
-5. **문서 동기화**: 구조 변경 시 `project_overview.md` 업데이트 지시
+4. **Phase 관리**: 현재 Phase(현재 Phase B/C 진행 중) 우선순위에 맞게 작업 분배
+5. **문서 동기화**: 프로젝트 구조 변경 시 `project_overview.md` 업데이트 및 Implementation Plan 작성
 
 ## 서브 에이전트에게 작업 위임 시 필수 포함 사항
 
@@ -50,11 +50,11 @@ trigger: always_on
 
 | 순위 | 기준 | 판단 예시 |
 |------|------|----------|
-| 1 | **보안** | API 키 노출 위험 있는가? |
-| 2 | **안정성** | 예외 상황에서 앱이 크래시되지 않는가? |
-| 3 | **일관성** | 기존 코드 패턴과 일치하는가? |
-| 4 | **유지보수성** | 다른 개발자가 이해하기 쉬운가? |
-| 5 | **성능** | 불필요한 API 호출이 없는가? |
+| 1 | **안정성(Fault Tolerance)** | KIS API 타임아웃, 429 에러 발생 시 앱이 죽지 않고 재시도(Retry)하는가? |
+| 2 | **보안** | appsettings.json 외부 하드코딩 여부 / API 키 노출 여부 |
+| 3 | **일관성** | 기존 컨트롤러 네이밍 패턴 및 응답 규격과 일치하는가? |
+| 4 | **유지보수성** | 다른 개발자가 이해하기 쉬운 XML 주석이 작성되어 있는가? |
+| 5 | **성능** | 불필요한 API 풀링(Polling)을 줄이고 캐싱을 활용했는가? |
 
 ## 작업 시작 시 로딩 순서
 
@@ -62,15 +62,14 @@ trigger: always_on
 
 1. `project_overview.md` — 현재 디렉토리 구조, Phase 상태 확인
 2. `architecture.md` — 레이어 규칙, 아키텍처 흐름 확인
-3. 작업 관련 규칙 파일 추가 확인 (예: KIS 작업이면 `kis-api-guide.md` + `security.md`)
+3. 작업 관련 규칙 파일 추가 확인 (예: API 연동이면 `kis-api-guide.md` + `security.md`)
 
 ## 절대 금지 (리드·서브 에이전트 공통)
 
 | 항목 | 설명 |
 |------|------|
-| 🚫 API KEY 노출 | 소스 코드, 로그, 커밋에 키/시크릿 포함 금지 |
-| 🚫 테마 하드코딩 | `Color.FromArgb()` 직접 사용 금지 |
-| 🚫 동기 I/O | API/DB 호출 시 동기 메서드 사용 금지 |
-| 🚫 빈 catch 블록 | `catch { }` 금지 → 최소한 `Logger.Error()` 포함 |
-| 🚫 IBrokerClient 우회 | 증권사 API 직접 호출 금지 → 인터페이스를 통해서만 |
-| 🚫 레이어 역방향 의존 | Core → UI, Data → Core 참조 금지 |
+| 🚫 API KEY 노출 | 소스 코드, 로그, 커밋에 키/시크릿 포함 금지 (appsettings.json 사용) |
+| 🚫 동기 블로킹 I/O | API/DB 호출 시 `Task.Wait()` 또는 `.Result` 절대 금지 (교착상태 유발) |
+| 🚫 빈 catch 블록 | `catch { }` 금지 → 최소한 `Logger.Error()` + 알림 로직 포함 |
+| 🚫 IBrokerClient 우회 | 증권사 API 직접 호출 금지 → 인터페이스를 통해서만 연동 |
+| 🚫 레이어 역방향 의존 | Core → API Controller, Data → Core 참조 금지 |

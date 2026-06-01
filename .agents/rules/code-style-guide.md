@@ -25,15 +25,14 @@ trigger: always_on
 | DAO (DB 접근) | `Data/DAO/` | `StrategyDAO.cs` |
 | 비즈니스 로직/엔진 | `Core/` | `SmartOrderEngine.cs` |
 | 퀀트 모듈 | `Core/Quant/` | `QuantFilter.cs` |
-| UI 패널 (UserControl) | `Panels/` | `DashboardPanel.cs` |
-| 커스텀 컨트롤 | `Controls/` | `AllocationCardControl.cs` |
-| 유틸리티 | `Utils/` | `Logger.cs` |
-| 메인 폼 | `Forms/` | `MainForm.cs` |
+| REST API 컨트롤러 | `Controllers/` | `OrderController.cs` |
+| 백그라운드 서비스 | `Core/BackgroundServices/` | `TradingBackgroundService.cs` |
+| 유틸리티 / 통신 | `Utils/` | `Logger.cs`, `NotificationService.cs` |
 
 ## 파일 구조
 - 파일당 하나의 public 클래스/인터페이스
 - 파일명 = 클래스명 (예: `SmartOrderEngine.cs`)
-- 네임스페이스는 폴더 구조를 반영 (예: `AutoInvest.Core.Quant`)
+- 네임스페이스는 폴더 구조를 반영 (예: `AutoInvest.Controllers`)
 - `using` 문은 네임스페이스 밖에 배치
 
 ## 코드 스타일
@@ -41,24 +40,19 @@ trigger: always_on
 - 중괄호는 별도 줄에 배치 (Allman 스타일)
 - nullable 참조 타입 (`?`) 적극 활용
 - 문자열 보간(`$""`)을 `string.Format()` 대신 사용
-- 매직 넘버 대신 상수 또는 설정값 사용
-
-## WinForms 특수 규칙
-- 디자이너 생성 컨트롤명: `{타입약어}_{이름}` (예: `btn_save`, `pnl_content`, `lbl_title`)
-- 이벤트 핸들러: `{컨트롤명}_{이벤트}` (예: `btn_save_Click`)
-- IDE1006 네이밍 경고 비활성화 (`.editorconfig`에서 처리됨)
+- 매직 넘버 대신 상수 또는 `appsettings.json` 설정값 활용
 
 ## 주석 규칙
 
 ### XML 주석 (MUST)
-모든 `public` 클래스, 메서드, 프로퍼티에 XML 주석을 작성합니다.
+모든 `public` 클래스, 메서드, 프로퍼티(특히 Controller의 액션 메서드)에 XML 주석을 작성합니다.
 
 ```csharp
 /// <summary>
-/// 단일 종목 분석 → 퀀트 조건 판단 → 매수/매도/보류 신호 반환
+/// 특정 전략의 조건을 검증하고 조건 충족 시 주문을 실행합니다.
 /// </summary>
 /// <param name="ticker">종목 코드</param>
-public async Task<SmartOrderResult> AnalyzeAsync(string ticker)
+public async Task<SmartOrderResult> ExecuteOrderAsync(string ticker)
 ```
 
 ### 인라인 주석
@@ -71,8 +65,7 @@ var signal = QuantFilter.CheckBuyCondition(indicators, strategyType);
 
 ### TODO 주석
 ```csharp
-// TODO [Phase 3] 한국투자증권 실거래 클라이언트 생성
-// TODO [Phase 4] AI 시장분석 엔진 통합
+// TODO [Phase 4] AI 기반 종목 분석 및 감성 점수 반영 로직 추가
 ```
 
 ## DTO 작성 규칙
@@ -111,8 +104,9 @@ public static List<StrategyDto> GetStrategy(string strategyName)
 | 계층 | 처리 방법 |
 |------|-----------| 
 | DAO | catch → `Logger.Error()` + 빈 결과 반환 또는 재throw |
-| Core/Engine | catch → `Logger.Error()` + 안전한 기본값 반환 |
-| UI (Panel) | catch → `Logger.Error()` + MessageBox 알림 |
+| Core/Engine | catch → `Logger.Error()` + 안전한 기본값 반환 + 필요시 NotificationService 연동 |
+| Controllers | 전역 예외 처리 미들웨어 사용 또는 catch → HTTP 500 응답 반환 |
+| Background | catch → `Logger.Error()` 후 다음 주기 실행까지 대기 |
 | Program.cs | 전역 catch → `Logger.Fatal()` |
 
 ```csharp
@@ -120,9 +114,10 @@ public static List<StrategyDto> GetStrategy(string strategyName)
 catch { }
 catch (Exception) { return null; }
 
-// ✅ 표준 패턴
+// ✅ 표준 패턴 (API Controller)
 catch (Exception ex)
 {
-    Logger.Error($"[모듈명] 처리 실패: {ex.Message}");
+    Logger.Error($"[API] 수동 주문 실패: {ex.Message}");
+    return StatusCode(500, "서버 내부 오류가 발생했습니다.");
 }
 ```

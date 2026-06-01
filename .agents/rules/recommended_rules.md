@@ -8,64 +8,30 @@ trigger: always_on
 
 ### 하위 호환성 유지 (MUST)
 - 새 Phase 기능이 기존 기능을 깨뜨리면 안 됨
-- `IBrokerClient` 인터페이스에 메서드 추가 시, `SimBrokerClient`에도 반드시 구현
-- DB 스키마 변경 시 `RunMigration()` 사용 (기존 데이터 보존)
+- `IBrokerClient` 인터페이스에 메서드 추가 시, `SimBrokerClient`와 `KisBrokerClient` 모두에 구현
+- DB 스키마 변경 시 기존 데이터가 보존되도록 ALTER TABLE 마이그레이션 스크립트를 작성하여 반영
 
-```csharp
-// ✅ 마이그레이션 패턴 (DBManager.cs)
-RunMigration(conn, "ALTER TABLE TB_INVEST_STRATEGY ADD COLUMN NEW_FIELD TEXT DEFAULT ''");
-```
+## 백그라운드 서비스 및 API 개발 규칙
 
-### Phase 3 개발 시 주의사항
-- `SimBrokerClient`는 삭제하지 않음 (시뮬레이션 모드 유지)
-- `KisBrokerClient`를 별도 파일로 추가
-- `SessionManager`에서 `IS_PAPER_TRADING` 설정으로 분기
+### API Controller 작성 수칙
+1. 엔드포인트는 RESTful 규칙을 따릅니다 (예: `GET /api/orders`, `POST /api/config`).
+2. 비즈니스 로직은 컨트롤러에 직접 구현하지 말고 `Core` 레이어의 엔진을 DI로 주입받아 호출합니다.
+3. 요청/응답 형식은 표준 JSON으로 통일합니다.
 
-## Panel 개발 규칙
-
-### 새 Panel 추가 체크리스트
-1. `Panels/` 폴더에 `{Name}Panel.cs` 파일 생성
-2. `UserControl` 상속
-3. `AppTheme` 다크 테마 적용 (`ui_theme.md` 참조)
-4. `MainForm.SwitchPanel()` 연동 확인
-5. 사이드바 메뉴 버튼 추가 (필요 시)
-
-```csharp
-public class NewPanel : UserControl
-{
-    public NewPanel()
-    {
-        this.BackColor = AppTheme.BgMain;
-        this.Dock = DockStyle.Fill;
-        InitializeComponents();
-    }
-}
-```
+### 안정성 확보 (Polly 및 재시도)
+- KIS 증권사 API 호출 등 외부 의존성이 있는 곳은 반드시 `Polly` 기반의 `AsyncRetryPolicy`를 적용하여 429 에러(Rate Limit)나 일시적 네트워크 오류 시 자동 재시도되도록 구성합니다.
+- 실패가 누적될 경우 `NotificationService`를 통해 관리자에게 경고 이메일을 발송합니다.
 
 ## 성능 규칙
 
-### API 호출 최소화
-- 동일 데이터 반복 조회 방지 (캐시 활용)
-- 환율은 `ExchangeRateService`에서 1시간 캐싱
-- 연속 API 호출 시 200ms 딜레이 (TPS 제한 준수)
+### API 호출 최소화 및 캐싱
+- 불필요한 시장가 조회를 피하기 위해 반복 호출이 일어나는 데이터(환율 등)는 In-Memory(메모리 캐시)를 활용하여 캐싱(예: 1시간)합니다.
+- 거래소 TPS 제한을 초과하지 않도록, `KisBrokerClient` 내에서 연속 호출 시 백오프 로직을 마련합니다.
 
-### UI 스레드 보호
-- 장시간 작업은 반드시 `Task.Run()` 또는 `async/await`
-- UI 업데이트는 `Invoke()` 사용
-
-```csharp
-// ✅ UI 스레드 안전한 업데이트
-_listBox?.Invoke(new Action(() => _listBox.Items.Add(logMsg)));
-```
+### 스레드 보호 및 비동기 처리
+- 장시간 소요되는 I/O 처리(주문 로직, 메일 발송 등)는 메인 흐름을 방해하지 않도록 완전 비동기로 설계합니다. (Wait(), Result 사용 절대 금지)
+- 백그라운드 서비스 루프 내부 예외 발생 시 서비스 전체가 종료되지 않도록 `try-catch`로 감싸고 다음 주기로 넘어가게 처리합니다.
 
 ## 테스트 규칙
-
-- `SimBrokerClient`로 전체 엔진 로직 테스트 가능
-- 새 기능 추가 시 시뮬레이션 모드에서 먼저 검증
-- 퀀트 지표 계산은 알려진 데이터로 결과 검증
-
-## 문서 유지 규칙
-
-- 새 파일 추가/삭제 시 `project_overview.md`의 디렉토리 구조 업데이트
-- Phase 완료 시 `Documents/DEVELOPMENT.md` 업데이트
-- DB 스키마 변경 시 `Data/sql/create_tables.sql` 및 문서 동기화
+- 신규 알고리즘이나 기능 추가 시, `appsettings.json`의 설정값을 변경하여 모의투자(`SimBrokerClient`) 모드로 먼저 로직을 검증합니다.
+- 퀀트 판단 로직은 `BacktestEngine`을 통해 기존 데이터셋으로 의도된 매매가 일어나는지 확인합니다.
