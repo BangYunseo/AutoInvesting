@@ -43,12 +43,8 @@ namespace AutoInvest
 
                 var app = builder.Build();
 
-                // ── 미들웨어 파이프라인 ──
-                if (app.Environment.IsDevelopment())
-                {
-                    app.UseSwagger();
-                    app.UseSwaggerUI();
-                }
+                app.UseSwagger();
+                app.UseSwaggerUI();
 
                 app.UseAuthorization();
                 app.MapControllers();
