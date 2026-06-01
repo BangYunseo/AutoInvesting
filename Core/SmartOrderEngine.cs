@@ -193,6 +193,7 @@ namespace AutoInvest.Core
                 catch (Exception ex)
                 {
                     Logger.Error($"[SmartOrder] {strategy.Ticker} 처리 실패: {ex.Message}");
+                    _ = NotificationService.SendEmailAsync($"주문 처리 실패: {strategy.Ticker}", $"오류 내용: {ex.Message}");
                 }
             }
 
@@ -229,6 +230,8 @@ namespace AutoInvest.Core
 
             Logger.Info($"[SmartOrder] 매수 완료: {strategy.Ticker} {qty}주 @ ${result.PriceRange.Current} " +
                 $"(근거: {string.Join(" + ", result.QuantConditions)})");
+            _ = NotificationService.SendEmailAsync($"매수 체결: {strategy.Ticker}", 
+                $"수량: {qty}주<br/>단가: ${result.PriceRange.Current}<br/>주문번호: {orderNo}<br/>근거: {string.Join(", ", result.QuantConditions)}");
         }
 
         private async Task ExecuteSellAsync(string ticker, SmartOrderResult result)
@@ -258,6 +261,8 @@ namespace AutoInvest.Core
 
             Logger.Info($"[SmartOrder] 매도 완료: {ticker} {holding.Qty}주 @ ${result.PriceRange.Current} " +
                 $"(근거: {string.Join(" + ", result.QuantConditions)})");
+            _ = NotificationService.SendEmailAsync($"매도 체결: {ticker}", 
+                $"수량: {holding.Qty}주<br/>단가: ${result.PriceRange.Current}<br/>주문번호: {orderNo}<br/>근거: {string.Join(", ", result.QuantConditions)}");
         }
 
         /// <summary>

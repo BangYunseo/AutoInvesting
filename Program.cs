@@ -28,6 +28,7 @@ namespace AutoInvest
                 // ── 설정 체계 초기화 ──
                 // 환경변수(민감정보) → appsettings.json → SQLite DB 우선순위
                 AppConfigManager.Initialize(builder.Configuration);
+                NotificationService.Initialize(builder.Configuration);
 
                 // ── 서비스 등록 ──
                 builder.Services.AddControllers();
