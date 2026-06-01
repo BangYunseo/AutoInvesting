@@ -1,0 +1,183 @@
+import { useState, useEffect } from 'react';
+
+const SellPlanManager = () => {
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form state
+  const [ticker, setTicker] = useState('QQQM');
+  const [strategyType, setStrategyType] = useState('PRICE');
+  const [targetQty, setTargetQty] = useState(10);
+  const [trancheQty, setTrancheQty] = useState(2);
+  
+  // Specific params
+  const [targetPrice, setTargetPrice] = useState(250);
+  const [nextExecutionDate, setNextExecutionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [condition, setCondition] = useState('MA20_BREAK');
+
+  const fetchPlans = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/sellplan');
+      if (res.ok) {
+        const data = await res.json();
+        setPlans(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch plans', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const handleCreatePlan = async (e) => {
+    e.preventDefault();
+    let params = {};
+    if (strategyType === 'PRICE') {
+      params = { TargetPrice: Number(targetPrice), TrancheQty: Number(trancheQty) };
+    } else if (strategyType === 'TIME') {
+      params = { NextExecutionDate: nextExecutionDate, TrancheQty: Number(trancheQty) };
+    } else if (strategyType === 'CHART') {
+      params = { Condition: condition, TrancheQty: Number(trancheQty) };
+    }
+
+    const newPlan = {
+      ticker,
+      strategyType,
+      targetQty: Number(targetQty),
+      params: JSON.stringify(params)
+    };
+
+    try {
+      const res = await fetch('/api/sellplan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPlan)
+      });
+      if (res.ok) {
+        fetchPlans();
+      } else {
+        alert('Failed to create plan');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCancel = async (id) => {
+    if (!confirm('정말로 이 분할매도 플랜을 취소하시겠습니까?')) return;
+    try {
+      const res = await fetch(`/api/sellplan/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchPlans();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <h2>새 분할매도 설정</h2>
+        <form onSubmit={handleCreatePlan} className="grid-2">
+          <div className="form-group">
+            <label>종목명 (Ticker)</label>
+            <input type="text" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} required />
+          </div>
+          <div className="form-group">
+            <label>전략 종류</label>
+            <select value={strategyType} onChange={e => setStrategyType(e.target.value)}>
+              <option value="PRICE">가격 익절 (목표가 도달 시)</option>
+              <option value="TIME">기간 익절 (지정일 도달 시)</option>
+              <option value="CHART">차트 익절 (지지선 이탈 시)</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>목표 총 매도 수량</label>
+            <input type="number" value={targetQty} onChange={e => setTargetQty(e.target.value)} required min="1" />
+          </div>
+          <div className="form-group">
+            <label>1회 분할 수량</label>
+            <input type="number" value={trancheQty} onChange={e => setTrancheQty(e.target.value)} required min="1" />
+          </div>
+          
+          {strategyType === 'PRICE' && (
+            <div className="form-group">
+              <label>목표 가격 ($)</label>
+              <input type="number" step="0.01" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} required />
+            </div>
+          )}
+          {strategyType === 'TIME' && (
+            <div className="form-group">
+              <label>첫 매도일</label>
+              <input type="date" value={nextExecutionDate} onChange={e => setNextExecutionDate(e.target.value)} required />
+            </div>
+          )}
+          {strategyType === 'CHART' && (
+            <div className="form-group">
+              <label>이탈 조건</label>
+              <select value={condition} onChange={e => setCondition(e.target.value)}>
+                <option value="MA20_BREAK">20일 이평선 이탈 (MA20_BREAK)</option>
+              </select>
+            </div>
+          )}
+          
+          <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
+            <button type="submit">플랜 생성 (시작)</button>
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>활성 분할매도 플랜 (Active Plans)</h2>
+        {loading ? (
+          <p>로딩 중...</p>
+        ) : plans.length === 0 ? (
+          <p>현재 진행 중인 분할매도 플랜이 없습니다.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Ticker</th>
+                <th>Type</th>
+                <th>상태 / 진행률</th>
+                <th>설정 파라미터</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plans.map(p => {
+                const progress = Math.min(100, Math.round((p.soldQty / p.targetQty) * 100));
+                return (
+                  <tr key={p.planId}>
+                    <td>{p.planId}</td>
+                    <td><strong>{p.ticker}</strong></td>
+                    <td><span className="badge active">{p.strategyType}</span></td>
+                    <td>
+                      {p.soldQty} / {p.targetQty} 주
+                      <div className="progress-container">
+                        <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+                      </div>
+                    </td>
+                    <td style={{ fontSize: '12px', color: '#6c757d' }}>{p.params}</td>
+                    <td>
+                      <button className="danger" onClick={() => handleCancel(p.planId)}>취소</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default SellPlanManager;
