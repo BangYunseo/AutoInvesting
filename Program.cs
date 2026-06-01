@@ -3,6 +3,7 @@ using AutoInvest.Utils;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Serilog;
 using System;
 
 namespace AutoInvest
@@ -22,6 +23,7 @@ namespace AutoInvest
                 Logger.Info("[서버] 자동 투자 API 서버 초기화 중...");
 
                 var builder = WebApplication.CreateBuilder(args);
+                builder.Host.UseSerilog();
 
                 // ── 설정 체계 초기화 ──
                 // 환경변수(민감정보) → appsettings.json → SQLite DB 우선순위
@@ -31,6 +33,7 @@ namespace AutoInvest
                 builder.Services.AddControllers();
                 builder.Services.AddEndpointsApiExplorer();
                 builder.Services.AddSwaggerGen();
+                builder.Services.AddHealthChecks();
 
                 // ── 의존성 주입 ──
                 builder.Services.AddSingleton(DBManager.Instance);
@@ -48,6 +51,7 @@ namespace AutoInvest
 
                 app.UseAuthorization();
                 app.MapControllers();
+                app.MapHealthChecks("/api/health");
 
                 Logger.Info("[서버] 자동 투자 API 서버 시작 완료");
                 app.Run();
@@ -55,6 +59,10 @@ namespace AutoInvest
             catch (Exception ex)
             {
                 Logger.Fatal($"[서버] 치명적 오류: {ex.Message}\n{ex.StackTrace}");
+            }
+            finally
+            {
+                Logger.FlushAndClose();
             }
         }
     }

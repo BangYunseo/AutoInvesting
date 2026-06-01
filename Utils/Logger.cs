@@ -1,76 +1,79 @@
-using AutoInvest.Core;
+using Serilog;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace AutoInvest.Utils
 {
-    public enum LogLevel
-    {
-        INFO,
-        WARN,
-        ERROR,
-        FATAL,
-        QUANT
-    }
-
+    /// <summary>
+    /// 시스템 로깅 유틸리티 (Serilog 래퍼).
+    /// </summary>
     public static class Logger
     {
-        private static readonly string LogDir =
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+        private static bool _initialized = false;
 
         public static void Initialize()
         {
-            if(!Directory.Exists(LogDir))
+            if (_initialized) return;
+
+            string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            if (!Directory.Exists(logDir))
             {
-                Directory.CreateDirectory(LogDir);
+                Directory.CreateDirectory(logDir);
             }
-            DeleteOldLogs();
-        }
-        
-        public static void Info(string msg) => Write(LogLevel.INFO, msg);
-        public static void Warn(string msg) => Write(LogLevel.WARN, msg);
-        public static void Error(string msg) => Write(LogLevel.ERROR, msg);
-        public static void Fatal(string msg) => Write(LogLevel.FATAL, msg);
 
-        /// <summary>
-        /// 퀀트 판단 근거를 상세히 기록합니다.
-        /// 출력 형식: "[QUANT] QQQM [MEAN_REVERSION]: Position=0.07 ✓, RSI=26.3 ✓ → BUY"
-        /// </summary>
-        /// <param name="ticker">종목 코드</param>
-        /// <param name="conditions">충족된 조건 목록</param>
-        /// <param name="signal">최종 신호 (BUY/SELL/HOLD)</param>
-        /// <param name="strategyType">전략 유형</param>
-        public static void LogQuant(
-            string ticker,
-            List<string> conditions,
-            SmartOrderSignal signal,
-            string strategyType = "MEAN_REVERSION")
-        {
-            string condStr = conditions.Count > 0
-                ? string.Join(", ", conditions)
-                : "조건 없음";
-            string msg = $"[QUANT] {ticker} [{strategyType}]: {condStr} → {signal}";
-            Write(LogLevel.QUANT, msg);
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(Path.Combine(logDir, "system-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 7,
+                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .CreateLogger();
+
+            _initialized = true;
         }
 
-        private static void Write(LogLevel level, string msg)
+        public static void Info(string msg)
         {
-            string logMsg = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {msg}";
-            Console.WriteLine(logMsg);
-            Directory.CreateDirectory(LogDir);
-            File.AppendAllText(Path.Combine(LogDir, $"{DateTime.Now:yyyy-MM-dd}.log"), logMsg + Environment.NewLine);
+            Log.Information(msg);
         }
 
-        private static void DeleteOldLogs()
+        public static void Error(string msg, Exception? ex = null)
         {
-            foreach(var file in Directory.GetFiles(LogDir, "*.log"))
-            {
-                if (File.GetCreationTime(file) < DateTime.Now.AddDays(-7))
-                {
-                    File.Delete(file);
-                }
-            }
+            if (ex != null)
+                Log.Error(ex, msg);
+            else
+                Log.Error(msg);
+        }
+
+        public static void Warn(string msg)
+        {
+            Log.Warning(msg);
+        }
+
+        public static void Fatal(string msg, Exception? ex = null)
+        {
+            if (ex != null)
+                Log.Fatal(ex, msg);
+            else
+                Log.Fatal(msg);
+        }
+
+        public static void LogQuant(string msg)
+        {
+            // 퀀트 전용 로깅 - Information 레벨 사용하되 접두어 추가
+            Log.Information($"[QUANT] {msg}");
+        }
+
+        public static void LogQuant(string ticker, System.Collections.Generic.List<string> quantConditions, object signal, string strategyType)
+        {
+            string conditionsStr = quantConditions != null ? string.Join(", ", quantConditions) : "";
+            Log.Information($"[QUANT] [{strategyType}] {ticker} | Signal: {signal} | Conditions: {conditionsStr}");
+        }
+
+        public static void FlushAndClose()
+        {
+            Log.CloseAndFlush();
         }
     }
-}
+}

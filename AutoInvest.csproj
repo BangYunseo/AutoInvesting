@@ -8,6 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.8" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.118" />
     <!-- Swagger UI for Web API -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
