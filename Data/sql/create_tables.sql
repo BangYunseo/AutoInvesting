@@ -84,3 +84,18 @@ CREATE TABLE IF NOT EXISTS TB_MARKET_SNAPSHOT (
     SIGNAL          TEXT,
     CREATED_AT      TEXT    DEFAULT (DATETIME('now','localtime'))
 );
+
+-- ═══════════════════════════════════════════════════════
+-- Phase C: 분할매도(Split-Sell) 플랜 테이블
+-- ═══════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS TB_SELL_PLAN (
+    PLAN_ID         INTEGER PRIMARY KEY AUTOINCREMENT,
+    TICKER          TEXT    NOT NULL,
+    STRATEGY_TYPE   TEXT    NOT NULL, -- 'PRICE', 'TIME', 'CHART'
+    TARGET_QTY      INTEGER NOT NULL,
+    SOLD_QTY        INTEGER NOT NULL DEFAULT 0,
+    STATUS          TEXT    NOT NULL DEFAULT 'ACTIVE', -- 'ACTIVE', 'COMPLETED', 'CANCELLED'
+    PARAMS          TEXT,             -- JSON parameters for the strategy
+    CREATED_AT      TEXT    DEFAULT (DATETIME('now','localtime'))
+);

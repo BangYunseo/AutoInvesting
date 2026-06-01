@@ -175,6 +175,10 @@ namespace AutoInvest.Core
                         SaveMarketSnapshot(result);
                     }
 
+                    // ── 분할매도(Split-Sell) 플랜 무조건 확인 ──
+                    var sellPlanManager = new SellStrategyManager(_broker);
+                    await sellPlanManager.ProcessActivePlansAsync(strategy.Ticker, result.PriceRange.Current, result.Indicators!);
+
                     switch (result.Signal)
                     {
                         case SmartOrderSignal.BUY:
@@ -241,7 +245,14 @@ namespace AutoInvest.Core
 
             if (holding == null || holding.Qty <= 0)
             {
-                Logger.Info($"[SmartOrder] {ticker}: 매도 신호이나 보유 수량 없음 — 스킵");
+                return;
+            }
+
+            // 분할매도 플랜이 없는 경우에만 전량 매도
+            var activePlans = Data.DAO.SellPlanDAO.GetPlansByTicker(ticker).FindAll(p => p.Status == "ACTIVE");
+            if (activePlans.Count > 0)
+            {
+                Logger.Info($"[SmartOrder] {ticker}: 활성화된 분할매도 플랜이 존재하여 전량 일괄 매도를 생략합니다.");
                 return;
             }
 
@@ -259,9 +270,9 @@ namespace AutoInvest.Core
                 OrderNo = orderNo
             });
 
-            Logger.Info($"[SmartOrder] 매도 완료: {ticker} {holding.Qty}주 @ ${result.PriceRange.Current} " +
+            Logger.Info($"[SmartOrder] 일괄 매도 완료: {ticker} {holding.Qty}주 @ ${result.PriceRange.Current} " +
                 $"(근거: {string.Join(" + ", result.QuantConditions)})");
-            _ = NotificationService.SendEmailAsync($"매도 체결: {ticker}", 
+            _ = NotificationService.SendEmailAsync($"일괄 매도 체결: {ticker}", 
                 $"수량: {holding.Qty}주<br/>단가: ${result.PriceRange.Current}<br/>주문번호: {orderNo}<br/>근거: {string.Join(", ", result.QuantConditions)}");
         }
 
