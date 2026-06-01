@@ -27,23 +27,32 @@ namespace AutoInvest.Core.BackgroundServices
         {
             Logger.Info("[Worker] Trading Background Service가 시작되었습니다.");
 
-            // 1분 간격으로 루프 실행
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                try
+                // 1분 간격으로 루프 실행
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    await CheckAndExecuteOrderAsync();
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error($"[Worker] 반복 루프 중 오류 발생: {ex.Message}");
-                }
+                    try
+                    {
+                        await CheckAndExecuteOrderAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error($"[Worker] 반복 루프 중 오류 발생: {ex.Message}");
+                    }
 
-                // 다음 1분(60초)까지 대기
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                    // 다음 1분(60초)까지 대기
+                    await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                }
             }
-
-            Logger.Info("[Worker] Trading Background Service가 종료되었습니다.");
+            catch (TaskCanceledException)
+            {
+                Logger.Info("[Worker] 서비스 종료 신호(SIGTERM) 수신. 진행 중인 작업을 마무리하고 종료합니다.");
+            }
+            finally
+            {
+                Logger.Info("[Worker] Trading Background Service가 안전하게 종료되었습니다.");
+            }
         }
 
         private async Task CheckAndExecuteOrderAsync()
