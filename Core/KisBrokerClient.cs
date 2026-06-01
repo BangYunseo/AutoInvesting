@@ -1,5 +1,7 @@
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
+using Polly;
+using Polly.Retry;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -16,6 +18,17 @@ namespace AutoInvest.Core
     public class KisBrokerClient : IBrokerClient
     {
         private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy = Policy<HttpResponseMessage>
+            .Handle<HttpRequestException>()
+            .Or<TaskCanceledException>()
+            .OrResult(r => !r.IsSuccessStatusCode && ((int)r.StatusCode >= 500 || (int)r.StatusCode == 429 || (int)r.StatusCode == 408))
+            .WaitAndRetryAsync(10, retryAttempt => TimeSpan.FromSeconds(Math.Min(Math.Pow(2, retryAttempt), 30)),
+                (outcome, timeSpan, retryCount, context) =>
+                {
+                    string reason = outcome.Exception != null ? outcome.Exception.Message : $"상태코드: {outcome.Result?.StatusCode}";
+                    Logger.Warn($"[KisBroker] API 호출 실패 ({reason}). {retryCount}/10회 재시도 대기: {timeSpan.TotalSeconds}초");
+                });
+
         private readonly KisTokenManager _tokenManager;
         
         private readonly string _baseUrl;
@@ -67,15 +80,23 @@ namespace AutoInvest.Core
             return request;
         }
 
+        private async Task<HttpResponseMessage> SendWithRetryAsync(Func<HttpRequestMessage> requestFactory)
+        {
+            return await _retryPolicy.ExecuteAsync(async () =>
+            {
+                var request = requestFactory();
+                return await _httpClient.SendAsync(request);
+            });
+        }
+
         public async Task<decimal> GetCurrentPriceAsync(string ticker)
         {
             await _tokenManager.EnsureValidTokenAsync();
             
             // 해외주식 현재가 조회: HHDFS00000300
             string path = $"/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=NAS&SYMB={ticker}";
-            var request = CreateRequest(HttpMethod.Get, path, "HHDFS00000300");
+            var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS00000300"));
 
-            var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
             var responseString = await response.Content.ReadAsStringAsync();
@@ -126,8 +147,7 @@ namespace AutoInvest.Core
             string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
             string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NAS&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
             
-            var request = CreateRequest(HttpMethod.Get, path, trId);
-            var response = await _httpClient.SendAsync(request);
+            var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
             response.EnsureSuccessStatusCode();
 
             var responseString = await response.Content.ReadAsStringAsync();
@@ -167,9 +187,8 @@ namespace AutoInvest.Core
             await Task.Delay(200);
 
             string path = $"/uapi/overseas-price/v1/quotations/dailyprice?AUTH=&EXCD=NAS&SYMB={ticker}&GUBN=0&BYMD=&MODP=1";
-            var request = CreateRequest(HttpMethod.Get, path, "HHDFS76240000");
+            var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS76240000"));
 
-            var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
             var responseString = await response.Content.ReadAsStringAsync();
@@ -232,8 +251,7 @@ namespace AutoInvest.Core
                 : (_isPaperTrading ? "VTTT1006U" : "TTTT1006U");
 
             string path = "/uapi/overseas-stock/v1/trading/order";
-            var request = CreateRequest(HttpMethod.Post, path, trId);
-
+            
             var body = new
             {
                 CANO = _accountNoPrefix,
@@ -246,9 +264,13 @@ namespace AutoInvest.Core
                 ORD_DVSN = "00"
             };
 
-            request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+            var response = await SendWithRetryAsync(() => 
+            {
+                var request = CreateRequest(HttpMethod.Post, path, trId);
+                request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+                return request;
+            });
 
-            var response = await _httpClient.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
             var responseString = await response.Content.ReadAsStringAsync();
