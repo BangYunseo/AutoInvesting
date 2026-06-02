@@ -16,6 +16,24 @@ namespace AutoInvest.Controllers
     public class StrategyController : ControllerBase
     {
         /// <summary>
+        /// 전체 전략 요약 목록을 조회합니다.
+        /// </summary>
+        [HttpGet("summary")]
+        public IActionResult GetStrategySummaries()
+        {
+            try
+            {
+                var summaries = StrategyDAO.GetStrategySummaries();
+                return Ok(summaries);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Strategy] 요약 조회 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// 특정 전략의 종목 목록을 조회합니다.
         /// </summary>
         /// <param name="name">전략명 (기본: 사용자정의)</param>
@@ -45,9 +63,9 @@ namespace AutoInvest.Controllers
         {
             try
             {
-                if (strategies == null || strategies.Count == 0)
+                if (strategies == null)
                 {
-                    return BadRequest(new { error = "저장할 전략 종목이 없습니다." });
+                    return BadRequest(new { error = "잘못된 요청입니다." });
                 }
 
                 StrategyDAO.SaveStrategy(name, strategies);

@@ -31,6 +31,28 @@ namespace AutoInvest.Data.DAO
             return list;
         }
 
+        public static List<StrategySummaryDto> GetStrategySummaries()
+        {
+            var list = new List<StrategySummaryDto>();
+            using (var conn = DBManager.Instance.GetConnection())
+            using (var cmd = new SQLiteCommand(
+                "SELECT STRATEGY_NAME, MAX(STRATEGY_TYPE), COUNT(TICKER) " +
+                "FROM TB_INVEST_STRATEGY GROUP BY STRATEGY_NAME", conn))
+            using (var rdr = cmd.ExecuteReader())
+            {
+                while (rdr.Read())
+                {
+                    list.Add(new StrategySummaryDto
+                    {
+                        StrategyName = rdr.GetString(0),
+                        StrategyType = rdr.IsDBNull(1) ? "MEAN_REVERSION" : rdr.GetString(1),
+                        TickerCount = rdr.GetInt32(2)
+                    });
+                }
+            }
+            return list;
+        }
+
         /// <summary>
         /// 전략을 저장합니다. 동일 이름의 기존 전략을 삭제 후 새로 INSERT.
         /// </summary>
