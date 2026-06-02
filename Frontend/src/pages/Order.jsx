@@ -1,0 +1,289 @@
+import { useState } from 'react';
+
+const STRATEGY_TYPES = ['MEAN_REVERSION', 'MOMENTUM', 'MIXED'];
+
+/**
+ * 퀀트 분석 & 수동 주문 페이지.
+ * OrderController와 연동하여 종목 분석과 스마트 주문을 실행합니다.
+ */
+const Order = () => {
+  // ── 분석 상태 ──
+  const [ticker, setTicker] = useState('QQQM');
+  const [strategy, setStrategy] = useState('MEAN_REVERSION');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
+
+  // ── 수동 주문 상태 ──
+  const [executing, setExecuting] = useState(false);
+  const [orderResult, setOrderResult] = useState(null);
+  const [orderError, setOrderError] = useState(null);
+
+  const handleAnalyze = async () => {
+    try {
+      setAnalyzing(true);
+      setAnalysisError(null);
+      setAnalysisResult(null);
+      const res = await fetch(`/api/order/analyze/${encodeURIComponent(ticker)}?strategy=${strategy}`);
+      if (!res.ok) throw new Error(`분석 실패 (${res.status})`);
+      const data = await res.json();
+      setAnalysisResult(data);
+    } catch (err) {
+      setAnalysisError(err.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!confirm('현재 활성 전략 기반으로 스마트 주문을 즉시 실행합니다.\n정말 진행하시겠습니까?')) return;
+    try {
+      setExecuting(true);
+      setOrderError(null);
+      setOrderResult(null);
+      const res = await fetch('/api/order/execute', { method: 'POST' });
+      if (!res.ok) throw new Error(`주문 실행 실패 (${res.status})`);
+      const data = await res.json();
+      setOrderResult(data);
+    } catch (err) {
+      setOrderError(err.message);
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const getSignalStyle = (signal) => {
+    if (signal === 'BUY') return { bg: 'var(--profit-green-bg)', color: 'var(--profit-green)', label: '📈 매수 신호' };
+    if (signal === 'SELL') return { bg: 'var(--loss-red-bg)', color: 'var(--loss-red)', label: '📉 매도 신호' };
+    return { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', label: '⏸️ 관망 (HOLD)' };
+  };
+
+  const renderGauge = (label, value, min, max, unit = '') => {
+    const range = max - min;
+    const pct = range > 0 ? Math.max(0, Math.min(100, ((value - min) / range) * 100)) : 50;
+    return (
+      <div className="gauge-item">
+        <div className="gauge-item__header">
+          <span className="gauge-item__label">{label}</span>
+          <span className="gauge-item__value">{typeof value === 'number' ? value.toFixed(2) : value}{unit}</span>
+        </div>
+        <div className="gauge-bar">
+          <div className="gauge-bar__fill" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="order-layout">
+      {/* ── 좌측: 퀀트 분석 ── */}
+      <div className="card fade-in fade-in-delay-1">
+        <h2>종목 퀀트 분석</h2>
+
+        {/* 입력 폼 */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 20 }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+            <label>종목 코드</label>
+            <input
+              type="text"
+              value={ticker}
+              onChange={e => setTicker(e.target.value.toUpperCase())}
+              placeholder="예: QQQM"
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+            <label>전략 유형</label>
+            <select value={strategy} onChange={e => setStrategy(e.target.value)}>
+              {STRATEGY_TYPES.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <button className="btn btn--primary" onClick={handleAnalyze} disabled={analyzing}>
+            {analyzing ? '분석 중...' : '🔍 분석'}
+          </button>
+        </div>
+
+        {analysisError && (
+          <div style={{ padding: '10px 14px', background: 'var(--loss-red-bg)', color: 'var(--loss-red)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: 16 }}>
+            ❌ {analysisError}
+          </div>
+        )}
+
+        {/* 분석 결과 */}
+        {analysisResult && (
+          <div className="fade-in">
+            {/* 신호 배지 */}
+            {(() => {
+              const style = getSignalStyle(analysisResult.signal);
+              return (
+                <div style={{
+                  background: style.bg,
+                  color: style.color,
+                  padding: '16px 20px',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{style.label}</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 800 }}>{analysisResult.ticker}</span>
+                </div>
+              );
+            })()}
+
+            {/* 분석 이유 */}
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                <strong>판단 근거:</strong> {analysisResult.reason}
+              </p>
+              {analysisResult.decisionReason && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {analysisResult.decisionReason}
+                </p>
+              )}
+            </div>
+
+            {/* 현재가 */}
+            <div style={{
+              padding: '12px 16px',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: 'var(--radius-sm)',
+              marginBottom: 16,
+              fontSize: '0.9rem'
+            }}>
+              💲 현재가: <strong style={{ color: 'var(--text-primary)' }}>${analysisResult.price?.toFixed(2) ?? 'N/A'}</strong>
+            </div>
+
+            {/* 퀀트 지표 게이지 */}
+            {analysisResult.indicators && (
+              <div>
+                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 12 }}>퀀트 지표</h3>
+                <div className="gauge-grid">
+                  {renderGauge('Position', analysisResult.indicators.position, 0, 1)}
+                  {renderGauge('RSI (14)', analysisResult.indicators.rsi14, 0, 100)}
+                  {renderGauge('MACD Line', analysisResult.indicators.macdLine, -5, 5)}
+                  {renderGauge('MACD Signal', analysisResult.indicators.macdSignal, -5, 5)}
+                  {renderGauge('MACD Histogram', analysisResult.indicators.macdHistogram, -3, 3)}
+                  {renderGauge('BB Upper', analysisResult.indicators.bbUpper, 0, 500, '$')}
+                  {renderGauge('BB Middle', analysisResult.indicators.bbMiddle, 0, 500, '$')}
+                  {renderGauge('BB Lower', analysisResult.indicators.bbLower, 0, 500, '$')}
+                </div>
+              </div>
+            )}
+
+            {/* 조건 목록 */}
+            {analysisResult.conditions && analysisResult.conditions.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 8 }}>판단 조건</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {analysisResult.conditions.map((c, i) => (
+                    <div key={i} style={{
+                      padding: '6px 10px',
+                      background: c.met ? 'var(--profit-green-bg)' : 'var(--loss-red-bg)',
+                      color: c.met ? 'var(--profit-green)' : 'var(--loss-red)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.78rem',
+                      fontFamily: 'var(--font-mono)'
+                    }}>
+                      {c.met ? '✅' : '❌'} {c.description || c}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── 우측: 수동 주문 ── */}
+      <div className="card fade-in fade-in-delay-2">
+        <h2>수동 스마트 주문</h2>
+
+        <div style={{
+          padding: '14px 16px',
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.2)',
+          borderRadius: 'var(--radius-sm)',
+          marginBottom: 20,
+          fontSize: '0.82rem',
+          color: 'var(--warn-amber)'
+        }}>
+          ⚠️ 현재 활성화된 전략의 모든 종목에 대해 퀀트 분석 후 조건 충족 시 실제 주문이 실행됩니다.
+        </div>
+
+        <button
+          className="btn btn--primary"
+          onClick={handleExecute}
+          disabled={executing}
+          style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
+        >
+          {executing ? '⏳ 실행 중...' : '⚡ 스마트 주문 즉시 실행'}
+        </button>
+
+        {orderError && (
+          <div style={{ marginTop: 16, padding: '10px 14px', background: 'var(--loss-red-bg)', color: 'var(--loss-red)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
+            ❌ {orderError}
+          </div>
+        )}
+
+        {orderResult && (
+          <div className="fade-in" style={{ marginTop: 20 }}>
+            <div style={{
+              padding: '10px 14px',
+              background: 'var(--profit-green-bg)',
+              color: 'var(--profit-green)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.85rem',
+              marginBottom: 16
+            }}>
+              ✅ {orderResult.message}
+            </div>
+
+            {orderResult.results && orderResult.results.length > 0 && (
+              <div className="data-table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>종목</th>
+                      <th>신호</th>
+                      <th>이유</th>
+                      <th>가격</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderResult.results.map((r, i) => {
+                      const style = getSignalStyle(r.signal);
+                      return (
+                        <tr key={i}>
+                          <td className="text-strong">{r.ticker}</td>
+                          <td>
+                            <span style={{
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: style.bg,
+                              color: style.color
+                            }}>
+                              {r.signal}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.8rem' }}>{r.reason}</td>
+                          <td>${r.price?.toFixed(2) ?? 'N/A'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Order;
