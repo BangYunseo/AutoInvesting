@@ -46,28 +46,32 @@ namespace AutoInvest.Core
     public class SmartOrderEngine
     {
         private readonly IBrokerClient _broker;
+        private readonly IMarketAnalyzer _analyzer;
         private readonly int _rangeDays;
         private readonly decimal _buyThreshold;
         private readonly decimal _sellThreshold;
 
         /// <param name="broker">증권사 클라이언트</param>
+        /// <param name="analyzer">AI 시장 분석 엔진</param>
         /// <param name="rangeDays">가격 범위 조회 기간 (기본 20일)</param>
         /// <param name="buyThreshold">매수 진입 기준 (기본 0.10 = 하위 10%)</param>
         /// <param name="sellThreshold">매도 진입 기준 (기본 0.90 = 상위 10%)</param>
         public SmartOrderEngine(
             IBrokerClient broker,
+            IMarketAnalyzer analyzer,
             int rangeDays = 20,
             decimal buyThreshold = 0.10m,
             decimal sellThreshold = 0.90m)
         {
             _broker = broker;
+            _analyzer = analyzer;
             _rangeDays = rangeDays;
             _buyThreshold = buyThreshold;
             _sellThreshold = sellThreshold;
         }
 
         /// <summary>
-        /// 단일 종목 분석 → 퀀트 조건 판단 → 매수/매도/보류 신호 반환
+        /// 단일 종목 분석 → 퀀트 조건 판단 → AI 판단 합산 → 매수/매도/보류 신호 반환
         /// </summary>
         /// <param name="ticker">종목 코드</param>
         /// <param name="strategyType">전략 유형 (MEAN_REVERSION / MOMENTUM / MIXED)</param>
@@ -91,8 +95,8 @@ namespace AutoInvest.Core
             };
 
             // ── 퀀트 필터 적용 ──
-            SmartOrderSignal signal;
-            string reason;
+            SmartOrderSignal quantSignal;
+            string quantReason;
             var quantConditions = new List<string>();
 
             // 매수 조건 필터
@@ -102,47 +106,81 @@ namespace AutoInvest.Core
 
             if (buyFilter.Passed)
             {
-                signal = SmartOrderSignal.BUY;
+                quantSignal = SmartOrderSignal.BUY;
                 quantConditions = buyFilter.MetConditions;
-                reason = $"[{strategyType}] {buyFilter.Summary}";
+                quantReason = $"[{strategyType}] {buyFilter.Summary}";
             }
             else if (sellFilter.Passed)
             {
-                signal = SmartOrderSignal.SELL;
+                quantSignal = SmartOrderSignal.SELL;
                 quantConditions = sellFilter.MetConditions;
-                reason = $"[{strategyType}] {sellFilter.Summary}";
+                quantReason = $"[{strategyType}] {sellFilter.Summary}";
             }
             else
             {
-                signal = SmartOrderSignal.HOLD;
-                // 가장 가까운 미충족 조건을 표시
+                quantSignal = SmartOrderSignal.HOLD;
                 var unmet = buyFilter.UnmetConditions.Concat(sellFilter.UnmetConditions).ToList();
-                reason = $"[{strategyType}] 매수/매도 조건 미충족 — {string.Join(", ", unmet.Take(3))}";
+                quantReason = $"[{strategyType}] 매수/매도 조건 미충족 — {string.Join(", ", unmet.Take(3))}";
             }
+
+            // ── Phase 4: AI 분석 결과 종합 (CombineSignals) ──
+            var aiResult = await _analyzer.AnalyzeAsync(ticker, indicators);
+            var (finalSignal, finalReason) = CombineSignals(quantSignal, quantReason, aiResult);
 
             // ── 상세 판단 근거 로그 ──
             string decisionDetail = $"[{strategyType}] {ticker}: " +
                 $"Pos={indicators.Position:F4}, RSI={indicators.Rsi14:F1}, " +
                 $"MACD={indicators.MacdLine:F4}/{indicators.MacdSignal:F4}, " +
-                $"BB={indicators.BbLower:F2}~{indicators.BbUpper:F2} → {signal}";
+                $"BB={indicators.BbLower:F2}~{indicators.BbUpper:F2} " +
+                $"| Quant: {quantSignal} | AI: {aiResult.Signal}({aiResult.ConfidenceScore:F2}) → Final: {finalSignal}";
 
-            Logger.LogQuant(ticker, quantConditions, signal, strategyType);
+            Logger.LogQuant(ticker, quantConditions, finalSignal, strategyType);
             Logger.Info($"[SmartOrder] {decisionDetail}");
-
-            // TODO [Phase 4] AI 분석 결과와 종합하여 최종 signal 결정
-            //   var aiResult = await _marketAnalyzer.AnalyzeAsync(ticker);
-            //   signal = CombineSignals(signal, aiResult);
 
             return new SmartOrderResult
             {
                 Ticker = ticker,
-                Signal = signal,
+                Signal = finalSignal,
                 PriceRange = priceRange,
-                Reason = reason,
+                Reason = finalReason,
                 Indicators = indicators,
                 QuantConditions = quantConditions,
                 DecisionReason = decisionDetail
             };
+        }
+
+        private (SmartOrderSignal, string) CombineSignals(SmartOrderSignal quantSignal, string quantReason, AiAnalysisResult aiResult)
+        {
+            // AI Confidence Score 임계값 설정
+            decimal CONFIDENCE_THRESHOLD = 0.7m;
+
+            if (aiResult.ConfidenceScore < CONFIDENCE_THRESHOLD)
+            {
+                // 확신도가 낮을 경우 기존 퀀트 신호 우선
+                return (quantSignal, $"{quantReason} (AI 확신도 부족으로 퀀트 신호 유지)");
+            }
+
+            // 강한 퀀트 신호(BUY/SELL)가 있고 AI 신호도 같은 방향일 때
+            if (quantSignal == aiResult.Signal && quantSignal != SmartOrderSignal.HOLD)
+            {
+                return (quantSignal, $"{quantReason} + AI 강력 동의: {aiResult.Reason}");
+            }
+
+            // 퀀트는 HOLD인데 AI가 강하게 매수/매도를 주장할 때 (공격적 반영)
+            // 현재 설계상 보수적 매매를 위해 HOLD를 유지하거나, AI를 우선할 수 있습니다.
+            // 여기서는 보수적 접근: 둘 다 동의할 때만 실행
+            if (quantSignal == SmartOrderSignal.HOLD && aiResult.Signal != SmartOrderSignal.HOLD)
+            {
+                return (SmartOrderSignal.HOLD, $"{quantReason} (AI는 {aiResult.Signal}을 제시했으나, 퀀트 미달로 보류)");
+            }
+
+            // 퀀트는 매수/매도인데 AI가 반대하거나 HOLD일 때 -> 방어적 HOLD 전환
+            if (quantSignal != SmartOrderSignal.HOLD && quantSignal != aiResult.Signal)
+            {
+                return (SmartOrderSignal.HOLD, $"퀀트 신호({quantSignal})가 AI 신호({aiResult.Signal})와 상충하여 보류: {aiResult.Reason}");
+            }
+
+            return (SmartOrderSignal.HOLD, "종합 판단: HOLD");
         }
 
         /// <summary>

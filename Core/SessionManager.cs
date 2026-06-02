@@ -14,6 +14,7 @@ namespace AutoInvest.Core
     public class SessionManager
     {
         private IBrokerClient? _client;
+        private IMarketAnalyzer? _analyzer;
 
         /// <summary>
         /// 현재 활성 브로커 클라이언트를 반환합니다.
@@ -60,11 +61,25 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
+        /// 현재 활성 AI 시장분석 엔진을 반환합니다.
+        /// </summary>
+        public IMarketAnalyzer GetAnalyzer()
+        {
+            if (_analyzer != null)
+                return _analyzer;
+
+            Logger.Info("[Session] AI 시장 분석 엔진(AiMarketAnalyzer) 생성");
+            _analyzer = new AiMarketAnalyzer();
+            return _analyzer;
+        }
+
+        /// <summary>
         /// 클라이언트를 초기화합니다 (설정 변경 시 호출).
         /// </summary>
         public void Reset()
         {
             _client = null;
+            _analyzer = null;
             Logger.Info("[Session] 세션 초기화");
         }
     }

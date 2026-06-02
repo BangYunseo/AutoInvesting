@@ -102,7 +102,7 @@ namespace AutoInvest.Core.BackgroundServices
             decimal investAmount = decimal.Parse(amountStr);
 
             // ── 스마트 주문 실행 (퀀트 조건 판단 포함) ──
-            var engine = new SmartOrderEngine(client);
+            var engine = new SmartOrderEngine(client, _session.GetAnalyzer());
             var results = await engine.ExecuteSmartOrdersAsync(strategies, investAmount);
 
             var summary = $"전략={strategyName}, 분석 {results.Count}건 완료";

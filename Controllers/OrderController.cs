@@ -52,7 +52,7 @@ namespace AutoInvest.Controllers
                 var amountStr = AppConfigManager.Get("INVEST_AMOUNT_KRW", "1000000");
                 decimal investAmount = decimal.Parse(amountStr);
 
-                var engine = new SmartOrderEngine(client);
+                var engine = new SmartOrderEngine(client, _session.GetAnalyzer());
                 var results = await engine.ExecuteSmartOrdersAsync(strategies, investAmount);
 
                 Logger.Info($"[Order] 수동 스마트 주문 실행 완료: {results.Count}건");
@@ -94,7 +94,7 @@ namespace AutoInvest.Controllers
                     await client.LoginAsync();
                 }
 
-                var engine = new SmartOrderEngine(client);
+                var engine = new SmartOrderEngine(client, _session.GetAnalyzer());
                 var result = await engine.AnalyzeAsync(ticker, strategy);
 
                 return Ok(new
