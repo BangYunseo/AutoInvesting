@@ -108,19 +108,19 @@ namespace AutoInvest.Core
             {
                 quantSignal = SmartOrderSignal.BUY;
                 quantConditions = buyFilter.MetConditions;
-                quantReason = $"[{strategyType}] {buyFilter.Summary}";
+                quantReason = buyFilter.Summary;
             }
             else if (sellFilter.Passed)
             {
                 quantSignal = SmartOrderSignal.SELL;
                 quantConditions = sellFilter.MetConditions;
-                quantReason = $"[{strategyType}] {sellFilter.Summary}";
+                quantReason = sellFilter.Summary;
             }
             else
             {
                 quantSignal = SmartOrderSignal.HOLD;
-                var unmet = buyFilter.UnmetConditions.Concat(sellFilter.UnmetConditions).ToList();
-                quantReason = $"[{strategyType}] 매수/매도 조건 미충족 — {string.Join(", ", unmet.Take(3))}";
+                // 매수/매도 조건이 모두 충족되지 않았을 때는, 왜 매수를 안하는지에 대한 요약(buyFilter.Summary)을 제공합니다.
+                quantReason = buyFilter.Summary;
             }
 
             // ── Phase 4: AI 분석 결과 종합 (CombineSignals) ──
@@ -128,11 +128,10 @@ namespace AutoInvest.Core
             var (finalSignal, finalReason) = CombineSignals(quantSignal, quantReason, aiResult);
 
             // ── 상세 판단 근거 로그 ──
-            string decisionDetail = $"[{strategyType}] {ticker}: " +
-                $"Pos={indicators.Position:F4}, RSI={indicators.Rsi14:F1}, " +
-                $"MACD={indicators.MacdLine:F4}/{indicators.MacdSignal:F4}, " +
-                $"BB={indicators.BbLower:F2}~{indicators.BbUpper:F2} " +
-                $"| Quant: {quantSignal} | AI: {aiResult.Signal}({aiResult.ConfidenceScore:F2}) → Final: {finalSignal}";
+            string decisionDetail = $"[{strategyType}] {ticker} 실시간 진단: {finalReason} " +
+                $"(주요 지표 - RSI:{indicators.Rsi14:F1}, 위치:{indicators.Position:F2}, " +
+                $"MACD:{indicators.MacdHistogram:F4}, " +
+                $"AI의견:{aiResult.Signal} / 신뢰도:{aiResult.ConfidenceScore:F2})";
 
             Logger.LogQuant(ticker, quantConditions, finalSignal, strategyType);
             Logger.Info($"[SmartOrder] {decisionDetail}");
@@ -157,30 +156,28 @@ namespace AutoInvest.Core
             if (aiResult.ConfidenceScore < CONFIDENCE_THRESHOLD)
             {
                 // 확신도가 낮을 경우 기존 퀀트 신호 우선
-                return (quantSignal, $"{quantReason} (AI 확신도 부족으로 퀀트 신호 유지)");
+                return (quantSignal, $"{quantReason} (AI 엔진이 의견을 냈으나 확신도가 낮아 퀀트 지표 판단을 우선합니다.)");
             }
 
             // 강한 퀀트 신호(BUY/SELL)가 있고 AI 신호도 같은 방향일 때
             if (quantSignal == aiResult.Signal && quantSignal != SmartOrderSignal.HOLD)
             {
-                return (quantSignal, $"{quantReason} + AI 강력 동의: {aiResult.Reason}");
+                return (quantSignal, $"{quantReason} 추가로 AI 역시 확실한 매매 근거({aiResult.Reason})를 제시하며 적극 동의하고 있습니다.");
             }
 
             // 퀀트는 HOLD인데 AI가 강하게 매수/매도를 주장할 때 (공격적 반영)
-            // 현재 설계상 보수적 매매를 위해 HOLD를 유지하거나, AI를 우선할 수 있습니다.
-            // 여기서는 보수적 접근: 둘 다 동의할 때만 실행
             if (quantSignal == SmartOrderSignal.HOLD && aiResult.Signal != SmartOrderSignal.HOLD)
             {
-                return (SmartOrderSignal.HOLD, $"{quantReason} (AI는 {aiResult.Signal}을 제시했으나, 퀀트 미달로 보류)");
+                return (SmartOrderSignal.HOLD, $"{quantReason} (AI는 {aiResult.Signal} 관점을 강하게 제시했으나, 보수적인 투자를 위해 퀀트 지표가 충족될 때까지 관망합니다.)");
             }
 
             // 퀀트는 매수/매도인데 AI가 반대하거나 HOLD일 때 -> 방어적 HOLD 전환
             if (quantSignal != SmartOrderSignal.HOLD && quantSignal != aiResult.Signal)
             {
-                return (SmartOrderSignal.HOLD, $"퀀트 신호({quantSignal})가 AI 신호({aiResult.Signal})와 상충하여 보류: {aiResult.Reason}");
+                return (SmartOrderSignal.HOLD, $"퀀트 지표상으로는 매매 타이밍이나, AI 분석 결과 불안 요소({aiResult.Reason})가 감지되어 리스크 관리 차원에서 진입을 보류합니다.");
             }
 
-            return (SmartOrderSignal.HOLD, "종합 판단: HOLD");
+            return (SmartOrderSignal.HOLD, "현재 시장 상황에서는 특별한 매매 신호가 감지되지 않아 보유 관망(HOLD)을 유지합니다.");
         }
 
         /// <summary>
