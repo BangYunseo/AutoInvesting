@@ -176,7 +176,13 @@ UI 스레드 종속성을 제거하여 리눅스 서버나 Docker 등 서버 환
 - [x] 컨트롤러 완성 (전략 CRUD, 수동주문, 백테스트 등 API 도입)
 - [x] DI(의존성 주입) 체계 정비
 
-### Phase 4 — AI 시장분석 엔진 (🎯 최종 목표)
+### Phase B/C — 운영 안정성 및 React 프론트엔드 연동 (✅ 완료)
+- [x] KIS 실거래 API 내결함성(Polly 지수 백오프) 적용
+- [x] MailKit 연동: 매수/매도 체결 및 예외 알림 이메일 발송
+- [x] React-Router 기반 SPA 프론트엔드 6개 핵심 페이지 구축 완료
+- [x] Glassmorphism 프리미엄 디자인 시스템 적용
+
+### Phase 4 — AI 시장분석 엔진 (🚀 진행 중)
 - [ ] AI 기반 주식 분류 (안정적/공격적)
 - [ ] 차트 데이터 분석 + 뉴스 감성 분석
 - [ ] AI confidence score + SmartOrderEngine 종합 판단

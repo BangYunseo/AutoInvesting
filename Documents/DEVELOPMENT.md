@@ -13,8 +13,20 @@
 - **Phase 2.6** (구조 리팩토링): ✅ 완료
 - **Phase 3** (KIS 실거래 연동): ✅ 완료
 - **Phase A** (프로젝트 정비/안정화): ✅ 완료
-- **Phase B/C** (운영 안정성 및 확장): 📋 대기 중
-- **Phase 4** (AI 시장분석): 📋 미착수
+- **Phase B/C** (운영 안정성 및 확장): ✅ 완료
+- **Phase 4** (AI 시장분석): 🚀 진행 중
+
+---
+
+## Phase B/C 상세 변경 이력 — 내결함성(Polly), 이메일 알림 연동, React 프론트엔드 연동
+
+### 핵심 변경: "React-Router 기반 SPA 프론트엔드 구축 및 운영 안정성 강화"
+
+- **내결함성 (Polly)**: `KisBrokerClient` 내에서 KIS API 호출 시 발생할 수 있는 일시적 네트워크 오류나 Rate Limit(429) 에러에 대응하기 위해 `Polly`의 `AsyncRetryPolicy` 지수 백오프 재시도 로직을 적용했습니다.
+- **이메일 알림 (MailKit)**: `NotificationService`를 구현하여 매수/매도 체결 성공 시 또는 퀀트 엔진 예외 발생 시 관리자에게 이메일로 즉각 알림을 전송하도록 연동했습니다.
+- **React 프론트엔드 (Vite + SPA)**: 기존의 백엔드 컨트롤러들을 화면으로 제공하기 위해 React 프론트엔드를 신규 구축했습니다.
+  - 대시보드 (`Dashboard.jsx`), 전략 관리 (`Strategy.jsx`), 거래 내역 (`History.jsx`), 퀀트 분석 (`Order.jsx`), 백테스트 (`Backtest.jsx`), 설정 (`Settings.jsx`) 총 6개의 핵심 페이지 및 라우팅 구현 완료.
+  - 프리미엄 Glassmorphism UI 디자인 시스템(`index.css`)을 적용했습니다.
 
 ---
 

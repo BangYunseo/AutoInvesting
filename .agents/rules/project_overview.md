@@ -83,5 +83,5 @@ AutoInvesting/
 | 1 ~ 2.6 | 기존 WinForms 기반 기반 개발 | ✅ 완료 |
 | 3 | KIS 실거래 클라이언트 연동 | ✅ 완료 |
 | **A** | **Web API/Headless로 아키텍처 전면 개편** | ✅ **완료** |
-| **B/C** | **내결함성(Polly), 이메일 알림 연동, React 연동** | 🚀 **진행 중** |
-| 4 | AI 시장분석 (Confidence Score 기반) 엔진 | 📋 미착수 |
+| **B/C** | **내결함성(Polly), 이메일 알림 연동, React 연동** | ✅ **완료** |
+| 4 | AI 시장분석 (Confidence Score 기반) 엔진 | 🚀 진행 중 |
