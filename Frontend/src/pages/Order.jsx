@@ -133,16 +133,22 @@ const Order = () => {
               );
             })()}
 
-            {/* 분석 이유 */}
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                <strong>판단 근거:</strong> {analysisResult.reason}
-              </p>
-              {analysisResult.decisionReason && (
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {analysisResult.decisionReason}
+            {/* 분석 이유 (강조) */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ 
+                padding: '18px 20px', 
+                background: 'rgba(255, 255, 255, 0.05)', 
+                borderLeft: `4px solid ${getSignalStyle(analysisResult.signal).color}`,
+                borderRadius: '6px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+              }}>
+                <h3 style={{ fontSize: '1.05rem', margin: '0 0 10px 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🧠 핵심 판단 근거
+                </h3>
+                <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, wordBreak: 'keep-all' }}>
+                  {analysisResult.reason}
                 </p>
-              )}
+              </div>
             </div>
 
             {/* 현재가 */}
