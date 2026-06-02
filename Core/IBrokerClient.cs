@@ -36,6 +36,9 @@ namespace AutoInvest.Core
         /// <summary>보유 종목 목록 조회</summary>
         Task<List<HoldingDto>> GetHoldingsAsync();
 
+        /// <summary>예수금(현금 잔고) 조회 (USD)</summary>
+        Task<decimal> GetCashBalanceAsync();
+
         // ─── 차트 데이터 ── 퀀트 지표 계산용 ────────────
         /// <summary>N일치 OHLCV 일봉 데이터 조회 (퀀트 지표 계산용)</summary>
         Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days);

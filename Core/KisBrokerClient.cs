@@ -181,6 +181,51 @@ namespace AutoInvest.Core
             return list;
         }
 
+        public async Task<decimal> GetCashBalanceAsync()
+        {
+            await _tokenManager.EnsureValidTokenAsync();
+            await Task.Delay(200); // Rate limit 방지
+
+            string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
+            string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NAS&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
+
+            var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
+            response.EnsureSuccessStatusCode();
+
+            var responseString = await response.Content.ReadAsStringAsync();
+            var json = JsonSerializer.Deserialize<JsonElement>(responseString);
+
+            // output2에서 외화 예수금액 파싱
+            if (json.TryGetProperty("output2", out var output2))
+            {
+                // output2가 배열인 경우 첫 번째 요소 사용
+                JsonElement target = output2;
+                if (output2.ValueKind == JsonValueKind.Array)
+                {
+                    var enumerator = output2.EnumerateArray();
+                    if (enumerator.MoveNext())
+                        target = enumerator.Current;
+                    else
+                    {
+                        Logger.Warn("[KisBroker] 예수금 조회: output2 배열이 비어있음. 0 반환.");
+                        return 0m;
+                    }
+                }
+
+                if (target.TryGetProperty("frcr_dncl_amt_2", out var cashProp))
+                {
+                    if (decimal.TryParse(cashProp.GetString(), out decimal cash))
+                    {
+                        Logger.Info($"[KisBroker] 예수금 조회: ${cash:N2}");
+                        return cash;
+                    }
+                }
+            }
+
+            Logger.Warn("[KisBroker] 예수금 조회 실패. 기본값 0 반환.");
+            return 0m;
+        }
+
         public async Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days)
         {
             await _tokenManager.EnsureValidTokenAsync();

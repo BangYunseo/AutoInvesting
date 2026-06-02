@@ -92,6 +92,13 @@ namespace AutoInvest.Core
             return Task.FromResult(list);
         }
 
+        public Task<decimal> GetCashBalanceAsync()
+        {
+            const decimal cashBalance = 10000.00m;
+            Logger.Info($"[SimBroker] 예수금 조회: ${cashBalance:N2}");
+            return Task.FromResult(cashBalance);
+        }
+
         /// <summary>
         /// 가상 OHLCV 일봉 데이터 생성.
         /// 기준가를 중심으로 현실적인 랜덤 워크(Random Walk)를 시뮬레이션합니다.
