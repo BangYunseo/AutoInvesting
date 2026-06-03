@@ -11,8 +11,8 @@ using System.Threading.Tasks;
 namespace AutoInvest.Controllers
 {
     /// <summary>
-    /// 백테스트 실행 API.
-    /// 과거 데이터 기반으로 전략의 수익성을 검증합니다.
+    /// 백테스트 실행 API
+    /// 과거 데이터 기반 전략 수익성 검증
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]

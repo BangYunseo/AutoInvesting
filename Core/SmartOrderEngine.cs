@@ -150,8 +150,8 @@ namespace AutoInvest.Core
 
         private (SmartOrderSignal, string) CombineSignals(SmartOrderSignal quantSignal, string quantReason, AiAnalysisResult aiResult)
         {
-            // AI Confidence Score 임계값 설정
-            decimal CONFIDENCE_THRESHOLD = 0.7m;
+            // AI Confidence Score 임계값 설정 (0.6 이상일 때 AI 신호 반영)
+            decimal CONFIDENCE_THRESHOLD = 0.6m;
 
             if (aiResult.ConfidenceScore < CONFIDENCE_THRESHOLD)
             {

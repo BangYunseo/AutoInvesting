@@ -216,18 +216,64 @@ Phase 3 연동에 따라 `KisBrokerClient.GetOhlcvAsync()`가 KIS [해외주식]
 
 ---
 
-## Phase 4 AI 확장 방향
+## Phase 4 AI 시장분석 엔진 — 초기(Mock) 구현 완료 ✅
 
-코드 내 TODO 주석으로 AI 확장 지점이 문서화되어 있습니다:
+### 핵심 변경: "퀀트 단독 판단" → "퀀트 + AI Mock 신호 합산 (CombineSignals)"
 
-| 파일 | TODO 내용 |
-|------|------------|
-| `IBrokerClient.cs` | `AnalyzeMarketSentimentAsync` 메서드 추가 검토 |
-| `SmartOrderEngine.cs` | `IMarketAnalyzer` 인터페이스 도입, `CombineSignals()` |
-| `SessionManager.cs` | AI 엔진 인스턴스도 SessionManager에서 관리 |
-| `SimBrokerClient.cs` | 시뮬레이션 결과를 AI 학습 데이터로 저장 |
+#### 신규 파일
 
-### AI 학습 데이터 축적 구조 (Phase 2.5에서 준비 완료)
+| 파일 | 설명 |
+|------|------|
+| `Core/IMarketAnalyzer.cs` | AI 분석 엔진 인터페이스 + `AiAnalysisResult` DTO (Signal, ConfidenceScore, Reason) |
+| `Core/AiMarketAnalyzer.cs` | Mock 구현체. RSI/Position 기반의 간단한 규칙으로 BUY/SELL/HOLD 신호 + 확신도 반환 |
+
+#### 수정 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Core/SmartOrderEngine.cs` | `IMarketAnalyzer _analyzer` 필드 추가, `AnalyzeAsync()`에 `CombineSignals()` 통합 |
+
+#### CombineSignals() 판단 흐름
+
+```
+퀀트 신호 (quantSignal) + AI 신호 (aiResult)
+    │
+    ├── AI ConfidenceScore < 0.7? → 퀀트 신호 우선 (AI 확신도 부족)
+    ├── 퀀트 == AI == BUY/SELL?   → 동일 방향 신호 유지 (적극 진입)
+    ├── 퀀트=HOLD, AI=BUY/SELL?   → HOLD 유지 (보수적 — 퀀트 조건 미충족)
+    └── 퀀트=BUY/SELL, AI=반대?   → 방어적 HOLD 전환 (리스크 관리)
+```
+
+#### 현재 Mock AI 판단 로직 (AiMarketAnalyzer.cs)
+
+| 조건 | 신호 | 확신도 |
+|------|------|--------|
+| RSI < 30 AND Position < 0.20 | BUY | 0.60 ~ 0.90 (랜덤) |
+| RSI > 70 AND Position > 0.80 | SELL | 0.60 ~ 0.90 (랜덤) |
+| 그 외 | **HOLD** | 0.30 ~ 0.50 (랜덤) |
+
+> ⚠️ **현재 AI가 항상 HOLD를 반환하는 이유**: 대부분의 종목은 RSI 30 미만이면서 동시에 Position 0.20 미만인 조건(과매도 + 가격 하단 10-20% 이내)을 **동시에** 충족하기 매우 어렵습니다. 따라서 현실적으로는 대부분 `else` 분기(HOLD, 확신도 0.3~0.5)로 떨어집니다. 이 Mock 확신도(최대 0.5)는 `CombineSignals()`의 임계값 0.7보다 낮으므로 AI 신호가 최종 결과에 영향을 주지 않고 **퀀트 신호만 최종 판단**에 사용됩니다.
+
+---
+
+## Phase 4 AI 실물 연동 — 다음 단계 (미완료)
+
+실물 LLM API(Google Gemini, GPT-4o-mini 등) 교체 시 필요한 작업:
+
+| # | 작업 항목 | 파일 |
+|---|-----------|------|
+| 1 | `PromptBuilder` 클래스 구현 (OHLCV → 텍스트 변환) | `Utils/PromptBuilder.cs` [NEW] |
+| 2 | `GeminiMarketAnalyzer` or `OpenAiMarketAnalyzer` 구현 (Polly 재시도 포함) | `Core/GeminiMarketAnalyzer.cs` [NEW] |
+| 3 | JSON 응답 안전 파싱 (Structured Outputs 또는 정규식 전처리) | 상동 |
+| 4 | Rate Limit 회피 대기 로직 (`Task.Delay` 또는 Queue 기반) | `Core/SmartOrderEngine.cs` |
+| 5 | API 키를 `appsettings.json` 또는 환경변수로 관리 | `appsettings.json` |
+| 6 | `SessionManager`에서 AI 엔진 인스턴스 주입 분기 | `Core/SessionManager.cs` |
+
+> 비용 분석 참조: `results/260602_AI엔진도입비용분석.md` (Google Gemini 무료 티어 권장)
+
+---
+
+## AI 학습 데이터 축적 구조 (Phase 2.5에서 준비 완료)
 
 ```
 매매 시점 → SmartOrderEngine

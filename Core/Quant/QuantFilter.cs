@@ -1,4 +1,5 @@
 using AutoInvest.Data.DTO;
+using System;
 using System.Collections.Generic;
 
 namespace AutoInvest.Core.Quant
@@ -59,14 +60,15 @@ namespace AutoInvest.Core.Quant
         private static FilterResult CheckMeanReversionBuy(IndicatorDto ind, decimal threshold)
         {
             var result = new FilterResult();
-            bool posMet = ind.Position <= threshold;
-            bool rsiMet = ind.Rsi14 <= 30m;
+            // 완화된 조건: 하위 30% 이내 + RSI 45 이하 (기존: 10% + RSI 30)
+            bool posMet = ind.Position <= Math.Min(threshold * 3, 0.30m);
+            bool rsiMet = ind.Rsi14 <= 45m;
 
             if (posMet) result.MetConditions.Add("가격 바닥권 도달");
             else result.UnmetConditions.Add("추가 하락 가능성 존재");
 
-            if (rsiMet) result.MetConditions.Add("과매도 구간 진입");
-            else result.UnmetConditions.Add("과매도 신호 미약");
+            if (rsiMet) result.MetConditions.Add("RSI 중립 이하 진입");
+            else result.UnmetConditions.Add("과매수 압력 지속");
 
             result.Passed = posMet && rsiMet;
 
@@ -93,8 +95,9 @@ namespace AutoInvest.Core.Quant
         private static FilterResult CheckMeanReversionSell(IndicatorDto ind, decimal threshold)
         {
             var result = new FilterResult();
-            bool posMet = ind.Position >= threshold;
-            bool rsiMet = ind.Rsi14 >= 70m;
+            // 완화된 조건: 상위 25% 이상 + RSI 65 이상 (기존: 10% + RSI 70)
+            bool posMet = ind.Position >= Math.Max(threshold * 0.75m, 0.75m);
+            bool rsiMet = ind.Rsi14 >= 65m;
 
             result.Passed = posMet && rsiMet;
 
@@ -168,8 +171,9 @@ namespace AutoInvest.Core.Quant
         private static FilterResult CheckMixedBuy(IndicatorDto ind, decimal threshold)
         {
             var result = new FilterResult();
+            // 완화된 조건: RSI 60 미만 (기존: RSI 70 미만)
             bool posMet = ind.Position <= threshold;
-            bool rsiMet = ind.Rsi14 < 70m;
+            bool rsiMet = ind.Rsi14 < 60m;
 
             result.Passed = posMet && rsiMet;
 

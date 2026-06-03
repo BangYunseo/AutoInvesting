@@ -62,14 +62,31 @@ namespace AutoInvest.Core
 
         /// <summary>
         /// 현재 활성 AI 시장분석 엔진을 반환합니다.
+        /// AI_PROVIDER 설정값에 따라 Gemini 실물 또는 Mock으로 분기합니다.
         /// </summary>
         public IMarketAnalyzer GetAnalyzer()
         {
             if (_analyzer != null)
                 return _analyzer;
 
-            Logger.Info("[Session] AI 시장 분석 엔진(AiMarketAnalyzer) 생성");
-            _analyzer = new AiMarketAnalyzer();
+            string provider = AppConfigManager.Get("AI_PROVIDER", "mock").ToLower();
+            string apiKey = AppConfigManager.Get("GEMINI_API_KEY", "");
+
+            if (provider == "gemini" && !string.IsNullOrWhiteSpace(apiKey))
+            {
+                Logger.Info("[Session] AI 엔진: GeminiMarketAnalyzer (실물 API 모드)");
+                _analyzer = new GeminiMarketAnalyzer(apiKey);
+            }
+            else
+            {
+                if (provider == "gemini" && string.IsNullOrWhiteSpace(apiKey))
+                    Logger.Warn("[Session] AI_PROVIDER=gemini이나 GEMINI_API_KEY가 없습니다. Mock 모드로 실행합니다.");
+                else
+                    Logger.Info("[Session] AI 엔진: AiMarketAnalyzer (Mock 모드)");
+
+                _analyzer = new AiMarketAnalyzer();
+            }
+
             return _analyzer;
         }
 

@@ -400,4 +400,11 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-
+# ── 민감 정보 (절대 커밋 금지) ──────────────────────
+appsettings.local.json
+appsettings.*.local.json
+*.local.json
+*.secrets.json
+*.env
+*.key
+*.db
