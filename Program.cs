@@ -25,6 +25,9 @@ namespace AutoInvest
                 var builder = WebApplication.CreateBuilder(args);
                 builder.Host.UseSerilog();
 
+                // ── 로컬 시크릿 파일 명시적 로드 ──
+                builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
                 // ── 설정 체계 초기화 ──
                 // 환경변수(민감정보) → appsettings.json → SQLite DB 우선순위
                 AppConfigManager.Initialize(builder.Configuration);
