@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태: Phase A 완료 ✅
+## 현재 상태: Phase 4 진행 중 🚀
 
 - **Phase 1** (기반): ✅ 완료
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
@@ -14,7 +14,9 @@
 - **Phase 3** (KIS 실거래 연동): ✅ 완료
 - **Phase A** (프로젝트 정비/안정화): ✅ 완료
 - **Phase B/C** (운영 안정성 및 확장): ✅ 완료
-- **Phase 4** (AI 시장분석): 🚀 진행 중
+- **Phase 4-a** (AI Mock + CombineSignals 아키텍처): ✅ 완료
+- **Phase 4-b** (Gemini 실물 연동 + 퀀트 조건 현실화): ✅ 완료
+- **Phase 4-c** (실물 LLM 성능 튜닝 / 프롬프트 고도화): 🔜 예정
 
 ---
 
@@ -256,20 +258,37 @@ Phase 3 연동에 따라 `KisBrokerClient.GetOhlcvAsync()`가 KIS [해외주식]
 
 ---
 
-## Phase 4 AI 실물 연동 — 다음 단계 (미완료)
+## Phase 4-b 실물 연동 (Gemini) 및 퀀트 조건 완화 완료 ✅
 
-실물 LLM API(Google Gemini, GPT-4o-mini 등) 교체 시 필요한 작업:
+Mock 환경에서 벗어나 실제 Google Gemini API 연동을 완료하고, 퀀트 조건을 현실화하여 두 지표가 상호작용하도록 개선했습니다.
 
-| # | 작업 항목 | 파일 |
-|---|-----------|------|
-| 1 | `PromptBuilder` 클래스 구현 (OHLCV → 텍스트 변환) | `Utils/PromptBuilder.cs` [NEW] |
-| 2 | `GeminiMarketAnalyzer` or `OpenAiMarketAnalyzer` 구현 (Polly 재시도 포함) | `Core/GeminiMarketAnalyzer.cs` [NEW] |
-| 3 | JSON 응답 안전 파싱 (Structured Outputs 또는 정규식 전처리) | 상동 |
-| 4 | Rate Limit 회피 대기 로직 (`Task.Delay` 또는 Queue 기반) | `Core/SmartOrderEngine.cs` |
-| 5 | API 키를 `appsettings.json` 또는 환경변수로 관리 | `appsettings.json` |
-| 6 | `SessionManager`에서 AI 엔진 인스턴스 주입 분기 | `Core/SessionManager.cs` |
+### 1. 실물 AI(Gemini) 연동 (신규 2건)
 
-> 비용 분석 참조: `results/260602_AI엔진도입비용분석.md` (Google Gemini 무료 티어 권장)
+| 파일 | 설명 |
+|------|------|
+| `Utils/PromptBuilder.cs` | 종목의 OHLCV 데이터와 퀀트 지표를 LLM이 이해할 수 있는 시스템/사용자 텍스트 프롬프트로 파싱 |
+| `Core/GeminiMarketAnalyzer.cs` | `IMarketAnalyzer` 연동 구현체. Gemini 1.5 Flash API 연동, Polly를 통한 429/5xx 에러 백오프 재시도 및 AI 생성 JSON 응답 안전 파싱 로직 |
+
+### 2. 퀀트 매매 조건 현실화 및 임계값 조정 (수정 3건)
+
+너무 엄격하여 신호가 발생하지 않던 퀀트 진입 기준을 완화하고, AI의 신호가 실제 판단에 반영될 수 있도록 튜닝했습니다.
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Core/Quant/QuantFilter.cs` | `MEAN_REVERSION` 매수 조건 완화 (Position ≤ 0.30, RSI ≤ 45), `MIXED` 매수 완화 (RSI < 60) |
+| `Core/SmartOrderEngine.cs` | AI 확신도 반영 합산 임계값(`CONFIDENCE_THRESHOLD`)을 기존 0.7에서 0.6으로 하향 |
+| `Core/SessionManager.cs` | `AI_PROVIDER` 설정에 따라 `GeminiMarketAnalyzer`와 기존 `AiMarketAnalyzer`(Mock) 분기 로직 적용 |
+
+### 3. API 키 관리 강화 및 보안 적용 (수정 3+건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Data/AppConfigManager.cs` | `AI_PROVIDER`, `GEMINI_API_KEY` 환경변수 키 매핑 추가 |
+| `appsettings.json` | `Ai` 설정 섹션 템플릿(비밀번호 제외) 추가 |
+| `.gitignore` | `appsettings.local.json`, `*.secrets.json` 등 시크릿 파일 패턴 추가되어 레포지토리 내 중요정보 반출 방비 안전장치 반영 |
+| `appsettings.local.json` | **[추적 제외됨]** 로컬 실행 및 시크릿 환경 변수 처리용 템플릿 |
+
+> 비용/토큰 분석 참고: `results/260602_AI엔진도입비용분석.md`
 
 ---
 
