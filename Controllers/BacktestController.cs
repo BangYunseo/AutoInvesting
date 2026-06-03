@@ -39,14 +39,26 @@ namespace AutoInvest.Controllers
                     return BadRequest(new { error = "종목 코드(Ticker)는 필수입니다." });
                 }
 
+                if (request.Ticker.Length > 20)
+                {
+                    return BadRequest(new { error = "종목 코드가 유효하지 않습니다." });
+                }
+
                 var client = _session.GetClient();
                 if (!client.IsLoggedIn)
                 {
                     await client.LoginAsync();
                 }
 
-                int days = request.Days > 0 ? request.Days : 120;
+                // DOS(과부하) 방어: 백테스트 범위 제한 (최대 1000 영업일 = 약 4년)
+                int days = request.Days > 0 ? Math.Min(request.Days, 1000) : 120;
+                
                 string strategyType = request.StrategyType ?? "MEAN_REVERSION";
+                if (strategyType != "MEAN_REVERSION" && strategyType != "MOMENTUM" && strategyType != "MIXED")
+                {
+                    return BadRequest(new { error = "유효하지 않은 전략 유형입니다. (MEAN_REVERSION, MOMENTUM, MIXED)" });
+                }
+
                 decimal initialCapital = request.InitialCapital > 0 ? request.InitialCapital : 10000m;
 
                 // 백테스트 실행

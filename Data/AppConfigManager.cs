@@ -113,6 +113,7 @@ namespace AutoInvest.Data
                 "KIS_ACCOUNT_PROD"      => "Kis:AccountProd",
                 "AI_PROVIDER"           => "Ai:Provider",
                 "GEMINI_API_KEY"        => "Ai:GeminiApiKey",
+                "API_ACCESS_KEY"        => "Security:ApiAccessKey",
                 _ => null
             };
 

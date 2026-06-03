@@ -31,7 +31,10 @@ namespace AutoInvest
                 NotificationService.Initialize(builder.Configuration);
 
                 // ── 서비스 등록 ──
-                builder.Services.AddControllers();
+                builder.Services.AddControllers(options =>
+                {
+                    options.Filters.Add<AutoInvest.Utils.ApiKeyAuthAttribute>(); // 전역 API Key 보안 적용
+                });
                 builder.Services.AddEndpointsApiExplorer();
                 builder.Services.AddSwaggerGen();
                 builder.Services.AddHealthChecks();
