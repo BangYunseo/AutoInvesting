@@ -1,4 +1,5 @@
 using AutoInvest.Core.Quant;
+using AutoInvest.Data;
 using AutoInvest.Data.DAO;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
@@ -27,21 +28,29 @@ namespace AutoInvest.Core
 
         /// <summary>상세 판단 근거 (로그용)</summary>
         public string DecisionReason { get; set; } = string.Empty;
+
+        /// <summary>다중 에이전트 분석 결과 (Phase 4-d)</summary>
+        public MultiAgentAnalysisResult? MultiAgentResult { get; set; }
+
+        /// <summary>확률 기반 합의 점수 (Phase 4-e)</summary>
+        public ConsensusScoreDto? ConsensusScore { get; set; }
     }
 
     /// <summary>
-    /// 스마트 주문 엔진 (Phase 2.5 — 퀀트 통합).
+    /// 스마트 주문 엔진 (Phase 4-e — 퀀트 + 다중 AI 에이전트 확률 기반 합의).
     /// 종목별 N일 최고가/최저가 + 퀀트 지표(RSI, MACD, BB)를 조회하고,
-    /// 전략 유형에 따른 다중 조건 AND 필터를 통과해야만 매수/매도를 실행합니다.
+    /// 전략 유형에 따른 다중 조건 AND 필터를 통과한 뒤,
+    /// 퀀트 + 차트AI + 펀더멘털AI의 가중치 × 확신도 합산 확률이
+    /// 임계값(BUY_THRESHOLD / SELL_THRESHOLD)을 초과할 때만 매수/매도를 실행합니다.
     ///
     /// 전략 유형별 동작:
     ///   MEAN_REVERSION — Position ≤ 0.10 AND RSI ≤ 30 AND BB 하단 근접
     ///   MOMENTUM       — RSI ≥ 50 AND MACD 골든크로스 AND MACD Line 양수
     ///   MIXED          — Position ≤ 0.10 AND RSI &lt; 70
     ///
-    /// TODO [Phase 4] AI 시장분석 엔진 연동
-    ///   현재: position + 퀀트 지표(RSI, MACD, BB) 기반 판단
-    ///   미래: AI 모델이 차트/뉴스/커뮤니티/매크로 데이터를 학습하여 진입 기준 제공
+    /// 확률 기반 합의 (CalculateConsensusScore):
+    ///   BuyProbability = QUANT_WEIGHT(BUY 시) + CHART_AI_WEIGHT × 차트확신도 + FUND_AI_WEIGHT × 펀더멘털확신도
+    ///   퀀트 HOLD → 최대 60% → 임계값(65%) 자동 미달로 수식만으로 1차 관문 유지
     /// </summary>
     public class SmartOrderEngine
     {
@@ -50,6 +59,13 @@ namespace AutoInvest.Core
         private readonly int _rangeDays;
         private readonly decimal _buyThreshold;
         private readonly decimal _sellThreshold;
+
+        // ── Phase 4-e: 확률 기반 합의 가중치 ──
+        private readonly decimal _quantWeight;
+        private readonly decimal _chartAiWeight;
+        private readonly decimal _fundAiWeight;
+        private readonly decimal _consensusBuyThreshold;
+        private readonly decimal _consensusSellThreshold;
 
         /// <param name="broker">증권사 클라이언트</param>
         /// <param name="analyzer">AI 시장 분석 엔진</param>
@@ -68,6 +84,15 @@ namespace AutoInvest.Core
             _rangeDays = rangeDays;
             _buyThreshold = buyThreshold;
             _sellThreshold = sellThreshold;
+
+            // ── appsettings.json에서 합의 가중치/임계값 로드 ──
+            _quantWeight           = decimal.Parse(AppConfigManager.Get("QUANT_WEIGHT", "0.40"));
+            _chartAiWeight         = decimal.Parse(AppConfigManager.Get("CHART_AI_WEIGHT", "0.30"));
+            _fundAiWeight          = decimal.Parse(AppConfigManager.Get("FUND_AI_WEIGHT", "0.30"));
+            _consensusBuyThreshold = decimal.Parse(AppConfigManager.Get("BUY_THRESHOLD", "0.65"));
+            _consensusSellThreshold= decimal.Parse(AppConfigManager.Get("SELL_THRESHOLD", "0.65"));
+
+            Logger.Info($"[SmartOrder] 합의 가중치 로드 — 퀀트:{_quantWeight} 차트AI:{_chartAiWeight} 펀더멘털AI:{_fundAiWeight} | 임계값 BUY:{_consensusBuyThreshold} SELL:{_consensusSellThreshold}");
         }
 
         /// <summary>
@@ -123,61 +148,116 @@ namespace AutoInvest.Core
                 quantReason = buyFilter.Summary;
             }
 
-            // ── Phase 4: AI 분석 결과 종합 (CombineSignals) ──
-            var aiResult = await _analyzer.AnalyzeAsync(ticker, indicators);
-            var (finalSignal, finalReason) = CombineSignals(quantSignal, quantReason, aiResult);
+            // ── Phase 4-e: 다중 AI 에이전트 분석 (차트 + 펀더멘털 병렬 실행) ──
+            var multiAgentResult = await _analyzer.AnalyzeAsync(ticker, indicators, ohlcv);
 
-            // ── 상세 판단 근거 로그 ──
-            string decisionDetail = $"[{strategyType}] {ticker} 실시간 진단: {finalReason} " +
-                $"(주요 지표 - RSI:{indicators.Rsi14:F1}, 위치:{indicators.Position:F2}, " +
-                $"MACD:{indicators.MacdHistogram:F4}, " +
-                $"AI의견:{aiResult.Signal} / 신뢰도:{aiResult.ConfidenceScore:F2})";
+            // ── Phase 4-e: 확률 기반 합의 스코어링 ──
+            var consensusScore = CalculateConsensusScore(
+                quantSignal, multiAgentResult);
+
+            SmartOrderSignal finalSignal;
+            string finalReason;
+
+            if (consensusScore.BuyProbability >= _consensusBuyThreshold && quantSignal == SmartOrderSignal.BUY)
+            {
+                finalSignal = SmartOrderSignal.BUY;
+                finalReason = $"매수 확률 {consensusScore.BuyProbability:P1} ≥ 임계값 {_consensusBuyThreshold:P1} — 매수 실행";
+            }
+            else if (consensusScore.SellProbability >= _consensusSellThreshold && quantSignal == SmartOrderSignal.SELL)
+            {
+                finalSignal = SmartOrderSignal.SELL;
+                finalReason = $"매도 확률 {consensusScore.SellProbability:P1} ≥ 임계값 {_consensusSellThreshold:P1} — 매도 실행";
+            }
+            else
+            {
+                finalSignal = SmartOrderSignal.HOLD;
+                decimal gap = quantSignal == SmartOrderSignal.BUY
+                    ? consensusScore.BuyGap
+                    : (quantSignal == SmartOrderSignal.SELL ? consensusScore.SellGap : 0m);
+
+                finalReason = quantSignal == SmartOrderSignal.HOLD
+                    ? $"퀀트 조건 미충족 (최대 도달 가능 확률: {(_chartAiWeight + _fundAiWeight):P1})"
+                    : $"합의 확률 미달 (부족분: {gap:P1}) — {quantReason}";
+            }
+
+            // ── 확률 분해 상세 로그 (Phase 4-e) ──
+            string quantIcon = quantSignal == SmartOrderSignal.BUY ? "BUY" : (quantSignal == SmartOrderSignal.SELL ? "SELL" : "HOLD");
+            string resultIcon = finalSignal == SmartOrderSignal.HOLD ? "⚠️" : "✅";
+            decimal buyProb = consensusScore.BuyProbability;
+            decimal sellProb = consensusScore.SellProbability;
+
+            string decisionDetail =
+                $"[{strategyType}] {ticker} 최종 판정: {finalSignal} {resultIcon}\n" +
+                $"  ├── 퀀트       : {quantIcon}  → +{consensusScore.QuantContribution:P1}\n" +
+                $"  ├── 차트AI     : {multiAgentResult.ChartAgent.Signal} (확신도:{multiAgentResult.ChartAgent.ConfidenceScore:F2}) → +{consensusScore.ChartAiContribution:P1}\n" +
+                $"  └── 펀더멘털AI : {multiAgentResult.FundamentalAgent.Signal} (확신도:{multiAgentResult.FundamentalAgent.ConfidenceScore:F2}) → +{consensusScore.FundamentalAiContribution:P1}\n" +
+                $"  ─────────────────────────────────────\n" +
+                $"  매수 확률: {buyProb:P1} {(buyProb >= _consensusBuyThreshold ? "≥" : "<")} {_consensusBuyThreshold:P1} (임계값) → {finalReason}";
 
             Logger.LogQuant(ticker, quantConditions, finalSignal, strategyType);
             Logger.Info($"[SmartOrder] {decisionDetail}");
 
             return new SmartOrderResult
             {
-                Ticker = ticker,
-                Signal = finalSignal,
-                PriceRange = priceRange,
-                Reason = finalReason,
-                Indicators = indicators,
-                QuantConditions = quantConditions,
-                DecisionReason = decisionDetail
+                Ticker           = ticker,
+                Signal           = finalSignal,
+                PriceRange       = priceRange,
+                Reason           = finalReason,
+                Indicators       = indicators,
+                QuantConditions  = quantConditions,
+                DecisionReason   = decisionDetail,
+                MultiAgentResult = multiAgentResult,
+                ConsensusScore   = consensusScore
             };
         }
 
-        private (SmartOrderSignal, string) CombineSignals(SmartOrderSignal quantSignal, string quantReason, AiAnalysisResult aiResult)
+        /// <summary>
+        /// 퀀트 + 차트AI + 펀더멘털AI의 가중치 × 확신도 합산을 수행합니다 (Phase 4-e).
+        ///
+        /// 계산 공식:
+        ///   BuyProbability  = QUANT_WEIGHT(BUY 시) + CHART_AI_WEIGHT × 차트확신도(BUY 시) + FUND_AI_WEIGHT × 펀더멘털확신도(BUY 시)
+        ///   SellProbability = QUANT_WEIGHT(SELL 시) + CHART_AI_WEIGHT × 차트확신도(SELL 시) + FUND_AI_WEIGHT × 펀더멘털확신도(SELL 시)
+        ///
+        /// 퀀트 1차 관문 수식 자동 보장:
+        ///   퀀트 HOLD → QUANT_WEIGHT=0 → 최대 확률 = CHART_AI_WEIGHT + FUND_AI_WEIGHT (기본 60%)
+        ///   임계값(기본 65%) 자동 미달로 별도 if 분기 없이 관문 유지
+        /// </summary>
+        private ConsensusScoreDto CalculateConsensusScore(
+            SmartOrderSignal quantSignal,
+            MultiAgentAnalysisResult multiAgent)
         {
-            // AI Confidence Score 임계값 설정 (0.6 이상일 때 AI 신호 반영)
-            decimal CONFIDENCE_THRESHOLD = 0.6m;
+            var chart       = multiAgent.ChartAgent;
+            var fundamental = multiAgent.FundamentalAgent;
 
-            if (aiResult.ConfidenceScore < CONFIDENCE_THRESHOLD)
+            // ── 매수 확률 계산 ──
+            decimal quantBuyContrib = (quantSignal == SmartOrderSignal.BUY) ? _quantWeight : 0m;
+            decimal chartBuyContrib = (chart.Signal == SmartOrderSignal.BUY)
+                ? _chartAiWeight * chart.ConfidenceScore : 0m;
+            decimal fundBuyContrib = (fundamental.Signal == SmartOrderSignal.BUY)
+                ? _fundAiWeight * fundamental.ConfidenceScore : 0m;
+            decimal buyProbability = quantBuyContrib + chartBuyContrib + fundBuyContrib;
+
+            // ── 매도 확률 계산 ──
+            decimal quantSellContrib = (quantSignal == SmartOrderSignal.SELL) ? _quantWeight : 0m;
+            decimal chartSellContrib = (chart.Signal == SmartOrderSignal.SELL)
+                ? _chartAiWeight * chart.ConfidenceScore : 0m;
+            decimal fundSellContrib = (fundamental.Signal == SmartOrderSignal.SELL)
+                ? _fundAiWeight * fundamental.ConfidenceScore : 0m;
+            decimal sellProbability = quantSellContrib + chartSellContrib + fundSellContrib;
+
+            // ── 결과 DTO 조립 ──
+            decimal activeThreshold = (quantSignal == SmartOrderSignal.SELL)
+                ? _consensusSellThreshold : _consensusBuyThreshold;
+
+            return new ConsensusScoreDto
             {
-                // 확신도가 낮을 경우 기존 퀀트 신호 우선
-                return (quantSignal, $"{quantReason} (AI 엔진이 의견을 냈으나 확신도가 낮아 퀀트 지표 판단을 우선합니다.)");
-            }
-
-            // 강한 퀀트 신호(BUY/SELL)가 있고 AI 신호도 같은 방향일 때
-            if (quantSignal == aiResult.Signal && quantSignal != SmartOrderSignal.HOLD)
-            {
-                return (quantSignal, $"{quantReason} 추가로 AI 역시 확실한 매매 근거({aiResult.Reason})를 제시하며 적극 동의하고 있습니다.");
-            }
-
-            // 퀀트는 HOLD인데 AI가 강하게 매수/매도를 주장할 때 (공격적 반영)
-            if (quantSignal == SmartOrderSignal.HOLD && aiResult.Signal != SmartOrderSignal.HOLD)
-            {
-                return (SmartOrderSignal.HOLD, $"{quantReason} (AI는 {aiResult.Signal} 관점을 강하게 제시했으나, 보수적인 투자를 위해 퀀트 지표가 충족될 때까지 관망합니다.)");
-            }
-
-            // 퀀트는 매수/매도인데 AI가 반대하거나 HOLD일 때 -> 방어적 HOLD 전환
-            if (quantSignal != SmartOrderSignal.HOLD && quantSignal != aiResult.Signal)
-            {
-                return (SmartOrderSignal.HOLD, $"퀀트 지표상으로는 매매 타이밍이나, AI 분석 결과 불안 요소({aiResult.Reason})가 감지되어 리스크 관리 차원에서 진입을 보류합니다.");
-            }
-
-            return (SmartOrderSignal.HOLD, "현재 시장 상황에서는 특별한 매매 신호가 감지되지 않아 보유 관망(HOLD)을 유지합니다.");
+                BuyProbability             = buyProbability,
+                SellProbability            = sellProbability,
+                QuantContribution          = (quantSignal == SmartOrderSignal.SELL) ? quantSellContrib : quantBuyContrib,
+                ChartAiContribution        = (quantSignal == SmartOrderSignal.SELL) ? chartSellContrib : chartBuyContrib,
+                FundamentalAiContribution  = (quantSignal == SmartOrderSignal.SELL) ? fundSellContrib : fundBuyContrib,
+                Threshold                  = activeThreshold
+            };
         }
 
         /// <summary>
@@ -312,13 +392,16 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 매매 시점의 시장 지표 스냅샷을 DB에 저장합니다 (Phase 4 AI 학습 데이터).
+        /// 매매 시점의 시장 지표 스냅샷을 DB에 저장합니다 (Phase 4-e AI 학습 데이터 + 합의 점수).
         /// </summary>
         private void SaveMarketSnapshot(SmartOrderResult result)
         {
             try
             {
                 var ind = result.Indicators!;
+                var score = result.ConsensusScore;
+                var multi = result.MultiAgentResult;
+
                 MarketSnapshotDAO.Insert(new MarketSnapshotDto
                 {
                     SnapDate = DateTime.Now,
@@ -330,7 +413,11 @@ namespace AutoInvest.Core
                     MacdSignal = ind.MacdSignal,
                     BbUpper = ind.BbUpper,
                     BbLower = ind.BbLower,
-                    Signal = result.Signal.ToString()
+                    Signal = result.Signal.ToString(),
+                    BuyProbability = score?.BuyProbability ?? 0m,
+                    SellProbability = score?.SellProbability ?? 0m,
+                    ChartAiScore = multi?.ChartAgent.ConfidenceScore ?? 0m,
+                    FundAiScore = multi?.FundamentalAgent.ConfidenceScore ?? 0m
                 });
             }
             catch (Exception ex)
