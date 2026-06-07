@@ -21,10 +21,12 @@ namespace AutoInvest.Data.DAO
             using (var cmd = new SQLiteCommand(@"
                 INSERT INTO TB_MARKET_SNAPSHOT
                     (SNAP_DATE, TICKER, PRICE, POSITION_20D, RSI_14,
-                     MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL)
+                     MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL,
+                     BUY_PROBABILITY, SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE)
                 VALUES
                     (@snapDate, @ticker, @price, @position, @rsi,
-                     @macdValue, @macdSignal, @bbUpper, @bbLower, @signal)", conn))
+                     @macdValue, @macdSignal, @bbUpper, @bbLower, @signal,
+                     @buyProb, @sellProb, @chartAi, @fundAi)", conn))
             {
                 cmd.Parameters.AddWithValue("@snapDate", dto.SnapDate.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@ticker", dto.Ticker);
@@ -36,6 +38,10 @@ namespace AutoInvest.Data.DAO
                 cmd.Parameters.AddWithValue("@bbUpper", (double)dto.BbUpper);
                 cmd.Parameters.AddWithValue("@bbLower", (double)dto.BbLower);
                 cmd.Parameters.AddWithValue("@signal", dto.Signal);
+                cmd.Parameters.AddWithValue("@buyProb", (double)dto.BuyProbability);
+                cmd.Parameters.AddWithValue("@sellProb", (double)dto.SellProbability);
+                cmd.Parameters.AddWithValue("@chartAi", (double)dto.ChartAiScore);
+                cmd.Parameters.AddWithValue("@fundAi", (double)dto.FundAiScore);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -49,7 +55,8 @@ namespace AutoInvest.Data.DAO
             using (var conn = DBManager.Instance.GetConnection())
             using (var cmd = new SQLiteCommand(@"
                 SELECT SNAPSHOT_ID, SNAP_DATE, TICKER, PRICE, POSITION_20D,
-                       RSI_14, MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL
+                       RSI_14, MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL,
+                       BUY_PROBABILITY, SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE
                 FROM TB_MARKET_SNAPSHOT
                 WHERE TICKER = @ticker
                 ORDER BY SNAP_DATE DESC
@@ -74,7 +81,11 @@ namespace AutoInvest.Data.DAO
                             MacdSignal = rdr.GetDecimal(7),
                             BbUpper = rdr.GetDecimal(8),
                             BbLower = rdr.GetDecimal(9),
-                            Signal = rdr.GetString(10)
+                            Signal = rdr.GetString(10),
+                            BuyProbability = rdr.IsDBNull(11) ? 0m : rdr.GetDecimal(11),
+                            SellProbability = rdr.IsDBNull(12) ? 0m : rdr.GetDecimal(12),
+                            ChartAiScore = rdr.IsDBNull(13) ? 0m : rdr.GetDecimal(13),
+                            FundAiScore = rdr.IsDBNull(14) ? 0m : rdr.GetDecimal(14)
                         });
                     }
                 }

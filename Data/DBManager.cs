@@ -46,6 +46,16 @@ namespace AutoInvest.Data
                     // Phase 2.5 마이그레이션: STRATEGY_TYPE 컬럼 추가
                     RunMigration(conn,
                         "ALTER TABLE TB_INVEST_STRATEGY ADD COLUMN STRATEGY_TYPE TEXT DEFAULT 'MEAN_REVERSION'");
+
+                    // Phase 4-e 마이그레이션: 확률 기반 합의 점수 컬럼 추가
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN BUY_PROBABILITY REAL DEFAULT 0");
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN SELL_PROBABILITY REAL DEFAULT 0");
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN CHART_AI_SCORE REAL DEFAULT 0");
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN FUND_AI_SCORE REAL DEFAULT 0");
                 }
                 Logger.Info("DB 초기화 완료");
             }

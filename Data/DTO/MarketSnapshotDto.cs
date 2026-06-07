@@ -43,5 +43,19 @@ namespace AutoInvest.Data.DTO
 
         // 매매 신호 ("BUY" / "SELL" / "HOLD")
         public string Signal { get; set; } = string.Empty;
+
+        // ── Phase 4-e: 확률 기반 합의 점수 ──
+
+        /// <summary>매수 확률 (0.0~1.0, 가중 합산 결과)</summary>
+        public decimal BuyProbability { get; set; }
+
+        /// <summary>매도 확률 (0.0~1.0, 가중 합산 결과)</summary>
+        public decimal SellProbability { get; set; }
+
+        /// <summary>차트 AI 에이전트 확신도 (0.0~1.0)</summary>
+        public decimal ChartAiScore { get; set; }
+
+        /// <summary>펀더멘털 AI 에이전트 확신도 (0.0~1.0)</summary>
+        public decimal FundAiScore { get; set; }
     }
 }
