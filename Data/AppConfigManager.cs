@@ -114,6 +114,11 @@ namespace AutoInvest.Data
                 "AI_PROVIDER"           => "Ai:Provider",
                 "GEMINI_API_KEY"        => "Ai:GeminiApiKey",
                 "API_ACCESS_KEY"        => "Security:ApiAccessKey",
+                "QUANT_WEIGHT"          => "Consensus:QuantWeight",
+                "CHART_AI_WEIGHT"       => "Consensus:ChartAiWeight",
+                "FUND_AI_WEIGHT"        => "Consensus:FundAiWeight",
+                "BUY_THRESHOLD"         => "Consensus:BuyThreshold",
+                "SELL_THRESHOLD"        => "Consensus:SellThreshold",
                 _ => null
             };
 
