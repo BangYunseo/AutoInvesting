@@ -11,7 +11,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# 한국 시간대(KST) 설정 패키지 설치
+# 한국 시간대(KST) 설정 패키지 설치 (무인 설치 옵션 추가)
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y tzdata && \
     ln -snf /usr/share/zoneinfo/Asia/Seoul /etc/localtime && echo Asia/Seoul > /etc/timezone
 
