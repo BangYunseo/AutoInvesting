@@ -97,5 +97,45 @@ namespace AutoInvest.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        [HttpPost("send-report")]
+        public async Task<IActionResult> SendDailyReport()
+        {
+            try
+            {
+                // 1. 토큰 사용량
+                int totalTokens = TokenUsageDAO.GetTodayTotalTokens();
+                
+                // 2. AI 성과
+                var (perfCount, avgWinRate) = AiPerformanceDAO.GetOverallPerformance();
+
+                string htmlBody = $@"
+                    <h2>AutoInvesting 일일 운용 보고서 (테스트 발송)</h2>
+                    <hr/>
+                    <h3>1. 금일 매매 내역</h3>
+                    <p>테스트 발송이므로 매매 내역은 생략됩니다.</p>
+                    <br/>
+                    <h3>2. AI 성과 요약</h3>
+                    <ul>
+                        <li>현재까지 평가 완료된 신호 건수: {perfCount}건</li>
+                        <li><strong>AI 누적 적중률(Win Rate): {avgWinRate:P1}</strong></li>
+                    </ul>
+                    <br/>
+                    <h3>3. AI API 토큰 소모량</h3>
+                    <ul>
+                        <li>금일 사용 토큰 합계: <strong>{totalTokens:N0} tokens</strong></li>
+                    </ul>
+                    <hr/>
+                    <p style='color: gray; font-size: 12px;'>본 메일은 TestController에 의해 발송되었습니다.</p>";
+
+                await AutoInvest.Utils.NotificationService.SendEmailAsync("일일 운용 보고서 (테스트)", htmlBody);
+                
+                return Ok(new { message = "테스트 일일 보고서 메일 발송 성공" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
     }
 }

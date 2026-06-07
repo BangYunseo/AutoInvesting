@@ -99,3 +99,28 @@ CREATE TABLE IF NOT EXISTS TB_SELL_PLAN (
     PARAMS          TEXT,             -- JSON parameters for the strategy
     CREATED_AT      TEXT    DEFAULT (DATETIME('now','localtime'))
 );
+
+-- ═══════════════════════════════════════════════════════
+-- Phase 5-b: AI 성과 측정 및 토큰 비용 모니터링 테이블
+-- ═══════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS TB_TOKEN_USAGE (
+    USAGE_ID        INTEGER PRIMARY KEY AUTOINCREMENT,
+    TICKER          TEXT    NOT NULL,
+    AGENT_TYPE      TEXT    NOT NULL, -- 'CHART_AI' / 'FUND_AI'
+    PROMPT_TOKENS   INTEGER NOT NULL DEFAULT 0,
+    COMP_TOKENS     INTEGER NOT NULL DEFAULT 0,
+    TOTAL_TOKENS    INTEGER NOT NULL DEFAULT 0,
+    CREATED_AT      TEXT    DEFAULT (DATETIME('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS TB_AI_PERFORMANCE (
+    PERF_ID         INTEGER PRIMARY KEY AUTOINCREMENT,
+    TICKER          TEXT    NOT NULL,
+    SIGNAL          TEXT    NOT NULL, -- 'BUY' / 'SELL'
+    PRICE_AT_SIGNAL REAL    NOT NULL,
+    PRICE_LATER     REAL,             -- 나중에 업데이트 됨
+    WIN_RATE        REAL,             -- 적중 여부/확률 (수익이면 1, 손실이면 0 등)
+    CREATED_AT      TEXT    DEFAULT (DATETIME('now','localtime')),
+    EVALUATED_AT    TEXT              -- 나중에 평가된 시점 기록
+);

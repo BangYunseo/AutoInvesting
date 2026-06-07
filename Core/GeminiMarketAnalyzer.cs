@@ -1,4 +1,5 @@
 using AutoInvest.Data;
+using AutoInvest.Data.DAO;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using Polly;
@@ -182,6 +183,23 @@ namespace AutoInvest.Core
                     .GetProperty("parts")[0]
                     .GetProperty("text")
                     .GetString() ?? string.Empty;
+
+                // ── Token Usage 파싱 및 DB 기록 ──
+                if (doc.RootElement.TryGetProperty("usageMetadata", out var usageProp))
+                {
+                    int promptTokens = usageProp.TryGetProperty("promptTokenCount", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
+                    int compTokens = usageProp.TryGetProperty("candidatesTokenCount", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0;
+                    int totalTokens = usageProp.TryGetProperty("totalTokenCount", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetInt32() : 0;
+
+                    TokenUsageDAO.Insert(new TokenUsageDto
+                    {
+                        Ticker = ticker,
+                        AgentType = agentLabel == "차트" ? "CHART_AI" : "FUND_AI",
+                        PromptTokens = promptTokens,
+                        CompletionTokens = compTokens,
+                        TotalTokens = totalTokens
+                    });
+                }
 
                 // ── JSON 안전 파싱 (마크다운 코드 블록 제거) ──
                 string cleanJson = ExtractJson(rawText);

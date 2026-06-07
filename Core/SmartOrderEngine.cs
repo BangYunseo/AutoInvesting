@@ -201,6 +201,17 @@ namespace AutoInvest.Core
             Logger.LogQuant(ticker, quantConditions, finalSignal, strategyType);
             Logger.Info($"[SmartOrder] {decisionDetail}");
 
+            // ── Phase 5-b: AI 성과 측정 추적기 등록 (BUY/SELL 발생 시) ──
+            if (finalSignal == SmartOrderSignal.BUY || finalSignal == SmartOrderSignal.SELL)
+            {
+                AiPerformanceDAO.Insert(new AiPerformanceDto
+                {
+                    Ticker = ticker,
+                    Signal = finalSignal.ToString(),
+                    PriceAtSignal = priceRange.Current
+                });
+            }
+
             return new SmartOrderResult
             {
                 Ticker           = ticker,

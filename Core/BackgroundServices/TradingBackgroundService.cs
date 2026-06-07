@@ -118,6 +118,91 @@ namespace AutoInvest.Core.BackgroundServices
                 var rebalOrders = await rebalancer.ExecuteAsync(strategies);
                 Logger.Info($"[Worker] ✔ 리밸런싱 완료 — {rebalOrders.Count}건 조정");
             }
+
+            // ── Phase 5-b: AI 성과 과거 기록 평가 (7일 전 데이터) ──
+            await EvaluatePastAiPerformanceAsync(client);
+
+            // ── Phase 5-b: 일일 운용 보고서 (이메일 발송) ──
+            await SendDailyReportAsync(results);
+        }
+
+        private async Task EvaluatePastAiPerformanceAsync(IBrokerClient client)
+        {
+            try
+            {
+                Logger.Info("[Worker] ▶ 과거 AI 성과 평가 시작 (7일 경과 데이터)");
+                var unevaluated = AiPerformanceDAO.GetUnevaluated(7);
+                foreach (var perf in unevaluated)
+                {
+                    decimal currentPrice = await client.GetCurrentPriceAsync(perf.Ticker);
+                    if (currentPrice <= 0) continue;
+
+                    decimal winRate = 0m;
+                    if (perf.Signal == "BUY")
+                    {
+                        winRate = currentPrice > perf.PriceAtSignal ? 1m : 0m;
+                    }
+                    else if (perf.Signal == "SELL")
+                    {
+                        winRate = currentPrice < perf.PriceAtSignal ? 1m : 0m;
+                    }
+
+                    AiPerformanceDAO.UpdateEvaluation(perf.PerfId, currentPrice, winRate);
+                }
+                if (unevaluated.Count > 0)
+                {
+                    Logger.Info($"[Worker] ✔ AI 과거 성과 평가 완료 — {unevaluated.Count}건 업데이트");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Worker] AI 성과 평가 중 오류: {ex.Message}");
+            }
+        }
+
+        private async Task SendDailyReportAsync(System.Collections.Generic.List<SmartOrderResult> todayResults)
+        {
+            try
+            {
+                // 1. 토큰 사용량
+                int totalTokens = TokenUsageDAO.GetTodayTotalTokens();
+                
+                // 2. AI 성과
+                var (perfCount, avgWinRate) = AiPerformanceDAO.GetOverallPerformance();
+
+                // 3. 오늘 매매 내역 HTML
+                string ordersHtml = todayResults.Count == 0 ? "<p>오늘 발생한 매매 신호가 없습니다.</p>" : "<ul>";
+                foreach (var r in todayResults)
+                {
+                    ordersHtml += $"<li><strong>{r.Ticker}</strong>: {r.Signal} ({r.Reason})</li>";
+                }
+                if (todayResults.Count > 0) ordersHtml += "</ul>";
+
+                string htmlBody = $@"
+                    <h2>AutoInvesting 일일 운용 보고서 ({DateTime.Now:yyyy-MM-dd})</h2>
+                    <hr/>
+                    <h3>1. 금일 매매 내역</h3>
+                    {ordersHtml}
+                    <br/>
+                    <h3>2. AI 성과 요약</h3>
+                    <ul>
+                        <li>현재까지 평가 완료된 신호 건수: {perfCount}건</li>
+                        <li><strong>AI 누적 적중률(Win Rate): {avgWinRate:P1}</strong></li>
+                    </ul>
+                    <br/>
+                    <h3>3. AI API 토큰 소모량</h3>
+                    <ul>
+                        <li>금일 사용 토큰 합계: <strong>{totalTokens:N0} tokens</strong></li>
+                    </ul>
+                    <hr/>
+                    <p style='color: gray; font-size: 12px;'>본 메일은 AutoInvesting 시스템에서 자동 발송되었습니다.</p>";
+
+                await NotificationService.SendEmailAsync("일일 운용 보고서", htmlBody);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Worker] 일일 보고서 발송 중 오류: {ex.Message}");
+            }
         }
     }
 }
