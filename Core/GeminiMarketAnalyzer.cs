@@ -4,6 +4,7 @@ using AutoInvest.Utils;
 using Polly;
 using Polly.Retry;
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -13,20 +14,28 @@ using System.Threading.Tasks;
 namespace AutoInvest.Core
 {
     /// <summary>
-    /// Google Gemini API를 사용하는 실물 AI 시장 분석 엔진 구현체 (Phase 4).
-    /// 실패 시 Polly 재시도 + HOLD fallback으로 기존 퀀트 신호를 보호합니다.
+    /// Google Gemini API를 사용하는 다중 에이전트 AI 시장 분석 엔진 구현체 (Phase 4-d).
+    ///
+    /// 투자 위원회(Investment Committee) 구조:
+    ///   1. 차트 기술 애널리스트 에이전트 — RSI·MACD·BB·OHLCV 기반 기술적 판단
+    ///   2. 거시경제·펀더멘털 애널리스트 에이전트 — 섹터·금리·달러 환경 기반 거시 판단
+    ///
+    /// 두 에이전트를 Task.WhenAll로 병렬 실행하여 레이턴시를 최소화합니다.
+    /// 각 에이전트의 결과를 MultiAgentAnalysisResult에 분리 보관하여 SmartOrderEngine이
+    /// 퀀트 신호와 함께 3자 만장일치 합의를 수행하도록 합니다.
     /// </summary>
     public class GeminiMarketAnalyzer : IMarketAnalyzer
     {
         private static readonly HttpClient _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(30)
+            Timeout = TimeSpan.FromSeconds(45)
         };
 
         private readonly string _apiKey;
         private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
 
         // Gemini 1.5 Flash — 무료 티어: 분당 15회, 일 1,500회
+        // 종목 5개 × 에이전트 2개 = 사이클당 최대 10회 호출 → 제한 내 여유 있음
         private const string ModelEndpoint =
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
@@ -48,19 +57,69 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 종목 지표를 Gemini에 전달하여 BUY/SELL/HOLD + 확신도를 반환합니다.
-        /// API 호출 실패 시 HOLD fallback을 반환하여 퀀트 신호를 보호합니다.
+        /// 차트 에이전트와 펀더멘털 에이전트를 병렬 실행하여 MultiAgentAnalysisResult를 반환합니다.
+        /// 하나 이상의 에이전트가 실패하면 해당 에이전트는 HOLD fallback으로 대체됩니다.
         /// </summary>
-        public async Task<AiAnalysisResult> AnalyzeAsync(string ticker, IndicatorDto indicators)
+        /// <param name="ticker">종목 코드</param>
+        /// <param name="indicators">퀀트 지표 (RSI, MACD 등)</param>
+        /// <param name="ohlcv">최근 OHLCV 데이터 (차트 에이전트 입력용)</param>
+        public async Task<MultiAgentAnalysisResult> AnalyzeAsync(
+            string ticker,
+            IndicatorDto indicators,
+            List<OhlcvDto>? ohlcv = null)
         {
-            Logger.Info($"[GeminiAI] {ticker} 분석 요청...");
+            Logger.Info($"[GeminiAI] {ticker} — 다중 에이전트 분석 시작 (차트 + 펀더멘털 병렬 실행)");
 
+            // ── 투자 철학 로드 ──
+            string philosophy = AppConfigManager.Get("AI_PHILOSOPHY", "");
+
+            // ── 프롬프트 조립 (에이전트별 분리) ──
+            string chartSystemPrompt      = PromptBuilder.BuildSystemPrompt(philosophy);
+            string chartUserPrompt        = PromptBuilder.BuildUserPrompt(ticker, indicators, ohlcv);
+            string fundamentalSystemPrompt = PromptBuilder.BuildFundamentalSystemPrompt(philosophy);
+            string fundamentalUserPrompt   = PromptBuilder.BuildFundamentalUserPrompt(ticker, indicators);
+
+            // ── Task.WhenAll: 두 에이전트 병렬 실행 ──
+            var chartTask       = CallGeminiAsync(chartSystemPrompt, chartUserPrompt, ticker, "차트");
+            var fundamentalTask = CallGeminiAsync(fundamentalSystemPrompt, fundamentalUserPrompt, ticker, "펀더멘털");
+
+            AiAnalysisResult[] results = await Task.WhenAll(chartTask, fundamentalTask);
+
+            AiAnalysisResult chartResult       = results[0];
+            AiAnalysisResult fundamentalResult = results[1];
+
+            // ── 두 에이전트 모두 정상 응답했는지 판단 ──
+            bool isFull = chartResult.ConfidenceScore > 0m && fundamentalResult.ConfidenceScore > 0m;
+
+            Logger.Info($"[GeminiAI] {ticker} — 에이전트 의견 수집 완료 | " +
+                $"차트: {chartResult.Signal}({chartResult.ConfidenceScore:F2}) | " +
+                $"펀더멘털: {fundamentalResult.Signal}({fundamentalResult.ConfidenceScore:F2}) | " +
+                $"전체응답: {isFull}");
+
+            return new MultiAgentAnalysisResult
+            {
+                ChartAgent       = chartResult,
+                FundamentalAgent = fundamentalResult,
+                IsFullConsensus  = isFull
+            };
+        }
+
+        /// <summary>
+        /// 단일 Gemini API 호출을 수행합니다 (에이전트 1개).
+        /// 실패 시 HOLD fallback을 반환하여 다른 에이전트와의 합의 흐름을 보호합니다.
+        /// </summary>
+        /// <param name="systemPrompt">에이전트 역할 정의 프롬프트</param>
+        /// <param name="userPrompt">분석 요청 프롬프트</param>
+        /// <param name="ticker">종목 코드 (로그용)</param>
+        /// <param name="agentLabel">에이전트 식별자 ("차트" 또는 "펀더멘털", 로그용)</param>
+        private async Task<AiAnalysisResult> CallGeminiAsync(
+            string systemPrompt,
+            string userPrompt,
+            string ticker,
+            string agentLabel)
+        {
             try
             {
-                // ── 프롬프트 조립 ──
-                string systemPrompt = PromptBuilder.BuildSystemPrompt();
-                string userPrompt = PromptBuilder.BuildUserPrompt(ticker, indicators);
-
                 // ── Gemini API 요청 Body ──
                 var requestBody = new
                 {
@@ -80,15 +139,11 @@ namespace AutoInvest.Core
                 };
 
                 string jsonBody = JsonSerializer.Serialize(requestBody);
-                var request = new HttpRequestMessage(HttpMethod.Post, $"{ModelEndpoint}?key={_apiKey}")
-                {
-                    Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
-                };
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
                 // ── HTTP 호출 (Polly 재시도 포함) ──
                 var response = await _retryPolicy.ExecuteAsync(() =>
-                    _httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Post, $"{ModelEndpoint}?key={_apiKey}")
+                    _httpClient.SendAsync(new HttpRequestMessage(
+                        HttpMethod.Post, $"{ModelEndpoint}?key={_apiKey}")
                     {
                         Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
                     }));
@@ -97,23 +152,24 @@ namespace AutoInvest.Core
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Logger.Warn($"[GeminiAI] API 오류 HTTP {(int)response.StatusCode}: {responseBody[..Math.Min(200, responseBody.Length)]}");
-                    return BuildFallback();
+                    Logger.Warn($"[GeminiAI-{agentLabel}] {ticker} API 오류 HTTP {(int)response.StatusCode}: " +
+                        $"{responseBody[..Math.Min(200, responseBody.Length)]}");
+                    return BuildFallback(agentLabel);
                 }
 
-                return ParseResponse(responseBody, ticker);
+                return ParseResponse(responseBody, ticker, agentLabel);
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[GeminiAI] {ticker} 분석 실패 — 퀀트 신호 우선 사용: {ex.Message}");
-                return BuildFallback();
+                Logger.Warn($"[GeminiAI-{agentLabel}] {ticker} 에이전트 호출 실패 — HOLD fallback: {ex.Message}");
+                return BuildFallback(agentLabel);
             }
         }
 
         /// <summary>
         /// Gemini 응답 JSON을 파싱하여 AiAnalysisResult로 변환합니다.
         /// </summary>
-        private AiAnalysisResult ParseResponse(string responseBody, string ticker)
+        private AiAnalysisResult ParseResponse(string responseBody, string ticker, string agentLabel)
         {
             try
             {
@@ -132,9 +188,9 @@ namespace AutoInvest.Core
                 using var resultDoc = JsonDocument.Parse(cleanJson);
                 var root = resultDoc.RootElement;
 
-                string signalStr = root.GetProperty("signal").GetString() ?? "HOLD";
+                string signalStr   = root.GetProperty("signal").GetString() ?? "HOLD";
                 decimal confidence = root.GetProperty("confidence").GetDecimal();
-                string reason = root.GetProperty("reason").GetString() ?? string.Empty;
+                string reason      = root.GetProperty("reason").GetString() ?? string.Empty;
 
                 SmartOrderSignal signal = signalStr.ToUpper() switch
                 {
@@ -143,19 +199,23 @@ namespace AutoInvest.Core
                     _      => SmartOrderSignal.HOLD
                 };
 
-                Logger.Info($"[GeminiAI] {ticker} → {signal} (확신도: {confidence:F2}) | {reason}");
+                Logger.Info($"[GeminiAI-{agentLabel}] {ticker} → {signal} (확신도: {confidence:F2}) | {reason}");
 
                 return new AiAnalysisResult
                 {
-                    Signal = signal,
+                    Signal          = signal,
                     ConfidenceScore = confidence,
-                    Reason = reason
+                    Reason          = reason
                 };
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[GeminiAI] 응답 파싱 실패: {ex.Message}. 원문: {responseBody[..Math.Min(300, responseBody.Length)]}");
-                return BuildFallback();
+                Logger.Warn($"[GeminiAI-{agentLabel}] {ticker} 응답 파싱 실패: {ex.Message}. " +
+                    $"원문: {responseBody[..Math.Min(300, responseBody.Length)]}");
+                _ = NotificationService.SendEmailAsync(
+                    $"AI [{agentLabel}] 응답 파싱 실패 (HOLD Fallback)",
+                    $"종목: {ticker}\n에이전트: {agentLabel}\n\n원문:\n{responseBody}");
+                return BuildFallback(agentLabel);
             }
         }
 
@@ -168,7 +228,7 @@ namespace AutoInvest.Core
             if (text.StartsWith("```"))
             {
                 int start = text.IndexOf('{');
-                int end = text.LastIndexOf('}');
+                int end   = text.LastIndexOf('}');
                 if (start >= 0 && end > start)
                     return text[start..(end + 1)];
             }
@@ -177,13 +237,13 @@ namespace AutoInvest.Core
 
         /// <summary>
         /// API 실패 시 반환하는 안전한 기본값 (HOLD, 확신도 0).
-        /// CombineSignals()에서 자동으로 퀀트 신호를 우선 사용하게 됩니다.
+        /// CombineSignals()에서 자동으로 만장일치 불성립 → 퀀트 신호를 보호합니다.
         /// </summary>
-        private static AiAnalysisResult BuildFallback() => new AiAnalysisResult
+        private static AiAnalysisResult BuildFallback(string agentLabel) => new AiAnalysisResult
         {
-            Signal = SmartOrderSignal.HOLD,
+            Signal          = SmartOrderSignal.HOLD,
             ConfidenceScore = 0m,
-            Reason = "AI 분석 엔진 응답 불가 — 퀀트 지표 판단으로 대체"
+            Reason          = $"[{agentLabel} 에이전트] AI 응답 불가 — 만장일치 불성립으로 퀀트 신호 보호"
         };
     }
 }
