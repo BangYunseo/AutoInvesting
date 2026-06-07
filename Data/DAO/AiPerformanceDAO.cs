@@ -1,5 +1,5 @@
 using System;
-using System.Data.SQLite;
+using Npgsql;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using System.Collections.Generic;
@@ -46,9 +46,9 @@ namespace AutoInvest.Data.DAO
                         SELECT PERF_ID, TICKER, SIGNAL, PRICE_AT_SIGNAL, CREATED_AT 
                         FROM TB_AI_PERFORMANCE 
                         WHERE EVALUATED_AT IS NULL 
-                          AND CREATED_AT <= date('now', 'localtime', @daysModifier)";
+                          AND CREATED_AT <= CURRENT_TIMESTAMP - (@daysOld * INTERVAL '1 day')";
                     
-                    cmd.Parameters.AddWithValue("@daysModifier", $"-{daysOld} days");
+                    cmd.Parameters.AddWithValue("@daysOld", daysOld);
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -84,7 +84,7 @@ namespace AutoInvest.Data.DAO
                         UPDATE TB_AI_PERFORMANCE 
                         SET PRICE_LATER = @priceLater, 
                             WIN_RATE = @winRate, 
-                            EVALUATED_AT = datetime('now', 'localtime') 
+                            EVALUATED_AT = CURRENT_TIMESTAMP 
                         WHERE PERF_ID = @perfId";
                     
                     cmd.Parameters.AddWithValue("@priceLater", priceLater);

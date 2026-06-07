@@ -1,7 +1,7 @@
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Npgsql;
 
 namespace AutoInvest.Data.DAO
 {
@@ -11,7 +11,7 @@ namespace AutoInvest.Data.DAO
         {
             var list = new List<StrategyDto>();
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(
+            using (var cmd = new NpgsqlCommand(
                 "SELECT STRATEGY_ID, STRATEGY_NAME, TICKER, CAST(WEIGHT AS INTEGER) AS QTY, " +
                 "COALESCE(STRATEGY_TYPE, 'MEAN_REVERSION') AS STRATEGY_TYPE " +
                 "FROM TB_INVEST_STRATEGY WHERE STRATEGY_NAME=@name", conn))
@@ -35,7 +35,7 @@ namespace AutoInvest.Data.DAO
         {
             var list = new List<StrategySummaryDto>();
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(
+            using (var cmd = new NpgsqlCommand(
                 "SELECT STRATEGY_NAME, MAX(STRATEGY_TYPE), COUNT(TICKER) " +
                 "FROM TB_INVEST_STRATEGY GROUP BY STRATEGY_NAME", conn))
             using (var rdr = cmd.ExecuteReader())
@@ -64,7 +64,7 @@ namespace AutoInvest.Data.DAO
                 try
                 {
                     // 기존 전략 삭제
-                    using (var delCmd = new SQLiteCommand(
+                    using (var delCmd = new NpgsqlCommand(
                         "DELETE FROM TB_INVEST_STRATEGY WHERE STRATEGY_NAME=@name", conn, tx))
                     {
                         delCmd.Parameters.AddWithValue("@name", strategyName);
@@ -74,7 +74,7 @@ namespace AutoInvest.Data.DAO
                     // 새 전략 INSERT
                     foreach (var item in items)
                     {
-                        using (var insCmd = new SQLiteCommand(
+                        using (var insCmd = new NpgsqlCommand(
                             "INSERT INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT, STRATEGY_TYPE) " +
                             "VALUES (@name, @ticker, @qty, @type)", conn, tx))
                         {
@@ -103,7 +103,7 @@ namespace AutoInvest.Data.DAO
         public static void DeleteStrategy(string strategyName)
         {
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(
+            using (var cmd = new NpgsqlCommand(
                 "DELETE FROM TB_INVEST_STRATEGY WHERE STRATEGY_NAME=@name", conn))
             {
                 cmd.Parameters.AddWithValue("@name", strategyName);

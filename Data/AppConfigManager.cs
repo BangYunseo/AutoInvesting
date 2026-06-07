@@ -1,5 +1,5 @@
 using System;
-using System.Data.SQLite;
+using Npgsql;
 using AutoInvest.Utils;
 using Microsoft.Extensions.Configuration;
 
@@ -44,7 +44,7 @@ namespace AutoInvest.Data
 
                 // 3. SQLite DB (런타임 수정 가능한 설정)
                 using (var conn = DBManager.Instance.GetConnection())
-                using (var cmd = new SQLiteCommand(
+                using (var cmd = new NpgsqlCommand(
                     "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
                 {
                     cmd.Parameters.AddWithValue("@k", key);
@@ -67,7 +67,7 @@ namespace AutoInvest.Data
             try
             {
                 using (var conn = DBManager.Instance.GetConnection())
-                using (var cmd = new SQLiteCommand(
+                using (var cmd = new NpgsqlCommand(
                     "UPDATE TB_APP_CONFIG SET CONFIG_VALUE=@v WHERE CONFIG_KEY=@k", conn))
                 {
                     cmd.Parameters.AddWithValue("@v", value);
@@ -77,7 +77,7 @@ namespace AutoInvest.Data
                     if (affected == 0)
                     {
                         // 키가 없으면 INSERT
-                        using var insertCmd = new SQLiteCommand(
+                        using var insertCmd = new NpgsqlCommand(
                             "INSERT INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE) VALUES (@k, @v)", conn);
                         insertCmd.Parameters.AddWithValue("@k", key);
                         insertCmd.Parameters.AddWithValue("@v", value);

@@ -1,7 +1,7 @@
 using AutoInvest.Data.DTO;
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Npgsql;
 
 namespace AutoInvest.Data.DAO
 {
@@ -18,7 +18,7 @@ namespace AutoInvest.Data.DAO
         public static void Insert(MarketSnapshotDto dto)
         {
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(@"
+            using (var cmd = new NpgsqlCommand(@"
                 INSERT INTO TB_MARKET_SNAPSHOT
                     (SNAP_DATE, TICKER, PRICE, POSITION_20D, RSI_14,
                      MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL,
@@ -53,7 +53,7 @@ namespace AutoInvest.Data.DAO
         {
             var list = new List<MarketSnapshotDto>();
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(@"
+            using (var cmd = new NpgsqlCommand(@"
                 SELECT SNAPSHOT_ID, SNAP_DATE, TICKER, PRICE, POSITION_20D,
                        RSI_14, MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL,
                        BUY_PROBABILITY, SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE
@@ -101,7 +101,7 @@ namespace AutoInvest.Data.DAO
         {
             var list = new List<decimal>();
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(@"
+            using (var cmd = new NpgsqlCommand(@"
                 SELECT BUY_PROBABILITY
                 FROM TB_MARKET_SNAPSHOT
                 WHERE TICKER = @ticker AND BUY_PROBABILITY IS NOT NULL

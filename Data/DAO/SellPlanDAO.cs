@@ -2,7 +2,7 @@ using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Npgsql;
 
 namespace AutoInvest.Data.DAO
 {
@@ -16,7 +16,7 @@ namespace AutoInvest.Data.DAO
             try
             {
                 using var conn = DBManager.Instance.GetConnection();
-                using var cmd = new SQLiteCommand(sql, conn);
+                using var cmd = new NpgsqlCommand(sql, conn);
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
@@ -39,7 +39,7 @@ namespace AutoInvest.Data.DAO
             try
             {
                 using var conn = DBManager.Instance.GetConnection();
-                using var cmd = new SQLiteCommand(sql, conn);
+                using var cmd = new NpgsqlCommand(sql, conn);
                 cmd.Parameters.AddWithValue("@ticker", ticker);
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
@@ -59,13 +59,13 @@ namespace AutoInvest.Data.DAO
         {
             string sql = @"
                 INSERT INTO TB_SELL_PLAN (TICKER, STRATEGY_TYPE, TARGET_QTY, SOLD_QTY, STATUS, PARAMS)
-                VALUES (@ticker, @strategyType, @targetQty, @soldQty, @status, @params);
-                SELECT last_insert_rowid();";
+                VALUES (@ticker, @strategyType, @targetQty, @soldQty, @status, @params)
+                RETURNING PLAN_ID;";
 
             try
             {
                 using var conn = DBManager.Instance.GetConnection();
-                using var cmd = new SQLiteCommand(sql, conn);
+                using var cmd = new NpgsqlCommand(sql, conn);
                 cmd.Parameters.AddWithValue("@ticker", dto.Ticker);
                 cmd.Parameters.AddWithValue("@strategyType", dto.StrategyType);
                 cmd.Parameters.AddWithValue("@targetQty", dto.TargetQty);
@@ -93,7 +93,7 @@ namespace AutoInvest.Data.DAO
             try
             {
                 using var conn = DBManager.Instance.GetConnection();
-                using var cmd = new SQLiteCommand(sql, conn);
+                using var cmd = new NpgsqlCommand(sql, conn);
                 cmd.Parameters.AddWithValue("@soldQty", dto.SoldQty);
                 cmd.Parameters.AddWithValue("@status", dto.Status);
                 cmd.Parameters.AddWithValue("@params", dto.Params);
@@ -107,7 +107,7 @@ namespace AutoInvest.Data.DAO
             }
         }
 
-        private static SellPlanDto MapFromReader(SQLiteDataReader reader)
+        private static SellPlanDto MapFromReader(NpgsqlDataReader reader)
         {
             return new SellPlanDto
             {

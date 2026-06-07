@@ -1,5 +1,5 @@
 using System;
-using System.Data.SQLite;
+using Npgsql;
 using System.IO;
 using AutoInvest.Utils;
 
@@ -11,20 +11,37 @@ namespace AutoInvest.Data
             new Lazy<DBManager>(() => new DBManager());
         public static DBManager Instance => _instance.Value;
 
-        private readonly string _dbPath;
         private readonly string _connStr;
 
         private DBManager()
         {
-            _dbPath = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "AutoETF.db");
-            _connStr = $"Data Source={_dbPath};Version=3;";
+            _connStr = GetConnectionString();
             InitializeDatabase();
         }
 
-        public SQLiteConnection GetConnection()
+        private string GetConnectionString()
         {
-            var conn = new SQLiteConnection(_connStr);
+            var envUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+            if (string.IsNullOrEmpty(envUrl))
+            {
+                // 로컬 개발용 기본 접속 정보
+                return "Host=localhost;Username=postgres;Password=postgres;Database=autoinvest";
+            }
+
+            // Render.com 등에서 제공하는 URI 형식 (postgres://user:pass@host:port/db) 파싱
+            if (envUrl.StartsWith("postgres://"))
+            {
+                var uri = new Uri(envUrl);
+                var userInfo = uri.UserInfo.Split(':');
+                return $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Username={userInfo[0]};Password={(userInfo.Length > 1 ? userInfo[1] : "")};Database={uri.LocalPath.TrimStart('/')};SslMode=Require;Trust Server Certificate=true;";
+            }
+
+            return envUrl;
+        }
+
+        public NpgsqlConnection GetConnection()
+        {
+            var conn = new NpgsqlConnection(_connStr);
             conn.Open();
             return conn; 
         }
@@ -40,7 +57,7 @@ namespace AutoInvest.Data
                         "Data", "sql", "create_tables.sql");
 
                     var sql = File.ReadAllText(sqlPath);
-                    using (var cmd = new SQLiteCommand(sql, conn))
+                    using (var cmd = new NpgsqlCommand(sql, conn))
                         cmd.ExecuteNonQuery();
 
                     // Phase 2.5 마이그레이션: STRATEGY_TYPE 컬럼 추가
@@ -69,14 +86,14 @@ namespace AutoInvest.Data
         /// <summary>
         /// DB 마이그레이션 쿼리를 실행합니다. 이미 적용된 경우 무시합니다.
         /// </summary>
-        private void RunMigration(SQLiteConnection conn, string sql)
+        private void RunMigration(NpgsqlConnection conn, string sql)
         {
             try
             {
-                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var cmd = new NpgsqlCommand(sql, conn))
                     cmd.ExecuteNonQuery();
             }
-            catch (SQLiteException)
+            catch (PostgresException)
             {
                 // 이미 컬럼이 존재하는 경우 등 — 무시
             }

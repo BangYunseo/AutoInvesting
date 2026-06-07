@@ -1,6 +1,6 @@
 using AutoInvest.Data.DTO;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Npgsql;
 
 namespace AutoInvest.Data.DAO
 {
@@ -20,7 +20,7 @@ namespace AutoInvest.Data.DAO
 
             // DB 연결 → SELECT → DTO 변환
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(
+            using (var cmd = new NpgsqlCommand(
                 "SELECT TICKER, NAME, CURRENCY FROM TB_ASSET_MASTER WHERE IS_ACTIVE=1", conn))
             using (var rdr = cmd.ExecuteReader())
             {

@@ -1,4 +1,5 @@
 using AutoInvest.Core.Quant;
+using AutoInvest.Data.DTO;
 using AutoInvest.Data;
 using AutoInvest.Data.DAO;
 using AutoInvest.Utils;

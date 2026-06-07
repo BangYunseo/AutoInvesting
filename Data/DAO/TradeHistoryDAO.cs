@@ -1,7 +1,7 @@
-﻿using AutoInvest.Data.DTO;
+using AutoInvest.Data.DTO;
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Npgsql;
 
 namespace AutoInvest.Data.DAO
 {
@@ -10,7 +10,7 @@ namespace AutoInvest.Data.DAO
         public static void Insert(TradeHistoryDto dto)
         {
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(@"
+            using (var cmd = new NpgsqlCommand(@"
                 INSERT INTO TB_TRADE_HISTORY
                     (TRADE_DATE, TICKER, ORDER_TYPE, QTY, PRICE, STATUS)
                 VALUES (@date, @ticker, @type, @qty, @price, @status)", conn))
@@ -29,7 +29,7 @@ namespace AutoInvest.Data.DAO
         {
             var list = new List<TradeHistoryDto>();
             using (var conn = DBManager.Instance.GetConnection())
-            using (var cmd = new SQLiteCommand(
+            using (var cmd = new NpgsqlCommand(
                 "SELECT TRADE_ID, TRADE_DATE, TICKER, ORDER_TYPE, QTY, PRICE, STATUS " +
                 "FROM TB_TRADE_HISTORY ORDER BY TRADE_DATE DESC LIMIT @count", conn))
             {

@@ -1,5 +1,5 @@
 using System;
-using System.Data.SQLite;
+using Npgsql;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using System.Collections.Generic;
@@ -46,7 +46,7 @@ namespace AutoInvest.Data.DAO
                     cmd.CommandText = @"
                         SELECT SUM(TOTAL_TOKENS) 
                         FROM TB_TOKEN_USAGE 
-                        WHERE DATE(CREATED_AT) = DATE('now', 'localtime')";
+                        WHERE DATE(CREATED_AT) = CURRENT_DATE";
                     
                     var result = cmd.ExecuteScalar();
                     if (result != DBNull.Value && result != null)
