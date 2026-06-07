@@ -52,9 +52,16 @@ namespace AutoInvest
                 app.UseSwagger();
                 app.UseSwaggerUI();
 
+                // ── 정적 파일 제공 (프론트엔드 React) ──
+                app.UseDefaultFiles();
+                app.UseStaticFiles();
+
                 app.UseAuthorization();
                 app.MapControllers();
                 app.MapHealthChecks("/api/health");
+
+                // ── SPA Fallback (프론트엔드 라우팅) ──
+                app.MapFallbackToFile("index.html");
 
                 Logger.Info("[서버] 자동 투자 API 서버 시작 완료");
                 app.Run();

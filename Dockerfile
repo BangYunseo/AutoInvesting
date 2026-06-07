@@ -1,4 +1,12 @@
-# 빌드 스테이지
+# 프론트엔드 빌드 스테이지
+FROM node:20 AS frontend-build
+WORKDIR /frontend
+COPY Frontend/package.json Frontend/package-lock.json ./
+RUN npm install
+COPY Frontend/ ./
+RUN npm run build
+
+# 백엔드 빌드 스테이지
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY ["AutoInvest.csproj", "./"]
@@ -10,6 +18,7 @@ RUN dotnet publish "AutoInvest.csproj" -c Release -o /app/publish /p:UseAppHost=
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+COPY --from=frontend-build /frontend/dist ./wwwroot
 
 # 한국 시간대(KST) 설정 패키지 설치 (무인 설치 옵션 추가)
 ENV DEBIAN_FRONTEND=noninteractive
