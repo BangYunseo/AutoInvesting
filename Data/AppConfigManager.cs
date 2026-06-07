@@ -111,6 +111,9 @@ namespace AutoInvest.Data
                 "LAST_REBALANCE_DATE"   => null, // DB 전용
                 "KIS_SERVER"            => "Kis:Server",
                 "KIS_ACCOUNT_PROD"      => "Kis:AccountProd",
+                "KIS_APP_KEY"           => "Kis:AppKey",
+                "KIS_APP_SECRET"        => "Kis:AppSecret",
+                "KIS_ACCOUNT_NO"        => "Kis:AccountNo",
                 "AI_PROVIDER"           => "Ai:Provider",
                 "GEMINI_API_KEY"        => "Ai:GeminiApiKey",
                 "API_ACCESS_KEY"        => "Security:ApiAccessKey",

@@ -92,6 +92,7 @@ namespace AutoInvest.Core
         public async Task<decimal> GetCurrentPriceAsync(string ticker)
         {
             await _tokenManager.EnsureValidTokenAsync();
+            await Task.Delay(400); // Rate limit 방지 (신규 키 초당 3건 제한)
             
             // 해외주식 현재가 조회: HHDFS00000300
             string path = $"/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=NAS&SYMB={ticker}";
@@ -142,7 +143,7 @@ namespace AutoInvest.Core
         public async Task<List<HoldingDto>> GetHoldingsAsync()
         {
             await _tokenManager.EnsureValidTokenAsync();
-            await Task.Delay(200); // Rate limit 방지
+            await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
             string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
             string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NAS&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
@@ -184,7 +185,16 @@ namespace AutoInvest.Core
         public async Task<decimal> GetCashBalanceAsync()
         {
             await _tokenManager.EnsureValidTokenAsync();
-            await Task.Delay(200); // Rate limit 방지
+            await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
+
+            // KIS API는 모의투자 환경에서 해외주식 예수금 조회(VTTS3014R)를 미지원하며, 
+            // 잔고 조회(VTTS3012R)에서도 예수금 필드를 반환하지 않습니다.
+            // 따라서 모의투자 시 가상의 자본(1억 달러)을 반환하여 주문이 정상 진행되도록 우회합니다.
+            if (_isPaperTrading)
+            {
+                Logger.Info("[KisBroker] KIS 모의투자는 해외주식 예수금 조회를 미지원하므로 가상 잔고 $100,000,000 반환");
+                return 100_000_000m;
+            }
 
             string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
             string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NAS&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
@@ -229,7 +239,7 @@ namespace AutoInvest.Core
         public async Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days)
         {
             await _tokenManager.EnsureValidTokenAsync();
-            await Task.Delay(200);
+            await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
             string path = $"/uapi/overseas-price/v1/quotations/dailyprice?AUTH=&EXCD=NAS&SYMB={ticker}&GUBN=0&BYMD=&MODP=1";
             var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS76240000"));
@@ -247,7 +257,8 @@ namespace AutoInvest.Core
                 {
                     if (count >= days) break;
 
-                    string dateStr = item.GetProperty("stck_bsop_date").GetString() ?? "";
+                    string dateStr = item.TryGetProperty("xymd", out var d1) ? d1.GetString() ?? "" 
+                        : (item.TryGetProperty("stck_bsop_date", out var d2) ? d2.GetString() ?? "" : "");
                     if (DateTime.TryParseExact(dateStr, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out DateTime date))
                     {
                         decimal.TryParse(item.GetProperty("open").GetString(), out decimal open);
@@ -289,7 +300,7 @@ namespace AutoInvest.Core
         private async Task<string> PlaceOrderAsync(string ticker, int qty, decimal price, bool isBuy)
         {
             await _tokenManager.EnsureValidTokenAsync();
-            await Task.Delay(200);
+            await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
             string trId = isBuy 
                 ? (_isPaperTrading ? "VTTT1002U" : "TTTT1002U") 

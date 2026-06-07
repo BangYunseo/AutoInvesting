@@ -92,5 +92,38 @@ namespace AutoInvest.Data.DAO
             }
             return list;
         }
+
+        /// <summary>
+        /// 특정 종목의 과거 BuyProbability 배열을 최근 순으로 조회합니다.
+        /// 적응형 임계값 계산을 위한 원천 데이터로 사용됩니다.
+        /// </summary>
+        public static List<decimal> GetHistoricalProbabilities(string ticker, int limit = 100)
+        {
+            var list = new List<decimal>();
+            using (var conn = DBManager.Instance.GetConnection())
+            using (var cmd = new SQLiteCommand(@"
+                SELECT BUY_PROBABILITY
+                FROM TB_MARKET_SNAPSHOT
+                WHERE TICKER = @ticker AND BUY_PROBABILITY IS NOT NULL
+                ORDER BY SNAP_DATE DESC
+                LIMIT @limit", conn))
+            {
+                cmd.Parameters.AddWithValue("@ticker", ticker);
+                cmd.Parameters.AddWithValue("@limit", limit);
+
+                using (var rdr = cmd.ExecuteReader())
+                {
+                    while (rdr.Read())
+                    {
+                        decimal prob = rdr.IsDBNull(0) ? 0m : rdr.GetDecimal(0);
+                        if (prob > 0)
+                        {
+                            list.Add(prob);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
     }
 }

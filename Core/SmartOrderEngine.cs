@@ -151,17 +151,20 @@ namespace AutoInvest.Core
             // ── Phase 4-e: 다중 AI 에이전트 분석 (차트 + 펀더멘털 병렬 실행) ──
             var multiAgentResult = await _analyzer.AnalyzeAsync(ticker, indicators, ohlcv);
 
+            // ── Phase 5-a: 종목별 적응형 매수 임계값 산출 ──
+            var (adaptiveBuyThreshold, adaptiveReason) = Quant.AdaptiveThresholdEngine.GetBuyThreshold(ticker);
+
             // ── Phase 4-e: 확률 기반 합의 스코어링 ──
             var consensusScore = CalculateConsensusScore(
-                quantSignal, multiAgentResult);
+                quantSignal, multiAgentResult, adaptiveBuyThreshold, _consensusSellThreshold);
 
             SmartOrderSignal finalSignal;
             string finalReason;
 
-            if (consensusScore.BuyProbability >= _consensusBuyThreshold && quantSignal == SmartOrderSignal.BUY)
+            if (consensusScore.BuyProbability >= adaptiveBuyThreshold && quantSignal == SmartOrderSignal.BUY)
             {
                 finalSignal = SmartOrderSignal.BUY;
-                finalReason = $"매수 확률 {consensusScore.BuyProbability:P1} ≥ 임계값 {_consensusBuyThreshold:P1} — 매수 실행";
+                finalReason = $"매수 확률 {consensusScore.BuyProbability:P1} ≥ 임계값 {adaptiveBuyThreshold:P1} ({adaptiveReason}) — 매수 실행";
             }
             else if (consensusScore.SellProbability >= _consensusSellThreshold && quantSignal == SmartOrderSignal.SELL)
             {
@@ -180,7 +183,7 @@ namespace AutoInvest.Core
                     : $"합의 확률 미달 (부족분: {gap:P1}) — {quantReason}";
             }
 
-            // ── 확률 분해 상세 로그 (Phase 4-e) ──
+            // ── 확률 분해 상세 로그 (Phase 4-e & 5-a) ──
             string quantIcon = quantSignal == SmartOrderSignal.BUY ? "BUY" : (quantSignal == SmartOrderSignal.SELL ? "SELL" : "HOLD");
             string resultIcon = finalSignal == SmartOrderSignal.HOLD ? "⚠️" : "✅";
             decimal buyProb = consensusScore.BuyProbability;
@@ -192,7 +195,8 @@ namespace AutoInvest.Core
                 $"  ├── 차트AI     : {multiAgentResult.ChartAgent.Signal} (확신도:{multiAgentResult.ChartAgent.ConfidenceScore:F2}) → +{consensusScore.ChartAiContribution:P1}\n" +
                 $"  └── 펀더멘털AI : {multiAgentResult.FundamentalAgent.Signal} (확신도:{multiAgentResult.FundamentalAgent.ConfidenceScore:F2}) → +{consensusScore.FundamentalAiContribution:P1}\n" +
                 $"  ─────────────────────────────────────\n" +
-                $"  매수 확률: {buyProb:P1} {(buyProb >= _consensusBuyThreshold ? "≥" : "<")} {_consensusBuyThreshold:P1} (임계값) → {finalReason}";
+                $"  적응형 매수 임계값: {adaptiveBuyThreshold:P1} ({adaptiveReason})\n" +
+                $"  매수 확률: {buyProb:P1} {(buyProb >= adaptiveBuyThreshold ? "≥" : "<")} {adaptiveBuyThreshold:P1} (임계값) → {finalReason}";
 
             Logger.LogQuant(ticker, quantConditions, finalSignal, strategyType);
             Logger.Info($"[SmartOrder] {decisionDetail}");
@@ -213,18 +217,12 @@ namespace AutoInvest.Core
 
         /// <summary>
         /// 퀀트 + 차트AI + 펀더멘털AI의 가중치 × 확신도 합산을 수행합니다 (Phase 4-e).
-        ///
-        /// 계산 공식:
-        ///   BuyProbability  = QUANT_WEIGHT(BUY 시) + CHART_AI_WEIGHT × 차트확신도(BUY 시) + FUND_AI_WEIGHT × 펀더멘털확신도(BUY 시)
-        ///   SellProbability = QUANT_WEIGHT(SELL 시) + CHART_AI_WEIGHT × 차트확신도(SELL 시) + FUND_AI_WEIGHT × 펀더멘털확신도(SELL 시)
-        ///
-        /// 퀀트 1차 관문 수식 자동 보장:
-        ///   퀀트 HOLD → QUANT_WEIGHT=0 → 최대 확률 = CHART_AI_WEIGHT + FUND_AI_WEIGHT (기본 60%)
-        ///   임계값(기본 65%) 자동 미달로 별도 if 분기 없이 관문 유지
         /// </summary>
         private ConsensusScoreDto CalculateConsensusScore(
             SmartOrderSignal quantSignal,
-            MultiAgentAnalysisResult multiAgent)
+            MultiAgentAnalysisResult multiAgent,
+            decimal dynamicBuyThreshold,
+            decimal dynamicSellThreshold)
         {
             var chart       = multiAgent.ChartAgent;
             var fundamental = multiAgent.FundamentalAgent;
@@ -247,7 +245,7 @@ namespace AutoInvest.Core
 
             // ── 결과 DTO 조립 ──
             decimal activeThreshold = (quantSignal == SmartOrderSignal.SELL)
-                ? _consensusSellThreshold : _consensusBuyThreshold;
+                ? dynamicSellThreshold : dynamicBuyThreshold;
 
             return new ConsensusScoreDto
             {
