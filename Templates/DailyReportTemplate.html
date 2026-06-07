@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>일일 운용 보고서</title>
+</head>
+<body style="font-family: 'Malgun Gothic', sans-serif; line-height: 1.6; color: #333;">
+    <h2>AutoInvesting 일일 운용 보고서 ({{DATE}})</h2>
+    <hr style="border: 1px solid #eee;" />
+    
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: #2c3e50;">1. 오늘의 매매 내역</h3>
+        <p>오늘 시스템이 시장을 분석하고 내린 결정입니다.</p>
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
+            {{ORDERS}}
+        </div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: #2c3e50;">2. AI 과거 성과 평가 결과</h3>
+        <p>일주일 전에 AI가 예측했던 내용이 실제로 맞았는지 채점한 결과입니다.</p>
+        <div style="background-color: #e8f4f8; padding: 15px; border-radius: 5px;">
+            {{EVAL_DETAILS}}
+        </div>
+        <p style="margin-top: 10px;">
+            <strong>지금까지 평가된 총 신호:</strong> {perfCount}건<br/>
+            <strong>AI의 전체 누적 적중률:</strong> {avgWinRate}
+        </p>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <h3 style="color: #2c3e50;">3. 시스템 사용량 (비용)</h3>
+        <p>오늘 하루 동안 AI에게 질문하기 위해 사용한 단어(토큰)의 양입니다.</p>
+        <ul>
+            <li>오늘 사용한 총 토큰 수: <strong>{totalTokens} 토큰</strong></li>
+        </ul>
+    </div>
+
+    <hr style="border: 1px solid #eee;" />
+    <p style="color: gray; font-size: 12px; text-align: center;">
+        이 메일은 AutoInvesting 외부 스케줄러(Daily Cycle)에 의해 발송되었습니다.
+    </p>
+</body>
+</html>

@@ -45,7 +45,7 @@ namespace AutoInvest
                 // ── 의존성 주입 ──
                 builder.Services.AddSingleton(DBManager.Instance);
                 builder.Services.AddSingleton<AutoInvest.Core.SessionManager>();
-                builder.Services.AddHostedService<AutoInvest.Core.BackgroundServices.TradingBackgroundService>();
+                builder.Services.AddScoped<AutoInvest.Core.DailyExecutionService>();
 
                 var app = builder.Build();
 

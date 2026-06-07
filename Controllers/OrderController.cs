@@ -18,10 +18,12 @@ namespace AutoInvest.Controllers
     public class OrderController : ControllerBase
     {
         private readonly SessionManager _session;
+        private readonly DailyExecutionService _dailyService;
 
-        public OrderController(SessionManager session)
+        public OrderController(SessionManager session, DailyExecutionService dailyService)
         {
             _session = session;
+            _dailyService = dailyService;
         }
 
         /// <summary>
@@ -74,6 +76,25 @@ namespace AutoInvest.Controllers
             catch (Exception ex)
             {
                 Logger.Error($"[Order] 수동 주문 실행 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// 외부 크론잡(Cron-job.org 등)에서 매일 한 번 호출하여 전체 일일 사이클을 실행합니다.
+        /// (매매, 리밸런싱, AI 평가, 메일 리포트 발송 포함)
+        /// </summary>
+        [HttpPost("daily-run")]
+        public async Task<IActionResult> RunDailyCycle()
+        {
+            try
+            {
+                var result = await _dailyService.RunDailyCycleAsync();
+                return Ok(new { message = result });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Order] 일일 사이클 실행 실패: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
