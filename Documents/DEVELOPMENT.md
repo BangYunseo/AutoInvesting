@@ -16,7 +16,127 @@
 - **Phase B/C** (운영 안정성 및 확장): ✅ 완료
 - **Phase 4-a** (AI Mock + CombineSignals 아키텍처): ✅ 완료
 - **Phase 4-b** (Gemini 실물 연동 + 퀀트 조건 현실화): ✅ 완료
-- **Phase 4-c** (실물 LLM 성능 튜닝 / 프롬프트 고도화): 🔜 예정
+- **Phase 4-c** (투자 철학 주입 및 예외처리 고도화): ✅ 완료
+- **Phase 4-d** (Anthropic 벤치마킹 멀티 에이전트 / 재무 프롬프트 확장): ✅ **완료**
+- **Phase 4-e** (확률 기반 합의 스코어링 / 가중치 임계값 / 신호 투명성 강화): ✅ **완료**
+
+---
+
+## Phase 4-e 상세 변경 이력 — 확률 기반 합의 스코어링 시스템
+
+### 핵심 변경: "3자 만장일치 합의(0 or 1)" → "가중치 × 확신도 확률 합산(0.0~1.0)"
+
+Phase 4-d의 만장일치(CombineSignals) 방식을 확률 기반 가중 합산(CalculateConsensusScore)으로 교체했습니다.
+매매 판단의 근거를 수치로 투명하게 추적할 수 있으며, Phase 5 종목별 적응형 임계값의 기초 데이터를 축적합니다.
+
+```
+변경 전 흐름 (Phase 4-d):
+  SmartOrderEngine → [퀀트] + [차트AI] + [펀더멘털AI] → 만장일치(CombineSignals) → 0 or 1
+
+변경 후 흐름 (Phase 4-e):
+  SmartOrderEngine → [퀀트] + [차트AI] + [펀더멘털AI]
+                         ↓ 가중치 × 확신도 합산 (CalculateConsensusScore)
+                    BuyProbability = 0.40(퀀트) + 0.30×0.76(차트) + 0.30×0.62(펀더멘털) = 81.4%
+                         ↓ ≥ 65% (임계값)?
+                    → BUY 실행 ✅
+```
+
+#### 확률 합산 공식
+
+```
+BuyProbability = QUANT_WEIGHT(BUY 충족 시 고정) + CHART_AI_WEIGHT × 차트확신도 + FUND_AI_WEIGHT × 펀더멘털확신도
+
+기본 가중치: 퀀트 40% / 차트AI 30% / 펀더멘털AI 30% (appsettings.json 설정)
+임계값: BUY_THRESHOLD = 0.65 / SELL_THRESHOLD = 0.65
+
+퀀트 1차 관문 수식 자동 보장:
+  퀀트 HOLD → QUANT_WEIGHT=0 → 최대 60% → 임계값(65%) 자동 미달
+```
+
+#### 로그 출력 형식
+
+```
+[SmartOrder] [MEAN_REVERSION] QQQ 최종 판정: BUY ✅
+  ├── 퀀트       : BUY  → +40.0%
+  ├── 차트AI     : BUY (확신도:0.76) → +22.8%
+  └── 펀더멘털AI : BUY (확신도:0.62) → +18.6%
+  ─────────────────────────────────────
+  매수 확률: 81.4% ≥ 65.0% (임계값) → 매수 실행
+```
+
+### 4-e 신규 파일 (1건)
+
+| 파일 | 설명 |
+|------|------|
+| `Data/DTO/ConsensusScoreDto.cs` | 확률 분해 결과 DTO — BuyProbability, SellProbability, 에이전트별 기여도, 임계값 달성 여부 |
+
+### 4-e 수정 파일 (6건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Core/SmartOrderEngine.cs` | `CombineSignals()` → `CalculateConsensusScore()` 교체, `SmartOrderResult`에 `ConsensusScore` 필드 추가, 확률 분해 로그 형식 적용, `SaveMarketSnapshot()`에 AI 점수 저장 추가 |
+| `Data/DTO/MarketSnapshotDto.cs` | `BuyProbability`, `SellProbability`, `ChartAiScore`, `FundAiScore` 필드 추가 |
+| `Data/DAO/MarketSnapshotDAO.cs` | Insert/Select SQL에 4개 컬럼 추가, NULL 안전 읽기 (기존 데이터 호환) |
+| `Data/DBManager.cs` | Phase 4-e DB 마이그레이션 4건 — ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN |
+| `appsettings.json` | `Consensus` 설정 섹션 추가 (QuantWeight, ChartAiWeight, FundAiWeight, BuyThreshold, SellThreshold) |
+| `Data/AppConfigManager.cs` | Consensus 키 매핑 5개 추가 (QUANT_WEIGHT, CHART_AI_WEIGHT, FUND_AI_WEIGHT, BUY_THRESHOLD, SELL_THRESHOLD) |
+
+---
+
+## Phase 4-d 상세 변경 이력 — 다중 에이전트(투자 위원회) 구조 및 재무 프롬프트 통합
+
+### 핵심 변경: "단일 AI 에이전트" → "차트+펀더멘털 이중 에이전트 만장일치 합의"
+
+Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조를 벤치마킹하여,
+기존 단일 Gemini 프롬프트를 두 개의 독립된 에이전트로 분리하고 퀀트+AI 2자 합의를 3자 만장일치 합의로 업그레이드했습니다.
+
+```
+변경 전 흐름:
+  SmartOrderEngine → [퀀트] + [단일 Gemini AI] → 2자 합의(CombineSignals)
+
+변경 후 흐름 (Phase 4-d):
+  SmartOrderEngine → [퀀트] + Task.WhenAll{[차트 AI], [펀더멘털 AI]}
+                                  ↓ 각자 독립적 의견 반환 (MultiAgentAnalysisResult)
+                              3자 만장일치(CombineSignals) → finalSignal
+```
+
+#### 합의 알고리즘 (만장일치, 리스크 오클루전)
+
+| 퀀트 | 차트AI | 펀더멘털AI | 최종 결론 |
+|:---:|:---:|:---:|:---:|
+| BUY | BUY | BUY | ✅ BUY (만장일치) |
+| BUY | BUY | HOLD/SELL | ⚠️ HOLD (펀더멘털 이견) |
+| BUY | HOLD/SELL | - | ⚠️ HOLD (차트AI 이견) |
+| HOLD | - | - | ❌ HOLD (1차 관문 탈락) |
+| SELL | SELL | SELL | ✅ SELL (만장일치) |
+
+#### 로그 출력 예시
+
+```
+[SmartOrder] [MEAN_REVERSION] QQQ 최종 판정: HOLD
+  ├── 퀀트       : BUY — RSI(38.2) ≤ 45 AND Position(0.21) ≤ 0.30
+  ├── 차트AI     : BUY (확신도:0.78) — 기술적 반등 신호 및 BB 하단 지지 확인
+  └── 펀더멘털AI: HOLD (확신도:0.55) — 금리 상승 사이클에서 기술주 ETF 진입 시기 재고 권장
+  → 퀀트+차트AI는 BUY에 동의하나, 펀더멘털AI가 이견(HOLD). 펀더멘털AI 이견: ...
+```
+
+### 4-d 신규/수정 파일
+
+#### 신규 파일 (2건)
+
+| 파일 | 설명 |
+|------|------|
+| `Core/IMcpDataProvider.cs` | MCP(Model Context Protocol) 외부 데이터 공급자 인터페이스 골격. 향후 FactSet/Bloomberg 연동 확장점 |
+
+#### 수정 파일 (5건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Core/IMarketAnalyzer.cs` | `MultiAgentAnalysisResult` 클래스 추가, `AnalyzeAsync()` 반환 타입 변경, `ohlcv` 파라미터 추가 |
+| `Utils/PromptBuilder.cs` | `BuildFundamentalSystemPrompt()` + `BuildFundamentalUserPrompt()` 신규 추가. 차트 에이전트 역할 명시 강화 |
+| `Core/GeminiMarketAnalyzer.cs` | `Task.WhenAll` 이중 에이전트 병렬 실행 구조로 전면 리팩토링. `CallGeminiAsync()` 내부 메서드 분리 |
+| `Core/AiMarketAnalyzer.cs` | Mock 구현체를 `MultiAgentAnalysisResult` 반환으로 업데이트. 차트/펀더멘털 Mock 에이전트 분리 |
+| `Core/SmartOrderEngine.cs` | `SmartOrderResult`에 `MultiAgentResult` 필드 추가. `CombineSignals()`를 3자 만장일치 합의로 전면 교체. 상세 3자 판단 로그 추가 |
 
 ---
 
