@@ -29,7 +29,7 @@ namespace AutoInvest.Data
             }
 
             // Render.com 등에서 제공하는 URI 형식 (postgres://user:pass@host:port/db) 파싱
-            if (envUrl.StartsWith("postgres://"))
+            if (envUrl.StartsWith("postgres://") || envUrl.StartsWith("postgresql://"))
             {
                 var uri = new Uri(envUrl);
                 var userInfo = uri.UserInfo.Split(':');
