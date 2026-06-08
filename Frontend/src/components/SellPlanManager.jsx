@@ -80,6 +80,47 @@ const SellPlanManager = () => {
     }
   };
 
+  const getStrategyLabel = (type) => {
+    switch (type) {
+      case 'PRICE': return '가격 익절';
+      case 'TIME': return '기간 익절';
+      case 'CHART': return '차트 익절';
+      default: return type;
+    }
+  };
+
+  const renderParams = (type, paramsStr) => {
+    try {
+      const params = JSON.parse(paramsStr);
+      if (type === 'PRICE') {
+        return (
+          <>
+            <div style={{ marginBottom: '4px' }}>종목 주가 : {params.TargetPrice}</div>
+            <div>종목 개수 : {params.TrancheQty}주</div>
+          </>
+        );
+      } else if (type === 'TIME') {
+        return (
+          <>
+            <div style={{ marginBottom: '4px' }}>첫 매도일 : {params.NextExecutionDate}</div>
+            <div>종목 개수 : {params.TrancheQty}주</div>
+          </>
+        );
+      } else if (type === 'CHART') {
+        const conditionText = params.Condition === 'MA20_BREAK' ? '20일 이평선 이탈' : params.Condition;
+        return (
+          <>
+            <div style={{ marginBottom: '4px' }}>이탈 조건 : {conditionText}</div>
+            <div>종목 개수 : {params.TrancheQty}주</div>
+          </>
+        );
+      }
+      return paramsStr;
+    } catch (e) {
+      return paramsStr;
+    }
+  };
+
   return (
     <div>
       <div className="card">
@@ -128,12 +169,12 @@ const SellPlanManager = () => {
           )}
           
           <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
-            <button type="submit">플랜 생성 (시작)</button>
+            <button type="submit">플랜 생성</button>
           </div>
         </form>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ overflowX: 'auto' }}>
         <h2>활성 분할매도 플랜 (Active Plans)</h2>
         {loading ? (
           <p>로딩 중...</p>
@@ -152,20 +193,22 @@ const SellPlanManager = () => {
               </tr>
             </thead>
             <tbody>
-              {plans.map(p => {
+              {plans.map((p, index) => {
                 const progress = Math.min(100, Math.round((p.soldQty / p.targetQty) * 100));
                 return (
                   <tr key={p.planId}>
-                    <td>{p.planId}</td>
+                    <td>{index + 1}</td>
                     <td><strong>{p.ticker}</strong></td>
-                    <td><span className="badge active">{p.strategyType}</span></td>
+                    <td><span className="badge active">{getStrategyLabel(p.strategyType)}</span></td>
                     <td>
-                      {p.soldQty} / {p.targetQty} 주
+                      <div style={{ marginBottom: '5px' }}>{p.soldQty} / {p.targetQty} 주</div>
                       <div className="progress-container">
                         <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                       </div>
                     </td>
-                    <td style={{ fontSize: '12px', color: '#6c757d' }}>{p.params}</td>
+                    <td style={{ fontSize: '14px', color: '#495057', lineHeight: '1.5' }}>
+                      {renderParams(p.strategyType, p.params)}
+                    </td>
                     <td>
                       <button className="danger" onClick={() => handleCancel(p.planId)}>취소</button>
                     </td>
