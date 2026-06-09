@@ -3,6 +3,7 @@ using AutoInvest.Data;
 using AutoInvest.Data.DAO;
 using AutoInvest.Utils;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,12 +19,12 @@ namespace AutoInvest.Controllers
     public class OrderController : ControllerBase
     {
         private readonly SessionManager _session;
-        private readonly DailyExecutionService _dailyService;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public OrderController(SessionManager session, DailyExecutionService dailyService)
+        public OrderController(SessionManager session, IServiceScopeFactory scopeFactory)
         {
             _session = session;
-            _dailyService = dailyService;
+            _scopeFactory = scopeFactory;
         }
 
         /// <summary>
@@ -83,20 +84,32 @@ namespace AutoInvest.Controllers
         /// <summary>
         /// 외부 크론잡(Cron-job.org 등)에서 매일 한 번 호출하여 전체 일일 사이클을 실행합니다.
         /// (매매, 리밸런싱, AI 평가, 메일 리포트 발송 포함)
+        ///
+        /// 사이클은 KIS 로그인 + 종목별 Gemini 호출 + SMTP까지 수십 초 이상 걸릴 수 있어
+        /// 크론의 타임아웃(예: 30초)을 넘기기 쉽습니다. 따라서 사이클을 백그라운드에서 실행하고
+        /// 호출자에게는 즉시 202를 반환하여 타임아웃/응답 과대(output too large)를 방지합니다.
         /// </summary>
         [HttpPost("daily-run")]
-        public async Task<IActionResult> RunDailyCycle()
+        public IActionResult RunDailyCycle()
         {
-            try
+            // Scoped 서비스(DailyExecutionService)를 요청 수명과 분리해 사용하기 위해
+            // 백그라운드 작업 내부에서 별도 DI 스코프를 생성한다.
+            _ = Task.Run(async () =>
             {
-                var result = await _dailyService.RunDailyCycleAsync();
-                return Ok(new { message = result });
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"[Order] 일일 사이클 실행 실패: {ex.Message}");
-                return StatusCode(500, new { error = ex.Message });
-            }
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var dailyService = scope.ServiceProvider.GetRequiredService<DailyExecutionService>();
+                    await dailyService.RunDailyCycleAsync();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"[Order] 백그라운드 일일 사이클 실행 실패: {ex.Message}");
+                }
+            });
+
+            Logger.Info("[Order] 일일 사이클을 백그라운드로 시작했습니다 (즉시 202 반환).");
+            return Accepted(new { message = "일일 사이클을 시작했습니다. 처리 결과는 서버 로그와 이메일로 확인하세요." });
         }
 
         /// <summary>
