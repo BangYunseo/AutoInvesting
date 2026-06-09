@@ -291,11 +291,6 @@ const Strategy = () => {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  // -------------------------------------------------------------
-  // Render Helpers
-  // -------------------------------------------------------------
-  const isEditing = viewMode === 'edit' && editStrategyName;
-
   return (
     <div>
       {/* ── 상단 메시지 알림 ── */}
@@ -380,7 +375,7 @@ const Strategy = () => {
                         </span>
                       </div>
                       <div className="strategy-card__stats">
-                        포함된 종목 수: <strong>{s.TickerCount}</strong>개
+                        포함된 종목 수: <strong>{s.tickerCount}</strong>개
                       </div>
                     </div>
                   ))}
