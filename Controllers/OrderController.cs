@@ -1,6 +1,7 @@
 using AutoInvest.Core;
 using AutoInvest.Data;
 using AutoInvest.Data.DAO;
+using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -113,6 +114,89 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
+        /// 신호 판단을 거치지 않고 즉시 매수/매도 주문을 실행합니다 (KIS 모의계좌 연동 검증용).
+        /// 퀀트/AI 합의와 무관하게 동작하므로 실거래 환경에서는 사용에 주의하세요.
+        /// </summary>
+        /// <param name="req">주문 요청 (종목, 수량, 매수/매도, 가격(생략 시 현재가))</param>
+        [HttpPost("manual")]
+        public async Task<IActionResult> PlaceManualOrder([FromBody] ManualOrderRequest req)
+        {
+            try
+            {
+                if (req == null || string.IsNullOrWhiteSpace(req.Ticker))
+                {
+                    return BadRequest(new { error = "종목 코드(ticker)는 필수입니다." });
+                }
+                if (req.Qty <= 0)
+                {
+                    return BadRequest(new { error = "수량(qty)은 1 이상이어야 합니다." });
+                }
+
+                string orderType = (req.OrderType ?? "BUY").Trim().ToUpper();
+                if (orderType != "BUY" && orderType != "SELL")
+                {
+                    return BadRequest(new { error = "orderType은 'BUY' 또는 'SELL'이어야 합니다." });
+                }
+
+                string ticker = req.Ticker.Trim().ToUpper();
+
+                var client = _session.GetClient();
+                if (!client.IsLoggedIn)
+                {
+                    var loginOk = await client.LoginAsync();
+                    if (!loginOk)
+                    {
+                        return StatusCode(503, new { error = "브로커 로그인 실패" });
+                    }
+                }
+
+                // 가격 미지정 시 현재가 사용
+                decimal price = req.Price ?? await client.GetCurrentPriceAsync(ticker);
+                if (price <= 0)
+                {
+                    return BadRequest(new { error = $"'{ticker}'의 가격을 확인할 수 없습니다. price를 직접 지정해 주세요." });
+                }
+
+                string orderNo = orderType == "BUY"
+                    ? await client.PlaceBuyOrderAsync(ticker, req.Qty, price)
+                    : await client.PlaceSellOrderAsync(ticker, req.Qty, price);
+
+                if (string.IsNullOrEmpty(orderNo))
+                {
+                    Logger.Warn($"[Order] 수동 {orderType} 주문 미체결/실패: {ticker} {req.Qty}주");
+                    return StatusCode(502, new { error = "주문이 거부되었거나 주문번호를 받지 못했습니다. 서버 로그를 확인하세요." });
+                }
+
+                TradeHistoryDAO.Insert(new TradeHistoryDto
+                {
+                    TradeDate = DateTime.Now,
+                    Ticker = ticker,
+                    OrderType = orderType,
+                    Qty = req.Qty,
+                    Price = price,
+                    Status = "FILLED",
+                    OrderNo = orderNo
+                });
+
+                Logger.Info($"[Order] 수동 {orderType} 주문 실행: {ticker} {req.Qty}주 @ ${price} (주문번호: {orderNo})");
+                return Ok(new
+                {
+                    message = $"수동 {orderType} 주문이 실행되었습니다.",
+                    ticker,
+                    orderType,
+                    qty = req.Qty,
+                    price,
+                    orderNo
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Order] 수동 주문 실행 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// 단일 종목 분석 결과만 조회합니다 (주문 실행 없이).
         /// </summary>
         /// <param name="ticker">종목 코드</param>
@@ -158,5 +242,23 @@ namespace AutoInvest.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+    }
+
+    /// <summary>
+    /// 수동 주문 요청 본문.
+    /// </summary>
+    public class ManualOrderRequest
+    {
+        /// <summary>종목 코드 (예: QQQM)</summary>
+        public string Ticker { get; set; } = string.Empty;
+
+        /// <summary>주문 수량 (1 이상)</summary>
+        public int Qty { get; set; } = 1;
+
+        /// <summary>주문 유형: "BUY" 또는 "SELL"</summary>
+        public string OrderType { get; set; } = "BUY";
+
+        /// <summary>주문 가격 (USD). 생략 시 현재가로 주문.</summary>
+        public decimal? Price { get; set; }
     }
 }
