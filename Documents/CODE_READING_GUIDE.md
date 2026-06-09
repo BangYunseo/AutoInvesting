@@ -9,24 +9,24 @@
 
 1. **`Program.cs`** 
    - **핵심 포인트**: ASP.NET Core의 시작점입니다. 여기서 `SessionManager`, `DBManager` 등 시스템에서 하나만 존재하는 싱글턴(Singleton) 객체들이 등록됩니다.
-   - **주목할 코드**: `builder.Services.AddHostedService<TradingBackgroundService>();` (백그라운드 루프 등록) 및 보안 필터인 `ApiKeyAuthAttribute`가 붙는 모습.
+   - **주목할 코드**: `builder.Services.AddScoped<DailyExecutionService>();` (매매 실행 서비스 등록) 및 보안 필터인 `ApiKeyAuthAttribute`가 전역으로 등록되는 모습.
 
-## Step 2: 심장 박동 (Background Loop)
-서버가 켜지면 24시간 동안 쉬지 않고 도는 무한 루프입니다.
+## Step 2: 매매 실행 진입점 (Daily Execution)
+설정된 시각이 되면 매매 루프를 시작하는 진입점입니다.
 
-2. **`Core/BackgroundServices/TradingBackgroundService.cs`**
-   - **핵심 포인트**: 1분마다 깨어나서 현재 시간이 설정된 매매 시간(예: 22:30)인지 확인합니다. 시간이 맞으면 본격적인 엔진 구동 명령을 내립니다.
-   - **주목할 코드**: `ExecuteDailyTradingAsync()` 메서드 내부에서 어떻게 `SmartOrderEngine` 객체를 만들어 실행하는지 보세요.
+2. **`Core/DailyExecutionService.cs`**
+   - **핵심 포인트**: 설정된 매매 시각(예: 22:30, `appsettings.json > Trading.OrderSchedule`)에 `SmartOrderEngine`을 호출합니다. `IServiceScopeFactory`를 통해 Scoped 생명주기로 실행됩니다.
+   - **주목할 코드**: `ExecuteAsync()` 메서드 내부에서 어떻게 `SmartOrderEngine`을 구성하고 실행하는지 보세요.
 
 ## Step 3: 주문의 뇌 (The Orchestrator)
-백그라운드(또는 수동 API)에서 실행 명령이 떨어졌을 때, 전체 과정을 지휘하는 핵심 클래스입니다.
+실행 명령이 떨어졌을 때(자동 또는 수동 API), 전체 과정을 지휘하는 핵심 클래스입니다.
 
 3. **`Core/SmartOrderEngine.cs`** 
-   - **핵심 포인트**: 가장 핵심 파일입니다! 수십 개의 종목을 순회하며 "조회 -> 퀀트/AI 분석 -> 최종 결론 도출 -> 매수/매도 실행"을 관장합니다.
+   - **핵심 포인트**: 가장 핵심 파일입니다! 수십 개의 종목을 순회하며 "조회 → 퀀트/AI 분석 → 확률 합산 → 매수/매도 실행"을 관장합니다.
    - **읽는 순서**: 
-     - `ExecuteSmartOrdersAsync()`: 다수 종목 껍데기 루프 (돈 배분)
-     - `AnalyzeAsync()`: 단일 종목의 가격/OHLCV를 가져와서 지표와 판단을 받아내는 로직
-     - `CombineSignals()`: ⭐️ **AI와 퀀트 신호를 합산하는 결정적 로직!** (AI가 BUY라는데 퀀트가 HOLD면 어떻게 할지 방어하는 로직이 여깄습니다.)
+     - `ExecuteSmartOrdersAsync()`: 다수 종목 루프 (투자금 배분)
+     - `AnalyzeAsync()`: 단일 종목의 가격/OHLCV를 가져와 퀀트 + AI 판단을 받아내는 로직
+     - `CalculateConsensusScore()`: ⭐️ **퀀트(40%) + 차트AI(30%) + 펀더멘털AI(30%)를 확률로 합산하는 결정적 로직!** `BuyProbability`가 임계값(기본 0.65)을 넘으면 매수 실행. 퀀트가 HOLD면 최대 60%로 자동 제한됩니다.
 
 ## Step 4: 퀀트 분석 엔진 (수학적 판단)
 스마트 오더 엔진이 "퀀트 점수 좀 알려줘"라고 할 때 쓰이는 모듈입니다.
@@ -72,4 +72,4 @@
 ### 🎉 읽기 꿀팁!
 
 - 코드 에디터(Visual Studio 등)를 여시고, **Step 1(Program.cs)부터 하나씩 F12(정의로 이동) 키를 누르면서 흐름을 따라가 보세요.**
-- 도중에 이해가 되지 않는 수식이나 로직(예: `CombineSignals`에서 왜 방어적으로 짜여있는지 등)이 있다면 주석 처리되어 있는 설명을 읽어보시거나, AI에게 해당 파일을 보여주면서 질문하시면 금방 구조가 머리에 쏙 들어올 것입니다!
+- 도중에 이해가 되지 않는 수식이나 로직(예: `CalculateConsensusScore`에서 퀀트 1차 관문이 수식만으로 자동 보장되는 이유 등)이 있다면 주석 처리되어 있는 설명을 읽어보시거나, AI에게 해당 파일을 보여주면서 질문하시면 금방 구조가 머리에 쏙 들어올 것입니다!

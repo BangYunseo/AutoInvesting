@@ -33,41 +33,59 @@
 
 ```
 AutoInvesting/
-├── Program.cs                          # 앱 진입점 (전역 예외 처리)
+├── Program.cs                          # 앱 진입점 (DI 등록, SPA fallback, 전역 예외 처리)
+├── appsettings.json                    # 통합 설정 파일
+├── Dockerfile                          # 단일 컨테이너 (백엔드 + React 정적 서빙)
 │
 ├── Core/                               # 핵심 비즈니스 로직
 │   ├── IBrokerClient.cs                # 증권사 API 추상화 인터페이스
 │   ├── SimBrokerClient.cs              # 시뮬레이션 구현체 (API 키 불필요)
-│   ├── SmartOrderEngine.cs             # 스마트 주문 판단 + 퀀트 필터 통합
-│   ├── SchedulerModule.cs              # 예약 주문 스케줄러 + 리밸런싱 통합
-│   ├── SessionManager.cs               # IBrokerClient 생명주기 관리
+│   ├── KisBrokerClient.cs              # KIS 실거래 구현체 (Polly 내결함성 적용)
+│   ├── KisTokenManager.cs              # KIS OAuth 토큰 발급 + 만료 전 자동 갱신
+│   ├── SessionManager.cs               # IBrokerClient/IMarketAnalyzer 생명주기 관리
+│   ├── SmartOrderEngine.cs             # 스마트 주문 판단 + 퀀트 + AI 합의 스코어링
+│   ├── DailyExecutionService.cs        # 일별 매매 스케줄 실행 진입점 (Scoped)
 │   ├── AllocationEngine.cs             # 투자금 배분 계산 엔진
+│   ├── IMarketAnalyzer.cs              # AI 시장 분석 인터페이스
+│   ├── AiMarketAnalyzer.cs             # Mock AI 구현체 (폴백)
+│   ├── GeminiMarketAnalyzer.cs         # Gemini API 이중 에이전트 (차트 + 펀더멘털 병렬)
+│   ├── IMcpDataProvider.cs             # MCP 외부 데이터 공급자 인터페이스 (확장점)
 │   └── Quant/                          # 퀀트 엔진 모듈
 │       ├── QuantIndicator.cs           # RSI, MACD, 볼린저밴드 계산
 │       ├── QuantFilter.cs              # 전략 유형별 다중 조건 AND 필터
 │       ├── BacktestEngine.cs           # 과거 데이터 기반 전략 검증
-│       └── RebalancingEngine.cs        # 보유 비중 자동 재조정
+│       ├── RebalancingEngine.cs        # 보유 비중 자동 재조정
+│       ├── SellStrategyManager.cs      # 분할매도 플랜 관리
+│       └── AdaptiveThresholdEngine.cs  # 종목별 적응형 임계값 계산 (Phase 5-a)
 │
 ├── Data/                               # 데이터 액세스 계층
 │   ├── DBManager.cs                    # SQLite 연결 관리 (Singleton + 마이그레이션)
-│   ├── AppConfigManager.cs             # appsettings.json + DB 연동 설정 관리
+│   ├── AppConfigManager.cs             # appsettings.json + 환경변수 + DB 우선순위 설정
 │   ├── sql/
 │   │   └── create_tables.sql           # DDL + 초기 마스터 데이터
 │   ├── DTO/                            # Data Transfer Objects
 │   │   ├── AssetDto.cs                 # 자산 마스터
-│   │   ├── StrategyDto.cs              # 투자 전략 (+ StrategyType, Qty)
+│   │   ├── StrategyDto.cs              # 투자 전략 (StrategyType, Qty)
+│   │   ├── StrategySummaryDto.cs       # 전략 요약
 │   │   ├── TradeHistoryDto.cs          # 거래 내역
 │   │   ├── HoldingDto.cs               # 보유 종목 (잔고)
 │   │   ├── PriceRangeDto.cs            # N일 가격 범위
 │   │   ├── OhlcvDto.cs                 # OHLCV 일봉 데이터
 │   │   ├── IndicatorDto.cs             # 퀀트 지표 결과
 │   │   ├── BacktestResultDto.cs        # 백테스팅 결과
-│   │   └── MarketSnapshotDto.cs        # 시장 스냅샷 (AI 학습용)
+│   │   ├── MarketSnapshotDto.cs        # 시장 스냅샷 (AI 학습용, 확률 점수 포함)
+│   │   ├── ConsensusScoreDto.cs        # 합의 확률 분해 결과 (BuyProbability, 에이전트별 기여)
+│   │   ├── SellPlanDto.cs              # 분할매도 플랜
+│   │   ├── AiPerformanceDto.cs         # AI 판단 성과 기록
+│   │   └── TokenUsageDto.cs            # AI API 토큰 사용량
 │   └── DAO/                            # Data Access Objects
 │       ├── AssetDAO.cs                 # TB_ASSET_MASTER 조회
 │       ├── StrategyDAO.cs              # TB_INVEST_STRATEGY CRUD
 │       ├── TradeHistoryDAO.cs          # TB_TRADE_HISTORY CRUD
-│       └── MarketSnapshotDAO.cs        # TB_MARKET_SNAPSHOT CRUD
+│       ├── MarketSnapshotDAO.cs        # TB_MARKET_SNAPSHOT CRUD (확률 컬럼 포함)
+│       ├── SellPlanDAO.cs              # 분할매도 플랜 CRUD
+│       ├── AiPerformanceDAO.cs         # AI 성과 기록 CRUD
+│       └── TokenUsageDAO.cs            # AI 토큰 사용량 기록
 │
 ├── Controllers/                        # REST API 컨트롤러
 │   ├── ConfigController.cs             # 환경 설정 API
@@ -75,28 +93,41 @@ AutoInvesting/
 │   ├── PortfolioController.cs          # 잔고 조회 API
 │   ├── StrategyController.cs           # 전략 CRUD API
 │   ├── OrderController.cs              # 수동 주문 트리거 API
-│   └── BacktestController.cs           # 백테스트 실행 API
+│   ├── BacktestController.cs           # 백테스트 실행 API
+│   ├── QuantController.cs              # 퀀트 지표 조회 API
+│   ├── SellPlanController.cs           # 분할매도 플랜 관리 API
+│   └── TestController.cs               # 개발/테스트 전용 API
 │
-├── Utils/                              # 유틸리티
-│   ├── Logger.cs                       # 파일 로깅 (퀀트 로그 포함)
+├── Utils/                              # 유틸리티 (모든 레이어 접근 가능)
+│   ├── Logger.cs                       # Serilog 래퍼 (Info/Warn/Error/Fatal/LogQuant)
+│   ├── NotificationService.cs          # MailKit Naver SMTP 이메일 알림
+│   ├── ExchangeRateService.cs          # 환율 API (Frankfurter + fallback, 1시간 캐싱)
+│   ├── ApiKeyAuthAttribute.cs          # 전역 x-api-key 인증 필터
 │   ├── DateTimeHelper.cs               # NYSE 개장시각(KST) 계산 (DST 대응)
-│   └── ExchangeRateService.cs          # 무료 환율 API (Frankfurter + fallback)
+│   └── PromptBuilder.cs                # Gemini 차트/펀더멘털 프롬프트 생성
 │
-├── appsettings.json                    # 통합 설정 파일
+├── Frontend/                           # React SPA (Vite, Glassmorphism 디자인)
+│   └── src/
+│       ├── pages/                      # Dashboard, History, Order, Backtest, Strategy, Settings
+│       └── components/                 # HoldingsTable, SellPlanManager
+│
 └── Documents/                          # 프로젝트 문서
-    ├── DEVELOPMENT.md                  # 개발 진척도 + 변경 이력
-    └── THEME_GUIDE.md                  # 레거시 테마 가이드
+    ├── DEVELOPMENT.md                  # 개발 진척도 + 전체 변경 이력
+    ├── ONBOARDING_GUIDE.md             # 신규 개발자용 아키텍처 가이드
+    ├── CODE_READING_GUIDE.md           # SmartOrderEngine 코드 흐름 가이드
+    └── PHASE4E_PLAN.md                 # Phase 4-e 설계 문서 (완료됨)
 ```
 
 ---
 
 ## 🖥️ 아키텍처: Headless ASP.NET Core Web API
 
-기존 WinForms 기반에서 **ASP.NET Core Web API** 기반의 백그라운드 서비스(Headless)로 구조가 개편되었습니다.
-UI 스레드 종속성을 제거하여 리눅스 서버나 Docker 등 서버 환경에서 24시간 무인으로 동작합니다.
+기존 WinForms 기반에서 **ASP.NET Core Web API** 기반의 Headless 서버로 구조가 개편되었습니다.
+UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시간 무인으로 동작합니다.
 
-- **BackgroundService**: `TradingBackgroundService`가 상시 동작하며 퀀트 지표 분석 및 주문 예약 실행
-- **REST API 컨트롤러**: 외부 애플리케이션(웹 대시보드, 모바일 등)에서 상태 조회 및 원격 제어를 위한 API 제공
+- **스케줄 실행**: `DailyExecutionService`가 설정된 시각(`OrderSchedule`)에 `SmartOrderEngine`을 호출하여 전 종목 자동 분석 및 매매 실행
+- **REST API 컨트롤러**: React 웹 대시보드 및 외부 클라이언트에서 상태 조회, 원격 제어 제공
+- **배포**: 단일 Docker 컨테이너 — ASP.NET Core가 React SPA 빌드 결과를 정적 파일로 서빙 (SPA 라우팅 지원)
 
 ---
 
@@ -127,11 +158,17 @@ UI 스레드 종속성을 제거하여 리눅스 서버나 Docker 등 서버 환
 
 | 분류 | 기술 |
 |------|------|
-| 언어 | C# |
+| 언어 (백엔드) | C# |
 | 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
+| 프론트엔드 | React (Vite, JSX, Glassmorphism 디자인) |
 | DB | SQLite (System.Data.SQLite) |
+| 로깅 | Serilog |
+| 내결함성 | Polly (KIS API Retry + 지수 백오프) |
+| 이메일 알림 | MailKit (Naver SMTP) |
+| AI 엔진 | Google Gemini API (차트 + 펀더멘털 이중 에이전트) |
 | 증권사 API | 한국투자증권 (KIS) REST API |
 | 환율 API | Frankfurter API (무료, 키 불필요) |
+| 배포 | Docker (단일 컨테이너, React 정적 서빙 통합) |
 | 빌드 | MSBuild / Visual Studio 2022 |
 
 ---
@@ -182,10 +219,17 @@ UI 스레드 종속성을 제거하여 리눅스 서버나 Docker 등 서버 환
 - [x] React-Router 기반 SPA 프론트엔드 6개 핵심 페이지 구축 완료
 - [x] Glassmorphism 프리미엄 디자인 시스템 적용
 
-### Phase 4 — AI 시장분석 엔진 (🚀 진행 중)
-- [ ] AI 기반 주식 분류 (안정적/공격적)
-- [ ] 차트 데이터 분석 + 뉴스 감성 분석
-- [ ] AI confidence score + SmartOrderEngine 종합 판단
+### Phase 4 — AI 시장분석 엔진 (✅ 완료)
+- [x] Phase 4-a: AI Mock + CombineSignals 아키텍처
+- [x] Phase 4-b: Gemini 실물 연동 + 퀀트 조건 현실화
+- [x] Phase 4-c: 투자 철학 주입 및 예외처리 고도화
+- [x] Phase 4-d: 차트+펀더멘털 이중 에이전트 병렬 합의 구조
+- [x] Phase 4-e: 확률 기반 가중치 합산(CalculateConsensusScore) 시스템 — ConsensusScoreDto, BuyProbability
+
+### Phase 5-a — 종목별 적응형 임계값 시스템 (✅ 완료)
+- [x] `AdaptiveThresholdEngine` — 과거 성과 기반 종목별 BUY_THRESHOLD 자동 조정
+
+### Phase 5 — 다음 단계 (🚀 진행 중)
 
 ---
 

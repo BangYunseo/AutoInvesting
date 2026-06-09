@@ -18,7 +18,7 @@ trigger: always_on
       ├── [서브 에이전트: Data 개발자]   — DTO, DAO, DBManager, SQLite 튜닝
       ├── [서브 에이전트: API 개발자]    — Controllers 구축, React 연동, Polly/알림 시스템 구현
       ├── [서브 에이전트: KIS 연동]      — KisBrokerClient 연동 고도화, TokenManager
-      └── [서브 에이전트: 퀀트 분석]    — QuantIndicator, AI MarketAnalyzer 고도화 (Phase 4)
+      └── [서브 에이전트: 퀀트 분석]    — QuantIndicator, AI MarketAnalyzer 고도화, 적응형 임계값 시스템 (Phase 5)
 ```
 
 ## 리드 에이전트의 책임
@@ -26,7 +26,7 @@ trigger: always_on
 1. **설계 일관성 보장**: Web API와 Background Service 구조(`architecture.md`)를 위반하지 않도록 검토
 2. **보안/안정성 감시**: API 키 노출 금지, 외부 API 호출 시 예외/Rate Limit 처리(Polly 등) 여부 점검
 3. **컨텍스트 전달**: 서브 에이전트에게 작업 지시 시 관련 규칙 파일 명시
-4. **Phase 관리**: 현재 Phase(현재 Phase B/C 진행 중) 우선순위에 맞게 작업 분배
+4. **Phase 관리**: 현재 Phase(현재 Phase 5 진행 중) 우선순위에 맞게 작업 분배
 5. **문서 동기화**: 프로젝트 구조 변경 시 `project_overview.md` 업데이트 및 Implementation Plan 작성
 
 ## 서브 에이전트에게 작업 위임 시 필수 포함 사항

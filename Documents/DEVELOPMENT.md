@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태: Phase 4 진행 중 🚀
+## 현재 상태: Phase 5 진행 중 🚀
 
 - **Phase 1** (기반): ✅ 완료
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
@@ -19,7 +19,55 @@
 - **Phase 4-c** (투자 철학 주입 및 예외처리 고도화): ✅ 완료
 - **Phase 4-d** (Anthropic 벤치마킹 멀티 에이전트 / 재무 프롬프트 확장): ✅ **완료**
 - **Phase 4-e** (확률 기반 합의 스코어링 / 가중치 임계값 / 신호 투명성 강화): ✅ **완료**
-- [**Phase 5-a** (종목별 적응형 임계값 시스템)](PHASE5_PLAN.md): ✅ **완료**
+- **Phase 5-a** (종목별 적응형 임계값 시스템): ✅ **완료**
+- **Phase 5-b** (AI 성과 측정 + 토큰 비용 모니터링): ✅ **완료**
+- **Phase 5-c** (모니터링 대시보드 UI — 성과/비용 조회 화면): ✅ **완료**
+
+---
+
+## Phase 5-c 상세 변경 이력 — AI 모니터링 대시보드 UI
+
+### 핵심: "수집만 되던 AI 성과·토큰 데이터" → "대시보드에서 조회·시각화"
+
+Phase 5-b에서 `SmartOrderEngine`/`DailyExecutionService`가 AI 판단 성과(`TB_AI_PERFORMANCE`)와
+토큰 사용량(`TB_TOKEN_USAGE`)을 적재하기 시작했으나, 이를 조회하는 API·화면이 없었습니다.
+Phase 5-c에서 읽기 전용 조회 경로와 프론트엔드 모니터링 페이지를 신설하여 기능을 완성했습니다.
+
+```
+[데이터 수집 (Phase 5-b)]                [데이터 조회·시각화 (Phase 5-c)]
+SmartOrderEngine ──┐                      MonitoringController
+DailyExecutionSvc ─┴─► TB_AI_PERFORMANCE  ─► /api/monitoring/performance ─► Monitoring.jsx
+                       TB_TOKEN_USAGE      ─► /api/monitoring/tokens/*   ─► (AI 성과 / 토큰 비용 탭)
+                                           ─► /api/monitoring/summary
+```
+
+#### 비용 추정 공식 (Gemini 1.5 Flash 공식 단가, 128k 이하 컨텍스트 기준)
+
+```
+추정 비용(USD) = 프롬프트 토큰 / 1M × $0.075 + 완성 토큰 / 1M × $0.30
+```
+
+### 5-c 신규 파일 (3건)
+
+| 파일 | 설명 |
+|------|------|
+| `Controllers/MonitoringController.cs` | AI 성과/토큰 비용 조회 API — summary, performance, tokens/by-agent, tokens/daily. Gemini 단가 기반 비용 추정 포함 |
+| `Data/DTO/TokenUsageSummaryDto.cs` | 토큰 집계 결과 DTO — `AgentTokenSummaryDto`(에이전트별), `DailyTokenUsageDto`(일자별) |
+| `Frontend/src/pages/Monitoring.jsx` | 모니터링 페이지 — 요약 카드 4종 + 탭(AI 성과 / 토큰 비용) |
+
+### 5-c 수정 파일 (3건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Data/DAO/TokenUsageDAO.cs` | `GetTokenSums`(비용 추정용 합계), `GetUsageByAgent`(에이전트별 집계), `GetDailyUsage`(일자별 추이) 조회 메서드 추가 |
+| `Data/DAO/AiPerformanceDAO.cs` | `GetRecent`(최근 성과 목록, 평가 완료/대기 모두 포함) 조회 메서드 추가 |
+| `Frontend/src/App.jsx` | `/monitoring` 라우트 및 "AI 모니터링" 네비게이션 링크 추가 |
+
+### 5-c 버그 수정 (1건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Frontend/src/pages/Strategy.jsx` | 전략 수정 화면 진입 시 미선언 변수(`editStrategyName`) 참조로 발생하던 `ReferenceError`(빈 페이지) 제거, 종목 수 표시 키 `TickerCount` → `tickerCount`(camelCase) 수정 |
 
 ---
 

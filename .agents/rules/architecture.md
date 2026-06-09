@@ -33,21 +33,34 @@ Data (Data/, Data/DTO/, Data/DAO/)
   - 새 증권사 추가 시 반드시 이 인터페이스를 구현
 - `SessionManager` — 브로커 인스턴스 생명주기 관리
   - `IS_PAPER_TRADING` 설정값에 따라 SimBroker 또는 KisBroker 분기
-- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 추상화 (Phase B/C)
+  - `AI_PROVIDER` 설정에 따라 `AiMarketAnalyzer`(Mock) 또는 `GeminiMarketAnalyzer` 분기
+- `IMarketAnalyzer` — AI 시장 분석 인터페이스
+  - 구현체: `AiMarketAnalyzer` (Mock), `GeminiMarketAnalyzer` (Gemini API, 차트+펀더멘털 이중 에이전트)
+- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (MailKit, Naver SMTP)
+- `DailyExecutionService` — 매매 스케줄 실행 진입점 (Scoped, `IServiceScopeFactory` 패턴 필요)
+- `AdaptiveThresholdEngine` — 종목별 과거 성과 기반 적응형 임계값 계산 (Phase 5-a)
 
 ## 아키텍처 흐름
 ```
 ASP.NET Core Host (Program.cs)
       ├── [REST API 호출] → Controllers (수동 제어, 상태 조회)
-      └── [BackgroundService] → TradingBackgroundService
-                                       ↓ (1분 주기 스케줄링)
+      └── [Scoped 실행] → DailyExecutionService (스케줄 실행 진입점)
+                                       ↓
                                   SmartOrderEngine
                                        ├── 현재가/가격범위/OHLCV 조회 (IBrokerClient)
                                        ├── QuantIndicator (RSI, MACD, BB 계산)
                                        ├── QuantFilter (전략 유형별 AND 조건)
+                                       ├── IMarketAnalyzer (차트AI + 펀더멘털AI 병렬 호출)
+                                       ├── CalculateConsensusScore (가중치 확률 합산 → BuyProbability)
                                        ├── 주문 실행 → TradeHistoryDAO (거래 기록 저장)
                                        └── 메일 발송 → NotificationService (성공/오류 알림)
 ```
+
+## AI 합의 시스템 (Phase 4-e~)
+- `CalculateConsensusScore()`: 퀀트(40%) + 차트AI(30%) + 펀더멘털AI(30%) 가중치 × 확신도 합산
+- 임계값(`BUY_THRESHOLD`, `SELL_THRESHOLD`) 초과 시에만 매매 실행 (기본값 0.65)
+- 가중치/임계값은 `appsettings.json > Consensus` 섹션에서 설정
+- `ConsensusScoreDto` — 확률 분해 결과 보관 (BuyProbability, 에이전트별 기여도)
 
 ## 새 기능 추가 순서
 1. DTO → DAO → Core 로직 → API Controller 또는 BackgroundService 순서로 구현

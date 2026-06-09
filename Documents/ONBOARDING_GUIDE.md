@@ -38,19 +38,24 @@ AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(�
 - 반대로 키가 정상적으로 존재하면 **`KisBrokerClient` (한국투자증권 실거래망/모의망 연결)**를 주입합니다.
   - KIS 연동에서도 `Kis:Server` 값을 통해 KIS 실전망(prod)과 KIS 모의투자망(vps)으로 한 번 더 분기할 수 있습니다.
 
-## 4. 판단 로직: 퀀트 + AI 합산 (CombineSignals)
+## 4. 판단 로직: 퀀트 + AI 합의 스코어링 (CalculateConsensusScore)
 
 매매 결정 로직은 철저하게 데이터와 알고리즘 기반으로 이루어집니다. `SmartOrderEngine` 내 로직의 흐름을 살펴봅시다.
 
-1. **퀀트 지표 계산 (`QuantIndicator`)**: OHLCV(일봉) 데이터를 이용해 `RSI`, `MACD`, `Bollinger Bands`, 그리고 가격의 위치치(`Position`)를 도출합니다.
-2. **퀀트 필터 통과 (`QuantFilter`)**: 설정된 전략(`MEAN_REVERSION`, `MOMENTUM`, `MIXED`)에 따라 위 수치들을 AND 조합으로 검사합니다.
-   - 예: "고점 대비 하위 30% 이내이면서, RSI가 45 이하인가?" -> 둘 다 맞으면 BUY 유력.
-3. **AI 엔진 평가 (`AiMarketAnalyzer`)**: 
-   - `Ai:Provider`가 `gemini`로 설정되어 있으면, `PromptBuilder`를 통해 지표 수치와 차트가 자연어("지금 차트와 보조지표가 이런데 판단해줘")로 변환되어 Google Gemini API로 전송됩니다.
-   - Gemini는 `{ "signal": "BUY", "confidence": 0.8 }` 같은 JSON 포맷으로 대답합니다.
-   - 폴백(Fallback) 방어: AI API 호출에 실패하거나, `Provider`가 `mock`이면 코드 내부의 Mock 로직(단순 분기)이 호출됩니다.
-4. **결론 합산 (`CombineSignals`)**:
-   - AI 확신도가 낮거나(예: 0.6 미만), 퀀트/AI가 반대 의견을 가지면 방어적으로 **HOLD** 처리합니다. 완전히 같은 방향일 때만 매수/매도를 실행합니다.
+1. **퀀트 지표 계산 (`QuantIndicator`)**: OHLCV(일봉) 데이터를 이용해 `RSI`, `MACD`, `Bollinger Bands`, 그리고 가격 위치(`Position`)를 도출합니다.
+2. **퀀트 필터 통과 (`QuantFilter`)**: 설정된 전략(`MEAN_REVERSION`, `MOMENTUM`, `MIXED`)에 따라 AND 조합으로 검사합니다.
+   - 예: "고점 대비 하위 30% 이내이면서, RSI가 45 이하인가?" → 1차 관문 통과 시 퀀트 기여 40% 확보.
+3. **AI 이중 에이전트 평가 (`GeminiMarketAnalyzer`)**: `Task.WhenAll`로 차트 에이전트와 펀더멘털 에이전트를 **병렬** 호출합니다.
+   - 각 에이전트는 `PromptBuilder`가 생성한 서로 다른 역할 프롬프트를 받아 독립적으로 판단합니다.
+   - Gemini는 `{ "signal": "BUY", "confidence": 0.76 }` JSON으로 응답합니다.
+   - `Ai:Provider`가 `mock`이거나 API 호출 실패 시 `AiMarketAnalyzer`(Mock)가 폴백으로 동작합니다.
+4. **확률 기반 합산 (`CalculateConsensusScore`)**:
+   ```
+   BuyProbability = 퀀트기여(40%) + 차트AI확신도×30% + 펀더멘털AI확신도×30%
+   BuyProbability ≥ BUY_THRESHOLD(기본 0.65) → 매수 실행
+   ```
+   - 퀀트가 HOLD면 최대 60%로 제한 → 임계값(65%) 자동 미달, 별도 분기 불필요.
+   - 판단 근거는 `ConsensusScoreDto`에 저장되어 로그와 MarketSnapshot에 기록됩니다.
 
 ## 5. 보안 정책: 내 로컬 API 자격 증명 다루기
 
