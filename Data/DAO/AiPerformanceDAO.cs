@@ -100,6 +100,52 @@ namespace AutoInvest.Data.DAO
             }
         }
         
+        /// <summary>
+        /// 최근 AI 판단 성과 기록을 반환합니다 (평가 완료/미완료 모두 포함, 최신순).
+        /// </summary>
+        public static List<AiPerformanceDto> GetRecent(int limit = 50)
+        {
+            var list = new List<AiPerformanceDto>();
+            try
+            {
+                using (var conn = DBManager.Instance.GetConnection())
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"
+                        SELECT PERF_ID, TICKER, SIGNAL, PRICE_AT_SIGNAL, PRICE_LATER,
+                               WIN_RATE, CREATED_AT, EVALUATED_AT
+                        FROM TB_AI_PERFORMANCE
+                        ORDER BY CREATED_AT DESC
+                        LIMIT @limit";
+
+                    cmd.Parameters.AddWithValue("@limit", limit);
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(new AiPerformanceDto
+                            {
+                                PerfId = Convert.ToInt32(reader["PERF_ID"]),
+                                Ticker = reader["TICKER"].ToString() ?? "",
+                                Signal = reader["SIGNAL"].ToString() ?? "",
+                                PriceAtSignal = Convert.ToDecimal(reader["PRICE_AT_SIGNAL"]),
+                                PriceLater = reader["PRICE_LATER"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(reader["PRICE_LATER"]),
+                                WinRate = reader["WIN_RATE"] == DBNull.Value ? (decimal?)null : Convert.ToDecimal(reader["WIN_RATE"]),
+                                CreatedAt = Convert.ToDateTime(reader["CREATED_AT"]),
+                                EvaluatedAt = reader["EVALUATED_AT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(reader["EVALUATED_AT"])
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[DAO] TB_AI_PERFORMANCE GetRecent 에러: {ex.Message}");
+            }
+            return list;
+        }
+
         public static (int Total, decimal AverageWinRate) GetOverallPerformance()
         {
             try
