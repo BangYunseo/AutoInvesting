@@ -1,3 +1,4 @@
+using AutoInvest.Core.Quant;
 using AutoInvest.Data.DAO;
 using AutoInvest.Utils;
 using Microsoft.AspNetCore.Mvc;
@@ -130,6 +131,78 @@ namespace AutoInvest.Controllers
             catch (Exception ex)
             {
                 Logger.Error($"[Monitoring] 일자별 토큰 조회 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Phase 5-d: 에이전트(퀀트/차트AI/펀더멘털AI)별 실측 적중률을 반환합니다.
+        /// </summary>
+        /// <param name="horizonDays">신호 이후 성과를 측정할 경과 일수 (기본 7일)</param>
+        [HttpGet("agent-accuracy")]
+        public IActionResult GetAgentAccuracy([FromQuery] int horizonDays = 7)
+        {
+            try
+            {
+                var rows = PerformanceFeedbackEngine.GetAgentAccuracy(horizonDays);
+                Logger.Info($"[Monitoring] 에이전트 적중률 조회 (horizon={horizonDays}d)");
+                return Ok(new { horizonDays, agents = rows });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Monitoring] 에이전트 적중률 조회 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Phase 5-d: 합의 가중치 조합별 가상 매수 성과(A/B 백테스트)를 반환합니다.
+        /// ⚠️ 검증용 리포트 — 실제 매매 가중치에 자동 반영되지 않습니다.
+        /// </summary>
+        /// <param name="horizonDays">매수 이후 성과를 측정할 경과 일수 (기본 7일)</param>
+        [HttpGet("weight-abtest")]
+        public IActionResult GetWeightAbTest([FromQuery] int horizonDays = 7)
+        {
+            try
+            {
+                var rows = PerformanceFeedbackEngine.RunWeightAbTest(horizonDays);
+                Logger.Info($"[Monitoring] 가중치 A/B 백테스트 조회 (horizon={horizonDays}d)");
+                return Ok(new { horizonDays, note = "검증용 리포트 — 실제 매매 가중치에 자동 반영되지 않음", schemes = rows });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Monitoring] 가중치 A/B 백테스트 조회 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Phase 5-d: 특정 종목의 현재 적응형 매수/매도 임계값과 산출 근거를 반환합니다.
+        /// </summary>
+        /// <param name="ticker">종목 코드 (예: QQQM)</param>
+        [HttpGet("adaptive-threshold")]
+        public IActionResult GetAdaptiveThreshold([FromQuery] string ticker)
+        {
+            if (string.IsNullOrWhiteSpace(ticker))
+            {
+                return BadRequest(new { error = "ticker 파라미터가 필요합니다." });
+            }
+            try
+            {
+                var (buyThreshold, buyReason) = AdaptiveThresholdEngine.GetBuyThreshold(ticker);
+                var (sellThreshold, sellReason) = AdaptiveThresholdEngine.GetSellThreshold(ticker);
+                return Ok(new
+                {
+                    ticker,
+                    buyThreshold,
+                    buyReason,
+                    sellThreshold,
+                    sellReason
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Monitoring] 적응형 임계값 조회 실패: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
