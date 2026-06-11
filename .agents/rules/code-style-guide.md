@@ -91,7 +91,7 @@ public class HoldingDto
 public static List<StrategyDto> GetStrategy(string strategyName)
 {
     using (var conn = DBManager.Instance.GetConnection())
-    using (var cmd = new SQLiteCommand(sql, conn))
+    using (var cmd = new NpgsqlCommand(sql, conn))
     {
         cmd.Parameters.AddWithValue("@name", strategyName);
         // ...

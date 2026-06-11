@@ -29,7 +29,7 @@ namespace AutoInvest
                 builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
                 // ── 설정 체계 초기화 ──
-                // 환경변수(민감정보) → appsettings.json → SQLite DB 우선순위
+                // 환경변수(민감정보) → appsettings.json → PostgreSQL DB 우선순위
                 AppConfigManager.Initialize(builder.Configuration);
                 NotificationService.Initialize(builder.Configuration);
 

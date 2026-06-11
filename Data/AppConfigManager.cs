@@ -7,7 +7,7 @@ namespace AutoInvest.Data
 {
     /// <summary>
     /// 애플리케이션 설정값을 통합 관리합니다.
-    /// 우선순위: 환경변수 → appsettings.json → SQLite DB (TB_APP_CONFIG)
+    /// 우선순위: 환경변수 → appsettings.json → PostgreSQL DB (TB_APP_CONFIG)
     /// 민감 정보(KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NO)는 환경변수 전용입니다.
     /// </summary>
     public static class AppConfigManager
@@ -42,7 +42,7 @@ namespace AutoInvest.Data
                     if (!string.IsNullOrEmpty(configValue)) return configValue;
                 }
 
-                // 3. SQLite DB (런타임 수정 가능한 설정)
+                // 3. PostgreSQL DB (런타임 수정 가능한 설정)
                 using (var conn = DBManager.Instance.GetConnection())
                 using (var cmd = new NpgsqlCommand(
                     "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
@@ -60,7 +60,7 @@ namespace AutoInvest.Data
         }
 
         /// <summary>
-        /// 설정값 저장 (SQLite DB에 저장).
+        /// 설정값 저장 (PostgreSQL DB에 저장).
         /// </summary>
         public static void Set(string key, string value)
         {

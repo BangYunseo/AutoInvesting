@@ -20,7 +20,7 @@ trigger: always_on
 | 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
 | 통신/내결함성 | HttpClient, Polly (Phase B/C 적용) |
 | 알림/이메일 | MailKit, MimeKit (Phase B/C 적용) |
-| DB | SQLite (`System.Data.SQLite`) |
+| DB | PostgreSQL (`Npgsql`) — 로컬: localhost, 배포: `DATABASE_URL` 환경변수(Render.com URI) |
 | 증권사 API | 한국투자증권 KIS Developers REST API |
 | 빌드 | MSBuild / Visual Studio 2022 |
  
@@ -49,7 +49,7 @@ AutoInvesting/
 │   └── StrategyController.cs
 │
 ├── Data/                               # 데이터 액세스 (DTO/DAO)
-│   ├── DBManager.cs                    # SQLite 연결
+│   ├── DBManager.cs                    # PostgreSQL 연결 (Npgsql, DATABASE_URL 지원)
 │   ├── AppConfigManager.cs             # 설정값 관리
 │   ├── DTO/                            # Data Transfer Objects
 │   └── DAO/                            # Data Access Objects (MarketSnapshotDAO 등)

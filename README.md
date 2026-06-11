@@ -59,7 +59,7 @@ AutoInvesting/
 │       └── AdaptiveThresholdEngine.cs  # 종목별 적응형 임계값 계산 (Phase 5-a)
 │
 ├── Data/                               # 데이터 액세스 계층
-│   ├── DBManager.cs                    # SQLite 연결 관리 (Singleton + 마이그레이션)
+│   ├── DBManager.cs                    # PostgreSQL 연결 관리 (Npgsql, Singleton + 마이그레이션)
 │   ├── AppConfigManager.cs             # appsettings.json + 환경변수 + DB 우선순위 설정
 │   ├── sql/
 │   │   └── create_tables.sql           # DDL + 초기 마스터 데이터
@@ -161,7 +161,7 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 | 언어 (백엔드) | C# |
 | 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
 | 프론트엔드 | React (Vite, JSX, Glassmorphism 디자인) |
-| DB | SQLite (System.Data.SQLite) |
+| DB | PostgreSQL (Npgsql) |
 | 로깅 | Serilog |
 | 내결함성 | Polly (KIS API Retry + 지수 백오프) |
 | 이메일 알림 | MailKit (Naver SMTP) |
@@ -176,7 +176,7 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 ## 🚀 개발 로드맵
 
 ### Phase 1 — 기반 (✅ 완료)
-- [x] 프로젝트 생성 및 SQLite 연동
+- [x] 프로젝트 생성 및 PostgreSQL 연동
 - [x] DB 스키마 및 초기 마스터 데이터
 - [x] DTO / DAO 레이어
 - [x] 메인 대시보드 UI (사이드바, 카드, 로그)
@@ -237,6 +237,6 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 
 1. Visual Studio 2022에서 `AutoInvest.sln` 열기
 2. NuGet 패키지 복원
-3. `F5`로 디버그 실행 (SQLite DB 자동 생성)
+3. `F5`로 디버그 실행 (로컬 PostgreSQL 필요 — 기본 접속: `localhost`, DB명 `autoinvest`. 테이블은 `create_tables.sql`로 자동 생성. 배포 시 `DATABASE_URL` 환경변수 사용)
 
 > 증권사 API 키 없이도 SimBrokerClient(시뮬레이션 모드)로 전체 기능을 테스트할 수 있습니다.

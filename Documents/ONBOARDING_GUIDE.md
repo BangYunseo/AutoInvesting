@@ -16,7 +16,7 @@
       ├── (주문/분석 요청) ──▶ [ Core/SessionManager ] ──▶ [ 브로커 클라이언트 분기 (Sim/KIS) ]
       │                            └── [ Core/SmartOrderEngine ] ──▶ 퀀트 엔진 + AI 엔진 구동
       │
-      └── (데이터 단순 조회) ─▶ [ Data/DAO ] ──▶ SQLite DB
+      └── (데이터 단순 조회) ─▶ [ Data/DAO ] ──▶ PostgreSQL DB
 ```
 
 - **백그라운드 루프 (TradingBackgroundService)**: `Controllers`의 개입 없이 `IHostedService`를 통해 1분 간격으로 동작하며, 설정된 시간(예: 오후 10시 30분)이 되면 스스로 `SmartOrderEngine`을 호출하여 전 종목 자동분석 및 매매를 수행합니다.
@@ -26,7 +26,7 @@
 프로젝트 핵심 인스턴스들은 `Program.cs`에서 **싱글턴(Singleton)**으로 선언되어 시스템 전역에서 생명기가 하나로 관리됩니다.
 
 - `SessionManager`: 앱 내에서 브로커 세션(토큰 등)과 AI 엔진의 상태를 관리합니다. Controllers는 DI를 통해 주입받아 사용합니다.
-- `DBManager`: SQLite 커넥션 관리를 책임집니다.
+- `DBManager`: PostgreSQL 커넥션(Npgsql) 관리를 책임집니다.
 - **예시 흐름 (`OrderController` 수동 실행 시)**:
   `OrderController`가 `execute` 엔드포인트 수신 → DI로 주입받은 `SessionManager`에서 API/브로커 상태 수령 → `SmartOrderEngine`에 브로커/AI엔진을 넣고 로직 실행.
 
