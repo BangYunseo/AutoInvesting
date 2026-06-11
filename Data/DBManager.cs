@@ -73,6 +73,14 @@ namespace AutoInvest.Data
                         "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN CHART_AI_SCORE REAL DEFAULT 0");
                     RunMigration(conn,
                         "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN FUND_AI_SCORE REAL DEFAULT 0");
+
+                    // Phase 5-d 마이그레이션: 에이전트별 방향 신호 컬럼 추가 (적중률/가중치 A/B 분석용)
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN QUANT_SIGNAL TEXT DEFAULT ''");
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN CHART_AI_SIGNAL TEXT DEFAULT ''");
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN FUND_AI_SIGNAL TEXT DEFAULT ''");
                 }
                 Logger.Info("DB 초기화 완료");
             }

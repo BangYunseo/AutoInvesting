@@ -57,5 +57,16 @@ namespace AutoInvest.Data.DTO
 
         /// <summary>펀더멘털 AI 에이전트 확신도 (0.0~1.0)</summary>
         public decimal FundAiScore { get; set; }
+
+        // ── Phase 5-d: 에이전트별 방향 신호 (적중률 분석 / 가중치 A/B 검증용) ──
+
+        /// <summary>퀀트 필터 신호 ("BUY" / "SELL" / "HOLD"). Phase 5-d 이전 데이터는 빈 문자열.</summary>
+        public string QuantSignal { get; set; } = string.Empty;
+
+        /// <summary>차트 AI 에이전트 신호 ("BUY" / "SELL" / "HOLD"). Phase 5-d 이전 데이터는 빈 문자열.</summary>
+        public string ChartAiSignal { get; set; } = string.Empty;
+
+        /// <summary>펀더멘털 AI 에이전트 신호 ("BUY" / "SELL" / "HOLD"). Phase 5-d 이전 데이터는 빈 문자열.</summary>
+        public string FundAiSignal { get; set; } = string.Empty;
     }
 }

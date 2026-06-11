@@ -17,6 +17,9 @@ namespace AutoInvest.Core
     {
         public string Ticker { get; set; } = string.Empty;
         public SmartOrderSignal Signal { get; set; }
+
+        /// <summary>퀀트 필터 단독 신호 (AI 합산 이전, Phase 5-d 적중률/A/B 분석용)</summary>
+        public SmartOrderSignal QuantSignal { get; set; } = SmartOrderSignal.HOLD;
         public PriceRangeDto PriceRange { get; set; } = null!;
         public string Reason { get; set; } = string.Empty;
 
@@ -151,12 +154,13 @@ namespace AutoInvest.Core
             // ── Phase 4-e: 다중 AI 에이전트 분석 (차트 + 펀더멘털 병렬 실행) ──
             var multiAgentResult = await _analyzer.AnalyzeAsync(ticker, indicators, ohlcv);
 
-            // ── Phase 5-a: 종목별 적응형 매수 임계값 산출 ──
+            // ── Phase 5-a/5-d: 종목별 적응형 매수/매도 임계값 산출 ──
             var (adaptiveBuyThreshold, adaptiveReason) = Quant.AdaptiveThresholdEngine.GetBuyThreshold(ticker);
+            var (adaptiveSellThreshold, adaptiveSellReason) = Quant.AdaptiveThresholdEngine.GetSellThreshold(ticker);
 
             // ── Phase 4-e: 확률 기반 합의 스코어링 ──
             var consensusScore = CalculateConsensusScore(
-                quantSignal, multiAgentResult, adaptiveBuyThreshold, _consensusSellThreshold);
+                quantSignal, multiAgentResult, adaptiveBuyThreshold, adaptiveSellThreshold);
 
             SmartOrderSignal finalSignal;
             string finalReason;
@@ -166,10 +170,10 @@ namespace AutoInvest.Core
                 finalSignal = SmartOrderSignal.BUY;
                 finalReason = $"매수 확률 {consensusScore.BuyProbability:P1} ≥ 임계값 {adaptiveBuyThreshold:P1} ({adaptiveReason}) — 매수 실행";
             }
-            else if (consensusScore.SellProbability >= _consensusSellThreshold && quantSignal == SmartOrderSignal.SELL)
+            else if (consensusScore.SellProbability >= adaptiveSellThreshold && quantSignal == SmartOrderSignal.SELL)
             {
                 finalSignal = SmartOrderSignal.SELL;
-                finalReason = $"매도 확률 {consensusScore.SellProbability:P1} ≥ 임계값 {_consensusSellThreshold:P1} — 매도 실행";
+                finalReason = $"매도 확률 {consensusScore.SellProbability:P1} ≥ 임계값 {adaptiveSellThreshold:P1} ({adaptiveSellReason}) — 매도 실행";
             }
             else
             {
@@ -216,6 +220,7 @@ namespace AutoInvest.Core
             {
                 Ticker           = ticker,
                 Signal           = finalSignal,
+                QuantSignal      = quantSignal,
                 PriceRange       = priceRange,
                 Reason           = finalReason,
                 Indicators       = indicators,
@@ -426,7 +431,11 @@ namespace AutoInvest.Core
                     BuyProbability = score?.BuyProbability ?? 0m,
                     SellProbability = score?.SellProbability ?? 0m,
                     ChartAiScore = multi?.ChartAgent.ConfidenceScore ?? 0m,
-                    FundAiScore = multi?.FundamentalAgent.ConfidenceScore ?? 0m
+                    FundAiScore = multi?.FundamentalAgent.ConfidenceScore ?? 0m,
+                    // ── Phase 5-d: 에이전트별 방향 신호 ──
+                    QuantSignal = result.QuantSignal.ToString(),
+                    ChartAiSignal = multi?.ChartAgent.Signal.ToString() ?? "",
+                    FundAiSignal = multi?.FundamentalAgent.Signal.ToString() ?? ""
                 });
             }
             catch (Exception ex)
