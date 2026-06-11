@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
  *  - 요약 카드: 평가 건수, 평균 승률, 오늘 토큰, 기간 누적 추정 비용
  *  - 탭 1: AI 성과 기록 (종목/신호/시점가/평가가/승률)
  *  - 탭 2: 토큰 비용 (에이전트별 집계 / 일자별 추이)
+ *  - 탭 3: 가중치 검증 (Phase 5-d — 에이전트별 실측 적중률 / 합의 가중치 A/B 백테스트)
  */
 const Monitoring = () => {
   const [activeTab, setActiveTab] = useState('performance');
@@ -15,6 +16,8 @@ const Monitoring = () => {
   const [performance, setPerformance] = useState([]);
   const [byAgent, setByAgent] = useState([]);
   const [daily, setDaily] = useState([]);
+  const [agentAccuracy, setAgentAccuracy] = useState([]);
+  const [abtest, setAbtest] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -23,14 +26,16 @@ const Monitoring = () => {
     try {
       setLoading(true);
       setError(null);
-      const [sumRes, perfRes, agentRes, dailyRes] = await Promise.all([
+      const [sumRes, perfRes, agentRes, dailyRes, accRes, abRes] = await Promise.all([
         fetch(`/api/monitoring/summary?days=${days}`),
         fetch('/api/monitoring/performance?limit=50'),
         fetch(`/api/monitoring/tokens/by-agent?days=${days}`),
-        fetch('/api/monitoring/tokens/daily?days=14')
+        fetch('/api/monitoring/tokens/daily?days=14'),
+        fetch('/api/monitoring/agent-accuracy?horizonDays=7'),
+        fetch('/api/monitoring/weight-abtest?horizonDays=7')
       ]);
 
-      for (const r of [sumRes, perfRes, agentRes, dailyRes]) {
+      for (const r of [sumRes, perfRes, agentRes, dailyRes, accRes, abRes]) {
         if (!r.ok) throw new Error(`서버 오류 (${r.status})`);
       }
 
@@ -38,6 +43,8 @@ const Monitoring = () => {
       setPerformance(await perfRes.json());
       setByAgent((await agentRes.json()).agents ?? []);
       setDaily((await dailyRes.json()).daily ?? []);
+      setAgentAccuracy((await accRes.json()).agents ?? []);
+      setAbtest((await abRes.json()).schemes ?? []);
     } catch (err) {
       console.error('모니터링 데이터 조회 실패:', err);
       setError(err.message);
@@ -130,6 +137,12 @@ const Monitoring = () => {
             onClick={() => setActiveTab('tokens')}
           >
             💵 토큰 비용
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'feedback' ? 'tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('feedback')}
+          >
+            🧪 가중치 검증
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -288,6 +301,109 @@ const Monitoring = () => {
                         <td>{fmtInt(d.completionTokens)}</td>
                         <td className="text-strong">{fmtInt(d.totalTokens)}</td>
                         <td>{fmtUsd(d.estCostUsd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── 탭 3: 가중치 검증 (Phase 5-d) ── */}
+      {activeTab === 'feedback' && (
+        <>
+          <div className="card fade-in" style={{ marginTop: 16 }}>
+            <div className="section-header">
+              <h2>에이전트별 실측 적중률 (7일 경과 기준)</h2>
+            </div>
+            <p className="summary-card__sub" style={{ padding: '0 4px 12px' }}>
+              각 에이전트가 BUY/SELL 신호를 낸 뒤 7일 후 가격이 예측대로 움직였는지로 측정합니다.
+              Phase 5-d 이후 누적된 스냅샷만 집계되므로 초기에는 표본이 적을 수 있습니다.
+            </p>
+            {loading && agentAccuracy.length === 0 ? (
+              <div className="loading-container" style={{ padding: 40 }}>
+                <div className="loading-spinner" />
+              </div>
+            ) : agentAccuracy.every(a => a.sampleCount === 0) ? (
+              <div className="empty-state">
+                <div className="empty-state__icon">📭</div>
+                <p className="empty-state__text">아직 평가 가능한 신호 표본이 없습니다. (데이터 누적 대기)</p>
+              </div>
+            ) : (
+              <div className="data-table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>에이전트</th>
+                      <th>BUY 신호</th>
+                      <th>SELL 신호</th>
+                      <th>표본 수</th>
+                      <th>적중 수</th>
+                      <th>적중률</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agentAccuracy.map(a => (
+                      <tr key={a.agentName}>
+                        <td className="text-strong">{a.agentName}</td>
+                        <td>{fmtInt(a.buySignals)}</td>
+                        <td>{fmtInt(a.sellSignals)}</td>
+                        <td>{fmtInt(a.sampleCount)}</td>
+                        <td>{fmtInt(a.hitCount)}</td>
+                        <td>{a.sampleCount > 0 ? getWinRateBadge(a.winRate) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="card fade-in" style={{ marginTop: 16 }}>
+            <div className="section-header">
+              <h2>합의 가중치 A/B 백테스트</h2>
+            </div>
+            <p className="summary-card__sub" style={{ padding: '0 4px 12px' }}>
+              ⚠️ 검증용 리포트입니다. 여러 가중치 조합을 누적 데이터에 가상으로 적용한 결과이며,
+              실제 매매 가중치(appsettings.json)에 자동 반영되지 않습니다.
+            </p>
+            {loading && abtest.length === 0 ? (
+              <div className="loading-container" style={{ padding: 40 }}>
+                <div className="loading-spinner" />
+              </div>
+            ) : abtest.every(s => s.triggerCount === 0) ? (
+              <div className="empty-state">
+                <div className="empty-state__icon">🧪</div>
+                <p className="empty-state__text">아직 매수 신호가 발생한 표본이 없습니다. (데이터 누적 대기)</p>
+              </div>
+            ) : (
+              <div className="data-table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>가중치 조합</th>
+                      <th>매수 발생</th>
+                      <th>적중 수</th>
+                      <th>가상 승률</th>
+                      <th>평균 미래수익률</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {abtest.map(s => (
+                      <tr key={s.schemeName}>
+                        <td className="text-strong">{s.schemeName}</td>
+                        <td>{fmtInt(s.triggerCount)}</td>
+                        <td>{fmtInt(s.hitCount)}</td>
+                        <td>{s.triggerCount > 0 ? fmtPct(s.winRate) : '—'}</td>
+                        <td>
+                          {s.triggerCount > 0 ? (
+                            <span className={`badge-profit ${Number(s.avgForwardReturnPct) >= 0 ? 'badge-profit--up' : 'badge-profit--down'}`}>
+                              {Number(s.avgForwardReturnPct) >= 0 ? '+' : ''}{Number(s.avgForwardReturnPct).toFixed(2)}%
+                            </span>
+                          ) : '—'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
