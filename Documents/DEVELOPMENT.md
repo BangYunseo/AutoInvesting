@@ -22,6 +22,54 @@
 - **Phase 5-a** (종목별 적응형 임계값 시스템): ✅ **완료**
 - **Phase 5-b** (AI 성과 측정 + 토큰 비용 모니터링): ✅ **완료**
 - **Phase 5-c** (모니터링 대시보드 UI — 성과/비용 조회 화면): ✅ **완료**
+- **Phase 5-d** (성과 기반 피드백 루프: 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증): ✅ **완료**
+
+---
+
+## Phase 5-d 상세 변경 이력 — 성과 기반 피드백 루프 & 합의 가중치 A/B 검증
+
+### 핵심: "수집·시각화에서 멈춰 있던 성과 데이터" → "의사결정에 되먹임하는 학습 루프"
+
+Phase 5-b/c까지 AI 성과·토큰 데이터를 수집·시각화했으나, 누적된 데이터가 의사결정에 피드백되지 않았습니다.
+또한 적응형 임계값(5-a)은 매수에만, 그것도 BuyProbability **분포**(백분위)만 사용했고 **실제 승패**는 반영하지 않았습니다.
+Phase 5-d에서 (1) 스냅샷에 에이전트별 방향 신호를 보강하고, (2) 실측 적중률·가중치 A/B를 산출하며, (3) 매도 적응형 임계값을 추가해 피드백 루프를 닫았습니다.
+
+```
+[수집·시각화 (5-b/c)]              [피드백 분석 (5-d)]
+TB_MARKET_SNAPSHOT ──► (에이전트별 신호 보강) ──► PerformanceFeedbackEngine
+  · QUANT_SIGNAL                                    ├── 에이전트별 실측 적중률 (7일 forward return 대조)
+  · CHART_AI_SIGNAL                                 └── 합의 가중치 A/B 백테스트 (4개 조합 가상 성과)
+  · FUND_AI_SIGNAL                                        ↓ /api/monitoring/agent-accuracy, weight-abtest
+AdaptiveThresholdEngine.GetSellThreshold ◄── SELL_PROBABILITY 분포   ─► Monitoring.jsx "가중치 검증" 탭
+```
+
+#### 안전 제약 (준수)
+
+- `TB_MARKET_SNAPSHOT`/`TB_AI_PERFORMANCE`는 **읽기 전용** — 수정·삭제 없음
+- 기존 `QuantFilter`/`CalculateConsensusScore` **직접 수정 없음** — A/B 재계산은 별도 엔진에서 동일 공식으로 수행
+- A/B 결과는 **리포트 전용** — 실제 매매 가중치(appsettings.json)에 자동 반영하지 않음
+- DB 변경은 `ALTER TABLE ADD COLUMN`만 (하위 호환, 기존 데이터 보존)
+
+### 5-d 신규 파일 (3건)
+
+| 파일 | 설명 |
+|------|------|
+| `Core/Quant/PerformanceFeedbackEngine.cs` | 성과 기반 피드백 엔진 — forward return 페어링, 에이전트별 실측 적중률(`GetAgentAccuracy`), 합의 가중치 A/B 백테스트(`RunWeightAbTest`). 읽기 전용 분석 |
+| `Data/DTO/AgentAccuracyDto.cs` | 에이전트별 적중률 집계 결과 (BuySignals, SellSignals, SampleCount, HitCount, WinRate) |
+| `Data/DTO/WeightSchemeResultDto.cs` | 가중치 조합별 A/B 결과 (가중치, TriggerCount, HitCount, WinRate, AvgForwardReturnPct) |
+
+### 5-d 수정 파일 (8건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Data/DTO/MarketSnapshotDto.cs` | 에이전트별 방향 신호 3필드 추가 (QuantSignal, ChartAiSignal, FundAiSignal) |
+| `Data/DBManager.cs` | Phase 5-d 마이그레이션 3건 — ALTER TABLE ADD COLUMN (QUANT_SIGNAL/CHART_AI_SIGNAL/FUND_AI_SIGNAL, TEXT) |
+| `Data/DAO/MarketSnapshotDAO.cs` | Insert/Select에 3개 신호 컬럼 반영, `GetRecentAll`(전 종목 분석용)·`GetHistoricalSellProbabilities`(매도 임계값용)·`MapSnapshot`(공통 매핑) 추가 |
+| `Core/Quant/AdaptiveThresholdEngine.cs` | `GetSellThreshold` 추가, 백분위 산출 로직을 `ComputeThreshold`로 추출해 매수/매도 공유 |
+| `Core/SmartOrderEngine.cs` | `SmartOrderResult`에 `QuantSignal` 추가, 매도 판정에 적응형 임계값 적용, 스냅샷 저장 시 에이전트별 신호 기록 (의사결정 공식 불변) |
+| `Controllers/MonitoringController.cs` | `agent-accuracy`·`weight-abtest`·`adaptive-threshold` 3개 읽기 전용 엔드포인트 추가 |
+| `Frontend/src/pages/Monitoring.jsx` | "가중치 검증" 탭 추가 — 에이전트별 적중률 + 가중치 A/B 표 |
+| `.agents/rules/project_overview.md`, `.agents/rules/architecture.md` | Phase 표·핵심 추상화 갱신 |
 
 ---
 

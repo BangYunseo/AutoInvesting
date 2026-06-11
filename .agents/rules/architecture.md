@@ -38,7 +38,8 @@ Data (Data/, Data/DTO/, Data/DAO/)
   - 구현체: `AiMarketAnalyzer` (Mock), `GeminiMarketAnalyzer` (Gemini API, 차트+펀더멘털 이중 에이전트)
 - `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (MailKit, Naver SMTP)
 - `DailyExecutionService` — 매매 스케줄 실행 진입점 (Scoped, `IServiceScopeFactory` 패턴 필요)
-- `AdaptiveThresholdEngine` — 종목별 과거 성과 기반 적응형 임계값 계산 (Phase 5-a)
+- `AdaptiveThresholdEngine` — 종목별 과거 BuyProbability/SellProbability 분포 기반 적응형 매수·매도 임계값 계산 (Phase 5-a 매수 / 5-d 매도)
+- `PerformanceFeedbackEngine` — TB_MARKET_SNAPSHOT의 에이전트별 신호를 미래 가격과 대조하여 실측 적중률·합의 가중치 A/B 산출 (Phase 5-d, 읽기 전용 분석)
 
 ## 아키텍처 흐름
 ```
