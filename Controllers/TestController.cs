@@ -139,7 +139,6 @@ namespace AutoInvest.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
-    }
 
         [HttpGet("send-test-email")]
         public async Task<IActionResult> SendTestEmail()
@@ -157,4 +156,5 @@ namespace AutoInvest.Controllers
                 return StatusCode(500, $"테스트 이메일 발송 중 오류 발생: {ex.Message}");
             }
         }
+    }
 }
