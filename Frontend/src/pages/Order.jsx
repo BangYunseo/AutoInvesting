@@ -58,6 +58,13 @@ const Order = () => {
     return { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', label: '⏸️ 관망 (HOLD)' };
   };
 
+  // 부가 조언(어드바이저리) 심각도별 스타일
+  const getAdvisoryStyle = (severity) => {
+    if (severity === 'WARNING') return { icon: '⚠️', bg: 'var(--loss-red-bg)', border: 'rgba(239, 68, 68, 0.3)', color: 'var(--loss-red)' };
+    if (severity === 'CAUTION') return { icon: '🔔', bg: 'rgba(245, 158, 11, 0.08)', border: 'rgba(245, 158, 11, 0.25)', color: 'var(--warn-amber)' };
+    return { icon: 'ℹ️', bg: 'rgba(59, 130, 246, 0.08)', border: 'rgba(59, 130, 246, 0.25)', color: 'var(--text-secondary)' };
+  };
+
   const renderGauge = (label, value, min, max, unit = '') => {
     const range = max - min;
     const pct = range > 0 ? Math.max(0, Math.min(100, ((value - min) / range) * 100)) : 50;
@@ -150,6 +157,40 @@ const Order = () => {
                 </p>
               </div>
             </div>
+
+            {/* 상황 기반 부가 조언 (환율 등) */}
+            {analysisResult.advisoryNotes && analysisResult.advisoryNotes.length > 0 && (
+              <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {analysisResult.advisoryNotes.map((note, i) => {
+                  const sev = getAdvisoryStyle(note.severity);
+                  return (
+                    <div key={i} style={{
+                      padding: '14px 16px',
+                      background: sev.bg,
+                      border: `1px solid ${sev.border}`,
+                      borderRadius: 'var(--radius-sm)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: '1rem' }}>{sev.icon}</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: sev.color }}>
+                          [{note.source}] {note.title}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, wordBreak: 'keep-all' }}>
+                        {note.message}
+                      </p>
+                      {note.suggestedAlternatives && note.suggestedAlternatives.length > 0 && (
+                        <ul style={{ margin: '8px 0 0 0', paddingLeft: 18, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                          {note.suggestedAlternatives.map((alt, j) => (
+                            <li key={j} style={{ marginBottom: 2 }}>💡 {alt}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* 현재가 */}
             <div style={{

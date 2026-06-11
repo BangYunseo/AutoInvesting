@@ -1,3 +1,4 @@
+using AutoInvest.Core.Advisors;
 using AutoInvest.Core.Quant;
 using AutoInvest.Data;
 using AutoInvest.Data.DAO;
@@ -37,6 +38,9 @@ namespace AutoInvest.Core
 
         /// <summary>확률 기반 합의 점수 (Phase 4-e)</summary>
         public ConsensusScoreDto? ConsensusScore { get; set; }
+
+        /// <summary>상황 기반 부가 조언 목록 (Phase 5-e — 환율 등). 매매 판정에는 개입하지 않음.</summary>
+        public List<AdvisoryNoteDto> AdvisoryNotes { get; set; } = new();
     }
 
     /// <summary>
@@ -70,6 +74,9 @@ namespace AutoInvest.Core
         private readonly decimal _consensusBuyThreshold;
         private readonly decimal _consensusSellThreshold;
 
+        // ── Phase 5-e: 상황 기반 부가 조언 ──
+        private readonly ContextAdvisorService _contextAdvisors;
+
         /// <param name="broker">증권사 클라이언트</param>
         /// <param name="analyzer">AI 시장 분석 엔진</param>
         /// <param name="rangeDays">가격 범위 조회 기간 (기본 20일)</param>
@@ -94,6 +101,9 @@ namespace AutoInvest.Core
             _fundAiWeight          = decimal.Parse(AppConfigManager.Get("FUND_AI_WEIGHT", "0.30"));
             _consensusBuyThreshold = decimal.Parse(AppConfigManager.Get("BUY_THRESHOLD", "0.65"));
             _consensusSellThreshold= decimal.Parse(AppConfigManager.Get("SELL_THRESHOLD", "0.65"));
+
+            // ── Phase 5-e: 상황 기반 어드바이저(환율 등) 초기화 ──
+            _contextAdvisors = new ContextAdvisorService();
 
             Logger.Info($"[SmartOrder] 합의 가중치 로드 — 퀀트:{_quantWeight} 차트AI:{_chartAiWeight} 펀더멘털AI:{_fundAiWeight} | 임계값 BUY:{_consensusBuyThreshold} SELL:{_consensusSellThreshold}");
         }
@@ -178,13 +188,31 @@ namespace AutoInvest.Core
             else
             {
                 finalSignal = SmartOrderSignal.HOLD;
-                decimal gap = quantSignal == SmartOrderSignal.BUY
-                    ? consensusScore.BuyGap
-                    : (quantSignal == SmartOrderSignal.SELL ? consensusScore.SellGap : 0m);
 
-                finalReason = quantSignal == SmartOrderSignal.HOLD
-                    ? $"퀀트 조건 미충족 (최대 도달 가능 확률: {(_chartAiWeight + _fundAiWeight):P1})"
-                    : $"합의 확률 미달 (부족분: {gap:P1}) — {quantReason}";
+                if (quantSignal == SmartOrderSignal.HOLD)
+                {
+                    // 퀀트 자체가 진입 조건 미충족 — 애초에 매매 후보가 아님
+                    finalReason = $"퀀트 조건 미충족으로 관망 (최대 도달 가능 확률: {(_chartAiWeight + _fundAiWeight):P1}). [퀀트 의견] {quantReason}";
+                }
+                else
+                {
+                    // 퀀트는 BUY/SELL이었으나 AI 합의가 임계값에 미달 → 보류.
+                    // 어느 에이전트가 동의하지 않았는지(=관망의 실제 원인)를 함께 노출한다.
+                    bool isBuy = quantSignal == SmartOrderSignal.BUY;
+                    decimal gap = isBuy ? consensusScore.BuyGap : consensusScore.SellGap;
+                    decimal prob = isBuy ? consensusScore.BuyProbability : consensusScore.SellProbability;
+                    decimal threshold = isBuy ? adaptiveBuyThreshold : adaptiveSellThreshold;
+                    string verb = isBuy ? "매수" : "매도";
+
+                    var dissenters = new List<string>();
+                    if (multiAgentResult.ChartAgent.Signal != quantSignal) dissenters.Add("차트AI");
+                    if (multiAgentResult.FundamentalAgent.Signal != quantSignal) dissenters.Add("펀더멘털AI");
+                    string dissentStr = dissenters.Count > 0 ? string.Join(", ", dissenters) : "없음(확신도 부족)";
+
+                    finalReason =
+                        $"퀀트는 {verb} 신호였으나 AI 합의 미달로 보류 — {verb} 확률 {prob:P1} < 임계값 {threshold:P1} (부족분 {gap:P1}), " +
+                        $"미동의 에이전트: {dissentStr}. [퀀트 의견] {quantReason}";
+                }
             }
 
             // ── 확률 분해 상세 로그 (Phase 4-e & 5-a) ──
@@ -216,6 +244,17 @@ namespace AutoInvest.Core
                 });
             }
 
+            // ── Phase 5-e: 상황 기반 부가 조언 수집 (환율 등 — 판정에는 개입하지 않음) ──
+            var advisoryNotes = await _contextAdvisors.GatherAsync(new AdvisoryContext
+            {
+                Ticker          = ticker,
+                StrategyType    = strategyType,
+                FinalSignal     = finalSignal,
+                QuantSignal     = quantSignal,
+                CurrentPriceUsd = priceRange.Current,
+                Indicators      = indicators
+            });
+
             return new SmartOrderResult
             {
                 Ticker           = ticker,
@@ -227,6 +266,7 @@ namespace AutoInvest.Core
                 QuantConditions  = quantConditions,
                 DecisionReason   = decisionDetail,
                 MultiAgentResult = multiAgentResult,
+                AdvisoryNotes    = advisoryNotes,
                 ConsensusScore   = consensusScore
             };
         }

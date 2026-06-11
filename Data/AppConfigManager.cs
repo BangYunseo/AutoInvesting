@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Npgsql;
 using AutoInvest.Utils;
 using Microsoft.Extensions.Configuration;
@@ -93,6 +94,32 @@ namespace AutoInvest.Data
         }
 
         /// <summary>
+        /// appsettings.json의 특정 섹션을 키/값 딕셔너리로 조회합니다 (예: "FxAdvisor:HedgeMap").
+        /// 값이 있는 직속 하위 항목만 포함하며, 섹션이 없으면 빈 딕셔너리를 반환합니다.
+        /// </summary>
+        /// <param name="path">섹션 경로 (콜론 구분)</param>
+        public static Dictionary<string, string> GetMap(string path)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var section = _configuration?.GetSection(path);
+                if (section == null) return map;
+
+                foreach (var child in section.GetChildren())
+                {
+                    if (!string.IsNullOrEmpty(child.Value))
+                        map[child.Key] = child.Value;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Config] 섹션 조회 실패 [{path}]: {ex.Message}");
+            }
+            return map;
+        }
+
+        /// <summary>
         /// 레거시 키명을 appsettings.json의 계층 구조 키로 매핑합니다.
         /// </summary>
         private static string? ResolveFromConfiguration(string key)
@@ -122,6 +149,9 @@ namespace AutoInvest.Data
                 "FUND_AI_WEIGHT"        => "Consensus:FundAiWeight",
                 "BUY_THRESHOLD"         => "Consensus:BuyThreshold",
                 "SELL_THRESHOLD"        => "Consensus:SellThreshold",
+                "FX_ADVISOR_ENABLED"    => "FxAdvisor:Enabled",
+                "FX_LOOKBACK_DAYS"      => "FxAdvisor:LookbackDays",
+                "FX_HIGH_PERCENTILE"    => "FxAdvisor:HighPercentile",
                 _ => null
             };
 
@@ -130,7 +160,7 @@ namespace AutoInvest.Data
             string? value = _configuration?[mappedPath];
 
             // bool → "1"/"0" 변환 (레거시 호환)
-            if (value != null && (key == "IS_PAPER_TRADING" || key == "REBALANCE_ENABLED"))
+            if (value != null && (key == "IS_PAPER_TRADING" || key == "REBALANCE_ENABLED" || key == "FX_ADVISOR_ENABLED"))
             {
                 if (bool.TryParse(value, out bool boolVal))
                 {

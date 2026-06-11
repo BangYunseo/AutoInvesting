@@ -233,7 +233,15 @@ namespace AutoInvest.Controllers
                         result.Indicators.BbMiddle,
                         result.Indicators.BbLower
                     } : null,
-                    Conditions = result.QuantConditions
+                    Conditions = result.QuantConditions,
+                    AdvisoryNotes = result.AdvisoryNotes.Select(n => new
+                    {
+                        n.Source,
+                        Severity = n.Severity.ToString(),
+                        n.Title,
+                        n.Message,
+                        n.SuggestedAlternatives
+                    })
                 });
             }
             catch (Exception ex)
