@@ -81,6 +81,10 @@ namespace AutoInvest.Data
                         "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN CHART_AI_SIGNAL TEXT DEFAULT ''");
                     RunMigration(conn,
                         "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN FUND_AI_SIGNAL TEXT DEFAULT ''");
+
+                    // Phase 6-a 마이그레이션: 데이터 출처 구분 컬럼 추가 (REAL=실데이터 / SIM=시뮬레이션 학습데이터)
+                    RunMigration(conn,
+                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN DATA_SOURCE TEXT DEFAULT 'REAL'");
                 }
                 Logger.Info("DB 초기화 완료");
             }

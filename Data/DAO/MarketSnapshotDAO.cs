@@ -23,12 +23,12 @@ namespace AutoInvest.Data.DAO
                     (SNAP_DATE, TICKER, PRICE, POSITION_20D, RSI_14,
                      MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL,
                      BUY_PROBABILITY, SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE,
-                     QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL)
+                     QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL, DATA_SOURCE)
                 VALUES
                     (@snapDate, @ticker, @price, @position, @rsi,
                      @macdValue, @macdSignal, @bbUpper, @bbLower, @signal,
                      @buyProb, @sellProb, @chartAi, @fundAi,
-                     @quantSignal, @chartAiSignal, @fundAiSignal)", conn))
+                     @quantSignal, @chartAiSignal, @fundAiSignal, @dataSource)", conn))
             {
                 cmd.Parameters.AddWithValue("@snapDate", dto.SnapDate.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@ticker", dto.Ticker);
@@ -47,6 +47,7 @@ namespace AutoInvest.Data.DAO
                 cmd.Parameters.AddWithValue("@quantSignal", dto.QuantSignal ?? "");
                 cmd.Parameters.AddWithValue("@chartAiSignal", dto.ChartAiSignal ?? "");
                 cmd.Parameters.AddWithValue("@fundAiSignal", dto.FundAiSignal ?? "");
+                cmd.Parameters.AddWithValue("@dataSource", string.IsNullOrEmpty(dto.DataSource) ? "REAL" : dto.DataSource);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -62,7 +63,7 @@ namespace AutoInvest.Data.DAO
                 SELECT SNAPSHOT_ID, SNAP_DATE, TICKER, PRICE, POSITION_20D,
                        RSI_14, MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL,
                        BUY_PROBABILITY, SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE,
-                       QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL
+                       QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL, DATA_SOURCE
                 FROM TB_MARKET_SNAPSHOT
                 WHERE TICKER = @ticker
                 ORDER BY SNAP_DATE DESC
@@ -87,7 +88,8 @@ namespace AutoInvest.Data.DAO
         /// 적중률 분석 / 가중치 A/B 백테스트에서 미래 수익(forward return) 계산의 원천으로 사용됩니다.
         /// </summary>
         /// <param name="limit">최대 조회 건수 (기본 5000)</param>
-        public static List<MarketSnapshotDto> GetRecentAll(int limit = 5000)
+        /// <param name="dataSource">데이터 출처 필터 ("REAL"=실데이터+과거 NULL, "SIM"=시뮬레이션 학습데이터)</param>
+        public static List<MarketSnapshotDto> GetRecentAll(int limit = 5000, string dataSource = "REAL")
         {
             var list = new List<MarketSnapshotDto>();
             using (var conn = DBManager.Instance.GetConnection())
@@ -95,12 +97,14 @@ namespace AutoInvest.Data.DAO
                 SELECT SNAPSHOT_ID, SNAP_DATE, TICKER, PRICE, POSITION_20D,
                        RSI_14, MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL,
                        BUY_PROBABILITY, SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE,
-                       QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL
+                       QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL, DATA_SOURCE
                 FROM TB_MARKET_SNAPSHOT
+                WHERE (DATA_SOURCE = @dataSource OR (@dataSource = 'REAL' AND DATA_SOURCE IS NULL))
                 ORDER BY TICKER ASC, SNAP_DATE ASC
                 LIMIT @limit", conn))
             {
                 cmd.Parameters.AddWithValue("@limit", limit);
+                cmd.Parameters.AddWithValue("@dataSource", dataSource);
                 using (var rdr = cmd.ExecuteReader())
                 {
                     while (rdr.Read())
@@ -115,7 +119,7 @@ namespace AutoInvest.Data.DAO
         /// <summary>
         /// 특정 종목의 과거 SellProbability 배열을 최근 순으로 조회합니다 (매도 적응형 임계값용).
         /// </summary>
-        public static List<decimal> GetHistoricalSellProbabilities(string ticker, int limit = 100)
+        public static List<decimal> GetHistoricalSellProbabilities(string ticker, int limit = 100, string dataSource = "REAL")
         {
             var list = new List<decimal>();
             using (var conn = DBManager.Instance.GetConnection())
@@ -123,11 +127,13 @@ namespace AutoInvest.Data.DAO
                 SELECT SELL_PROBABILITY
                 FROM TB_MARKET_SNAPSHOT
                 WHERE TICKER = @ticker AND SELL_PROBABILITY IS NOT NULL
+                  AND (DATA_SOURCE = @dataSource OR (@dataSource = 'REAL' AND DATA_SOURCE IS NULL))
                 ORDER BY SNAP_DATE DESC
                 LIMIT @limit", conn))
             {
                 cmd.Parameters.AddWithValue("@ticker", ticker);
                 cmd.Parameters.AddWithValue("@limit", limit);
+                cmd.Parameters.AddWithValue("@dataSource", dataSource);
 
                 using (var rdr = cmd.ExecuteReader())
                 {
@@ -148,7 +154,7 @@ namespace AutoInvest.Data.DAO
         /// NpgsqlDataReader 한 행을 MarketSnapshotDto로 매핑합니다.
         /// SELECT 컬럼 순서: SNAPSHOT_ID, SNAP_DATE, TICKER, PRICE, POSITION_20D, RSI_14,
         ///   MACD_VALUE, MACD_SIGNAL, BB_UPPER, BB_LOWER, SIGNAL, BUY_PROBABILITY,
-        ///   SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE, QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL
+        ///   SELL_PROBABILITY, CHART_AI_SCORE, FUND_AI_SCORE, QUANT_SIGNAL, CHART_AI_SIGNAL, FUND_AI_SIGNAL, DATA_SOURCE
         /// </summary>
         private static MarketSnapshotDto MapSnapshot(NpgsqlDataReader rdr)
         {
@@ -171,7 +177,8 @@ namespace AutoInvest.Data.DAO
                 FundAiScore = rdr.IsDBNull(14) ? 0m : rdr.GetDecimal(14),
                 QuantSignal = rdr.IsDBNull(15) ? "" : rdr.GetString(15),
                 ChartAiSignal = rdr.IsDBNull(16) ? "" : rdr.GetString(16),
-                FundAiSignal = rdr.IsDBNull(17) ? "" : rdr.GetString(17)
+                FundAiSignal = rdr.IsDBNull(17) ? "" : rdr.GetString(17),
+                DataSource = rdr.IsDBNull(18) ? "REAL" : rdr.GetString(18)
             };
         }
 
@@ -179,7 +186,7 @@ namespace AutoInvest.Data.DAO
         /// 특정 종목의 과거 BuyProbability 배열을 최근 순으로 조회합니다.
         /// 적응형 임계값 계산을 위한 원천 데이터로 사용됩니다.
         /// </summary>
-        public static List<decimal> GetHistoricalProbabilities(string ticker, int limit = 100)
+        public static List<decimal> GetHistoricalProbabilities(string ticker, int limit = 100, string dataSource = "REAL")
         {
             var list = new List<decimal>();
             using (var conn = DBManager.Instance.GetConnection())
@@ -187,11 +194,13 @@ namespace AutoInvest.Data.DAO
                 SELECT BUY_PROBABILITY
                 FROM TB_MARKET_SNAPSHOT
                 WHERE TICKER = @ticker AND BUY_PROBABILITY IS NOT NULL
+                  AND (DATA_SOURCE = @dataSource OR (@dataSource = 'REAL' AND DATA_SOURCE IS NULL))
                 ORDER BY SNAP_DATE DESC
                 LIMIT @limit", conn))
             {
                 cmd.Parameters.AddWithValue("@ticker", ticker);
                 cmd.Parameters.AddWithValue("@limit", limit);
+                cmd.Parameters.AddWithValue("@dataSource", dataSource);
 
                 using (var rdr = cmd.ExecuteReader())
                 {

@@ -77,6 +77,9 @@ namespace AutoInvest.Core
         // ── Phase 5-e: 상황 기반 부가 조언 ──
         private readonly ContextAdvisorService _contextAdvisors;
 
+        // ── Phase 6-a: 데이터 출처 (SimBroker=SIM / 그 외=REAL) ──
+        private readonly string _dataSource;
+
         /// <param name="broker">증권사 클라이언트</param>
         /// <param name="analyzer">AI 시장 분석 엔진</param>
         /// <param name="rangeDays">가격 범위 조회 기간 (기본 20일)</param>
@@ -104,6 +107,9 @@ namespace AutoInvest.Core
 
             // ── Phase 5-e: 상황 기반 어드바이저(환율 등) 초기화 ──
             _contextAdvisors = new ContextAdvisorService();
+
+            // ── Phase 6-a: SimBroker 모드의 스냅샷은 학습데이터(SIM)로 태깅해 실데이터(REAL) 분석 오염 방지 ──
+            _dataSource = (broker is SimBrokerClient) ? "SIM" : "REAL";
 
             Logger.Info($"[SmartOrder] 합의 가중치 로드 — 퀀트:{_quantWeight} 차트AI:{_chartAiWeight} 펀더멘털AI:{_fundAiWeight} | 임계값 BUY:{_consensusBuyThreshold} SELL:{_consensusSellThreshold}");
         }
@@ -446,9 +452,29 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
+        /// 단일 종목을 분석한 뒤 그 결과를 스냅샷으로 저장합니다 (주문은 실행하지 않음).
+        /// SimBroker 기반 학습데이터 대량 생성 등, 매매 없이 스냅샷만 축적할 때 사용합니다.
+        /// </summary>
+        /// <param name="ticker">종목 코드</param>
+        /// <param name="strategyType">전략 유형 (MEAN_REVERSION / MOMENTUM / MIXED)</param>
+        /// <param name="snapDateOverride">스냅샷 저장 일시 (미지정 시 현재 시각). 학습데이터 생성 시 가상 일자를 분산 주입하는 용도</param>
+        public async Task<SmartOrderResult> AnalyzeAndSaveSnapshotAsync(
+            string ticker, string strategyType = "MEAN_REVERSION", DateTime? snapDateOverride = null)
+        {
+            var result = await AnalyzeAsync(ticker, strategyType);
+            if (result.Indicators != null)
+            {
+                SaveMarketSnapshot(result, snapDateOverride);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// 매매 시점의 시장 지표 스냅샷을 DB에 저장합니다 (Phase 4-e AI 학습 데이터 + 합의 점수).
         /// </summary>
-        private void SaveMarketSnapshot(SmartOrderResult result)
+        /// <param name="result">분석 결과</param>
+        /// <param name="snapDateOverride">스냅샷 저장 일시 (미지정 시 현재 시각)</param>
+        private void SaveMarketSnapshot(SmartOrderResult result, DateTime? snapDateOverride = null)
         {
             try
             {
@@ -458,7 +484,7 @@ namespace AutoInvest.Core
 
                 MarketSnapshotDAO.Insert(new MarketSnapshotDto
                 {
-                    SnapDate = DateTime.Now,
+                    SnapDate = snapDateOverride ?? DateTime.Now,
                     Ticker = result.Ticker,
                     Price = result.PriceRange.Current,
                     Position20d = ind.Position,
@@ -475,7 +501,9 @@ namespace AutoInvest.Core
                     // ── Phase 5-d: 에이전트별 방향 신호 ──
                     QuantSignal = result.QuantSignal.ToString(),
                     ChartAiSignal = multi?.ChartAgent.Signal.ToString() ?? "",
-                    FundAiSignal = multi?.FundamentalAgent.Signal.ToString() ?? ""
+                    FundAiSignal = multi?.FundamentalAgent.Signal.ToString() ?? "",
+                    // ── Phase 6-a: 데이터 출처 태깅 ──
+                    DataSource = _dataSource
                 });
             }
             catch (Exception ex)

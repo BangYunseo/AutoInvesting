@@ -68,5 +68,14 @@ namespace AutoInvest.Data.DTO
 
         /// <summary>펀더멘털 AI 에이전트 신호 ("BUY" / "SELL" / "HOLD"). Phase 5-d 이전 데이터는 빈 문자열.</summary>
         public string FundAiSignal { get; set; } = string.Empty;
+
+        // ── Phase 6-a: 데이터 출처 구분 ──
+
+        /// <summary>
+        /// 데이터 출처 ("REAL"=실거래/실데이터, "SIM"=시뮬레이션 학습데이터).
+        /// 피드백·적응형 분석은 실데이터(REAL)만 사용하여 시뮬레이션 데이터에 오염되지 않습니다.
+        /// 이번 변경 이전 데이터는 NULL이며, 분석 시 REAL로 간주됩니다.
+        /// </summary>
+        public string DataSource { get; set; } = "REAL";
     }
 }
