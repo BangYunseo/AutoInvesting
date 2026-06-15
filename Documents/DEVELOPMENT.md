@@ -23,6 +23,48 @@
 - **Phase 5-b** (AI 성과 측정 + 토큰 비용 모니터링): ✅ **완료**
 - **Phase 5-c** (모니터링 대시보드 UI — 성과/비용 조회 화면): ✅ **완료**
 - **Phase 5-d** (성과 기반 피드백 루프: 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증): ✅ **완료**
+- **Phase 6-a** (SimBroker 학습데이터 생성 + SIM/REAL 출처 분리): ✅ **완료**
+
+---
+
+## Phase 6-a 상세 변경 이력 — SimBroker 학습데이터 생성 & 데이터 출처 분리
+
+### 핵심: "느리게 쌓이고, 모의·실데이터가 섞이던 스냅샷" → "SIM/REAL 격리 + 학습데이터 대량 합성"
+
+`SmartOrderEngine.ExecuteSmartOrdersAsync`는 브로커 종류와 무관하게 `SaveMarketSnapshot`을 호출하여,
+**SimBroker 모드로 돌릴 때 시뮬레이션 스냅샷이 보호 테이블 `TB_MARKET_SNAPSHOT`에 실데이터와 섞여** 저장되고
+피드백 엔진·적응형 임계값이 이를 함께 읽는 문제가 있었습니다.
+또한 피드백 분석에 필요한 누적 스냅샷이 실거래로는 매우 느리게 모였습니다.
+Phase 6-a에서 (1) `DATA_SOURCE` 컬럼으로 SIM/REAL을 격리하고, (2) SimBroker 기반 학습데이터 대량 생성기를 추가했습니다.
+
+```
+[격리]   SmartOrderEngine ──(broker is SimBrokerClient?)──► DATA_SOURCE = 'SIM' / 'REAL'
+         피드백·적응형 분석 쿼리 ──► DATA_SOURCE='REAL'(과거 NULL 포함)만 조회 → SIM 미오염
+[생성]   SimTrainingDataGenerator ─(SimBroker + Mock AI, 비용 0)─► AnalyzeAndSaveSnapshotAsync(가상 일자 분산)
+                                  └─► /api/sim/generate-training-data, /api/sim/verify-training-data
+```
+
+#### 안전 제약 (준수)
+- `TB_MARKET_SNAPSHOT` 수정·삭제 없음 — 스키마 변경은 `ALTER TABLE ADD COLUMN` 1건(DATA_SOURCE)만
+- 과거 NULL 데이터는 REAL로 간주(`DATA_SOURCE='REAL' OR IS NULL`), 신규 SIM은 항상 'SIM' 태깅 → 신규 오염 원천 차단
+- 생성기는 Mock `AiMarketAnalyzer` 직접 생성 → Gemini 토큰 비용 0, 실 브로커 미접촉
+
+### 6-a 신규 파일 (2건)
+
+| 파일 | 설명 |
+|------|------|
+| `Core/Quant/SimTrainingDataGenerator.cs` | SimBroker + Mock AI로 종목별 가상 일자 시계열 스냅샷을 대량 합성(DATA_SOURCE='SIM') |
+| `Controllers/SimController.cs` | `POST /api/sim/generate-training-data`(생성), `GET /api/sim/verify-training-data`(SIM 적중률/가중치 A/B 검증) |
+
+### 6-a 수정 파일 (5건)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `Data/DBManager.cs` | Phase 6-a 마이그레이션 — `ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN DATA_SOURCE TEXT DEFAULT 'REAL'` |
+| `Data/sql/create_tables.sql` | `TB_MARKET_SNAPSHOT`에 `DATA_SOURCE` 컬럼 추가 (신규 환경 일관성) |
+| `Data/DTO/MarketSnapshotDto.cs` | `DataSource` 필드 추가 |
+| `Data/DAO/MarketSnapshotDAO.cs` | Insert/MapSnapshot에 DATA_SOURCE 반영, `GetRecentAll`·`GetHistoricalProbabilities`·`GetHistoricalSellProbabilities`에 `dataSource` 필터 추가 |
+| `Core/SmartOrderEngine.cs` | `_dataSource` 태깅(SimBroker→SIM), `AnalyzeAndSaveSnapshotAsync`(주문 없이 분석+저장, 가상 일자 주입) 추가 |
 
 ---
 
