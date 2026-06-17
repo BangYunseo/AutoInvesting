@@ -56,7 +56,9 @@ AutoInvesting/
 │       ├── BacktestEngine.cs           # 과거 데이터 기반 전략 검증
 │       ├── RebalancingEngine.cs        # 보유 비중 자동 재조정
 │       ├── SellStrategyManager.cs      # 분할매도 플랜 관리
-│       └── AdaptiveThresholdEngine.cs  # 종목별 적응형 임계값 계산 (Phase 5-a)
+│       ├── AdaptiveThresholdEngine.cs  # 종목별 적응형 매수/매도 임계값 계산 (Phase 5-a/5-d)
+│       ├── PerformanceFeedbackEngine.cs # 에이전트별 실측 적중률 + 가중치 A/B 분석 (Phase 5-d, 읽기 전용)
+│       └── SimTrainingDataGenerator.cs # SimBroker+Mock AI 학습데이터 대량 생성 (Phase 6-a)
 │
 ├── Data/                               # 데이터 액세스 계층
 │   ├── DBManager.cs                    # PostgreSQL 연결 관리 (Npgsql, Singleton + 마이그레이션)
@@ -75,6 +77,10 @@ AutoInvesting/
 │   │   ├── BacktestResultDto.cs        # 백테스팅 결과
 │   │   ├── MarketSnapshotDto.cs        # 시장 스냅샷 (AI 학습용, 확률 점수 포함)
 │   │   ├── ConsensusScoreDto.cs        # 합의 확률 분해 결과 (BuyProbability, 에이전트별 기여)
+│   │   ├── AdaptiveThresholdStatusDto.cs # 적응형 임계값 진단 결과 (표본 수/적용 임계값)
+│   │   ├── AgentAccuracyDto.cs         # 에이전트별 실측 적중률 집계 (Phase 5-d)
+│   │   ├── WeightSchemeResultDto.cs    # 가중치 조합별 A/B 결과 (Phase 5-d)
+│   │   ├── TokenUsageSummaryDto.cs     # 토큰 집계 결과 (에이전트별/일자별)
 │   │   ├── SellPlanDto.cs              # 분할매도 플랜
 │   │   ├── AiPerformanceDto.cs         # AI 판단 성과 기록
 │   │   └── TokenUsageDto.cs            # AI API 토큰 사용량
@@ -96,6 +102,8 @@ AutoInvesting/
 │   ├── BacktestController.cs           # 백테스트 실행 API
 │   ├── QuantController.cs              # 퀀트 지표 조회 API
 │   ├── SellPlanController.cs           # 분할매도 플랜 관리 API
+│   ├── MonitoringController.cs         # AI 성과/토큰 비용/적중률·가중치 A/B 조회 API (Phase 5-c/5-d)
+│   ├── SimController.cs                # SimBroker 학습데이터 생성/검증 API (Phase 6-a)
 │   └── TestController.cs               # 개발/테스트 전용 API
 │
 ├── Utils/                              # 유틸리티 (모든 레이어 접근 가능)
@@ -108,14 +116,13 @@ AutoInvesting/
 │
 ├── Frontend/                           # React SPA (Vite, Glassmorphism 디자인)
 │   └── src/
-│       ├── pages/                      # Dashboard, History, Order, Backtest, Strategy, Settings
-│       └── components/                 # HoldingsTable, SellPlanManager
+│       ├── pages/                      # Dashboard, History, Order, Backtest, Strategy, Settings, Monitoring
+│       └── components/                 # HoldingsTable, SellPlanManager, ProgressLoader
 │
 └── Documents/                          # 프로젝트 문서
     ├── DEVELOPMENT.md                  # 개발 진척도 + 전체 변경 이력
     ├── ONBOARDING_GUIDE.md             # 신규 개발자용 아키텍처 가이드
-    ├── CODE_READING_GUIDE.md           # SmartOrderEngine 코드 흐름 가이드
-    └── PHASE4E_PLAN.md                 # Phase 4-e 설계 문서 (완료됨)
+    └── CODE_READING_GUIDE.md           # SmartOrderEngine 코드 흐름 가이드
 ```
 
 ---
@@ -226,10 +233,15 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 - [x] Phase 4-d: 차트+펀더멘털 이중 에이전트 병렬 합의 구조
 - [x] Phase 4-e: 확률 기반 가중치 합산(CalculateConsensusScore) 시스템 — ConsensusScoreDto, BuyProbability
 
-### Phase 5-a — 종목별 적응형 임계값 시스템 (✅ 완료)
-- [x] `AdaptiveThresholdEngine` — 과거 성과 기반 종목별 BUY_THRESHOLD 자동 조정
+### Phase 5 — 적응형 임계값 · 성과 피드백 · 모니터링 (✅ 완료)
+- [x] Phase 5-a: `AdaptiveThresholdEngine` — 과거 BuyProbability 분포 기반 종목별 매수 임계값 자동 조정
+- [x] Phase 5-b: AI 판단 성과 측정 + 토큰 비용 모니터링 데이터 적재 (`TB_AI_PERFORMANCE`, `TB_TOKEN_USAGE`)
+- [x] Phase 5-c: 모니터링 대시보드 UI — 성과/토큰 비용 조회 (`MonitoringController`, `Monitoring.jsx`)
+- [x] Phase 5-d: 성과 기반 피드백 루프 — 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증
 
-### Phase 5 — 다음 단계 (🚀 진행 중)
+### Phase 6 — 실데이터 운영 전환 · AI 호출 최적화 (✅ 완료)
+- [x] Phase 6-a: SimBroker 학습데이터 대량 생성 + DATA_SOURCE(SIM/REAL) 출처 분리
+- [x] Phase 6-b: 실데이터 운영 전환(Gemini 모델 설정화) + 무료 한도 429 대응(호출 통합·throttle) + AI 모델 선택 UI + 분석 진행바 UX
 
 ---
 

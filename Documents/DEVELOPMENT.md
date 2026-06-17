@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태: Phase 5 진행 중 🚀
+## 현재 상태: Phase 6-b 완료 🚀
 
 - **Phase 1** (기반): ✅ 완료
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
@@ -204,11 +204,14 @@ DailyExecutionSvc ─┴─► TB_AI_PERFORMANCE  ─► /api/monitoring/perform
                                            ─► /api/monitoring/summary
 ```
 
-#### 비용 추정 공식 (Gemini 1.5 Flash 공식 단가, 128k 이하 컨텍스트 기준)
+#### 비용 추정 공식 (Phase 5-c 당시 Gemini 1.5 Flash 공식 단가, 128k 이하 컨텍스트 기준)
 
 ```
 추정 비용(USD) = 프롬프트 토큰 / 1M × $0.075 + 완성 토큰 / 1M × $0.30
 ```
+
+> ⚠️ 현재 단가(Phase 6-b 이후): 기본 모델이 `gemini-2.0-flash`로 전환되어
+> `MonitoringController`의 비용 단가도 **입력 $0.10 / 출력 $0.40 (per 1M)** 로 갱신됨.
 
 ### 5-c 신규 파일 (3건)
 

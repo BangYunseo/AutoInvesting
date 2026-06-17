@@ -2,7 +2,7 @@
 
 > 해외 ETF 자동투자 시스템 · ASP.NET Core Web API (.NET 8.0, C#) + React SPA
 > 24시간 동작 Headless 백그라운드 서비스 · 증권사: 한국투자증권(KIS)
-> 현재 **Phase 5** 진행 중.
+> 현재 **Phase 6-b** 완료.
 
 ---
 
