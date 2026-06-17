@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AutoInvest.Data;
 using AutoInvest.Data.DAO;
+using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 
 namespace AutoInvest.Core.Quant
@@ -63,6 +64,43 @@ namespace AutoInvest.Core.Quant
                 return (defaultThreshold, "산출 중 오류 발생 → 기본값 사용");
             }
             return ComputeThreshold(history, defaultThreshold);
+        }
+
+        /// <summary>
+        /// 주어진 종목의 적응형 임계값 작동 현황을 진단용으로 한 번에 조회합니다.
+        /// 누적 표본 수와 현재 적용 임계값(기본값/적응값 구분)을 함께 반환하여,
+        /// 적응형이 실제로 데이터 기반으로 작동 중인지 점검할 수 있게 합니다.
+        /// </summary>
+        /// <param name="ticker">종목 코드</param>
+        public static AdaptiveThresholdStatusDto GetStatus(string ticker)
+        {
+            var (buyThreshold, buyReason) = GetBuyThreshold(ticker);
+            var (sellThreshold, sellReason) = GetSellThreshold(ticker);
+
+            int buyCount = 0;
+            int sellCount = 0;
+            try
+            {
+                buyCount = MarketSnapshotDAO.GetHistoricalProbabilities(ticker, 100).Count;
+                sellCount = MarketSnapshotDAO.GetHistoricalSellProbabilities(ticker, 100).Count;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[AdaptiveThreshold] 표본 수 조회 실패 ({ticker}): {ex.Message}");
+            }
+
+            return new AdaptiveThresholdStatusDto
+            {
+                Ticker           = ticker,
+                BuySampleCount   = buyCount,
+                SellSampleCount  = sellCount,
+                BuyThreshold     = buyThreshold,
+                BuyReason        = buyReason,
+                SellThreshold    = sellThreshold,
+                SellReason       = sellReason,
+                IsAdaptiveActive = buyCount >= MIN_DATA_POINTS || sellCount >= MIN_DATA_POINTS,
+                MinDataPoints    = MIN_DATA_POINTS
+            };
         }
 
         /// <summary>appsettings.json에서 임계값 기본값을 읽습니다 (실패 시 0.65).</summary>

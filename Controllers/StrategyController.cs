@@ -1,9 +1,12 @@
+using AutoInvest.Core.Quant;
+using AutoInvest.Data;
 using AutoInvest.Data.DAO;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AutoInvest.Controllers
 {
@@ -49,6 +52,36 @@ namespace AutoInvest.Controllers
             catch (Exception ex)
             {
                 Logger.Error($"[Strategy] 전략 조회 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// 활성 전략(또는 지정 전략) 종목들의 적응형 임계값 작동 현황을 진단합니다.
+        /// 종목별 누적 스냅샷 표본 수와 현재 적용 임계값(기본값/적응값)을 한 번에 반환하여,
+        /// 적응형 임계값이 데이터 기반으로 실제 작동 중인지 점검하는 데 사용합니다.
+        /// </summary>
+        /// <param name="name">전략명 (미지정 시 활성 전략 ACTIVE_STRATEGY 사용)</param>
+        [HttpGet("adaptive-status")]
+        public IActionResult GetAdaptiveStatus([FromQuery] string? name = null)
+        {
+            try
+            {
+                string strategyName = string.IsNullOrWhiteSpace(name)
+                    ? AppConfigManager.Get("ACTIVE_STRATEGY", "사용자정의")
+                    : name;
+
+                var strategies = StrategyDAO.GetStrategy(strategyName);
+                var items = strategies
+                    .Select(s => AdaptiveThresholdEngine.GetStatus(s.Ticker))
+                    .ToList();
+
+                Logger.Info($"[Strategy] 적응형 임계값 진단: 전략 '{strategyName}' 종목 {items.Count}개");
+                return Ok(new { strategy = strategyName, items });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Strategy] 적응형 임계값 진단 실패: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
