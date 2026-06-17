@@ -132,7 +132,9 @@ namespace AutoInvest.Core
                     generationConfig = new
                     {
                         temperature = 0.3,
-                        maxOutputTokens = 512
+                        // 통합 응답(chart+fundamental 두 의견 + 한국어 reason)이 잘리지 않도록 충분히 확보.
+                        // 2.5 계열 thinking 모델은 사고 토큰까지 차감되므로 여유를 더 둔다.
+                        maxOutputTokens = 1024
                     }
                 };
 
