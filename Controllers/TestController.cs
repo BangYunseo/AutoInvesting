@@ -177,8 +177,8 @@ namespace AutoInvest.Controllers
         [HttpGet("health")]
         public async Task<IActionResult> Health()
         {
-            // ── SMTP 설정 점검 (시크릿 미노출) ──
-            var smtp = NotificationService.GetConfigStatus();
+            // ── 이메일(Brevo) 설정 점검 (시크릿 미노출) ──
+            var email = NotificationService.GetConfigStatus();
 
             // ── DB 연결 점검 ──
             bool dbOk = false;
@@ -215,19 +215,18 @@ namespace AutoInvest.Controllers
                 Logger.Error($"[Health] 브로커 로그인 점검 실패: {ex.Message}");
             }
 
-            bool allOk = smtp.IsReady && dbOk && brokerOk;
+            bool allOk = email.IsReady && dbOk && brokerOk;
             var payload = new
             {
                 ok = allOk,
-                smtp = new
+                email = new
                 {
-                    ready = smtp.IsReady,
-                    host = smtp.Host,
-                    port = smtp.Port,
-                    useSsl = smtp.UseSsl,
-                    usernameSet = smtp.UsernameSet,
-                    passwordSet = smtp.PasswordSet,
-                    adminEmailSet = smtp.AdminEmailSet
+                    ready = email.IsReady,
+                    provider = email.Provider,
+                    apiKeySet = email.ApiKeySet,
+                    senderEmail = email.SenderEmail,
+                    senderName = email.SenderName,
+                    adminEmailSet = email.AdminEmailSet
                 },
                 db = new { ok = dbOk, error = dbError },
                 broker = new { ok = brokerOk, error = brokerError }
