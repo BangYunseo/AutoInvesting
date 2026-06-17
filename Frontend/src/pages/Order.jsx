@@ -288,44 +288,64 @@ const Order = () => {
               ✅ {orderResult.message}
             </div>
 
-            {orderResult.results && orderResult.results.length > 0 && (
-              <div className="data-table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>종목</th>
-                      <th>신호</th>
-                      <th>이유</th>
-                      <th>가격</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orderResult.results.map((r, i) => {
-                      const style = getSignalStyle(r.signal);
-                      return (
-                        <tr key={i}>
-                          <td className="text-strong">{r.ticker}</td>
-                          <td>
-                            <span style={{
-                              padding: '3px 8px',
-                              borderRadius: 6,
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              background: style.bg,
-                              color: style.color
-                            }}>
-                              {r.signal}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: '0.8rem' }}>{r.reason}</td>
-                          <td>${r.price?.toFixed(2) ?? 'N/A'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {orderResult.results && orderResult.results.length > 0 && (() => {
+              // 신호별 건수 집계 — "N건 실행 완료"가 실제 매매 건수로 오해되지 않도록 명확화
+              const buyCount = orderResult.results.filter(r => r.signal === 'BUY').length;
+              const sellCount = orderResult.results.filter(r => r.signal === 'SELL').length;
+              const holdCount = orderResult.results.filter(r => r.signal !== 'BUY' && r.signal !== 'SELL').length;
+              return (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: 6, background: 'var(--profit-green-bg)', color: 'var(--profit-green)', fontWeight: 600 }}>매수 {buyCount}</span>
+                  <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: 6, background: 'var(--loss-red-bg)', color: 'var(--loss-red)', fontWeight: 600 }}>매도 {sellCount}</span>
+                  <span style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', fontWeight: 600 }}>관망 {holdCount}</span>
+                </div>
+                <div className="data-table-wrapper">
+                  <table className="data-table order-result-table">
+                    <colgroup>
+                      <col style={{ width: '20%' }} />
+                      <col style={{ width: '24%' }} />
+                      <col style={{ width: '36%' }} />
+                      <col style={{ width: '20%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>종목</th>
+                        <th>신호</th>
+                        <th>이유</th>
+                        <th>가격</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderResult.results.map((r, i) => {
+                        const style = getSignalStyle(r.signal);
+                        return (
+                          <tr key={i}>
+                            <td className="text-strong">{r.ticker}</td>
+                            <td>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                background: style.bg,
+                                color: style.color
+                              }}>
+                                {r.signal}
+                              </span>
+                            </td>
+                            <td className="col-reason">{r.reason}</td>
+                            <td>${r.price?.toFixed(2) ?? 'N/A'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+              );
+            })()}
           </div>
         )}
       </div>

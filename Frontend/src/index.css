@@ -174,6 +174,7 @@ a:hover {
 .app-nav__links {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .nav-link {
@@ -188,6 +189,8 @@ a:hover {
   transition: all var(--transition-fast);
   text-decoration: none;
   border: 1px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-link:hover {
@@ -1183,6 +1186,28 @@ a:hover {
 .data-table.fixed-layout td {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 스마트 주문 결과 표 — 너비 고정 + '이유' 칸 줄바꿈으로 화면 너비와 무관하게 안정적으로 표시 */
+.data-table.order-result-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.data-table.order-result-table thead th,
+.data-table.order-result-table tbody td {
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.data-table.order-result-table tbody td.col-reason {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 /* ���� �˻��� ��Ÿ�� ���� */
