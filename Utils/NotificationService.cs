@@ -30,18 +30,17 @@ namespace AutoInvest.Utils
             var brevoSection = configuration.GetSection("Brevo");
             var smtpSection = configuration.GetSection("Smtp"); // 발신/수신 주소는 기존 설정과 호환 유지
 
+            // 빈 문자열("")도 미설정으로 간주 (appsettings 템플릿의 "" 값이 폴백을 막지 않도록)
             // API 키는 환경변수 우선 (시크릿)
-            _apiKey = Environment.GetEnvironmentVariable("BREVO_API_KEY")
-                      ?? brevoSection["ApiKey"]
-                      ?? string.Empty;
+            _apiKey = Coalesce(Environment.GetEnvironmentVariable("BREVO_API_KEY"), brevoSection["ApiKey"]);
 
-            // 수신자(관리자) — 기존 Smtp:AdminEmail 재사용, Brevo 섹션이 있으면 우선
-            _adminEmail = brevoSection["AdminEmail"] ?? smtpSection["AdminEmail"] ?? string.Empty;
+            // 수신자(관리자) — Brevo:AdminEmail 우선, 없으면 기존 Smtp:AdminEmail 재사용
+            _adminEmail = Coalesce(brevoSection["AdminEmail"], smtpSection["AdminEmail"]);
 
             // 발신자 이메일 — Brevo에 인증된 발신 주소. 미지정 시 관리자 이메일을 발신자로 사용
-            _senderEmail = brevoSection["SenderEmail"] ?? _adminEmail;
+            _senderEmail = Coalesce(brevoSection["SenderEmail"], _adminEmail);
 
-            _senderName = brevoSection["SenderName"] ?? smtpSection["SenderName"] ?? _senderName;
+            _senderName = Coalesce(brevoSection["SenderName"], smtpSection["SenderName"], _senderName);
         }
 
         /// <summary>
@@ -129,6 +128,16 @@ namespace AutoInvest.Utils
 
         private static string Truncate(string value, int max)
             => string.IsNullOrEmpty(value) || value.Length <= max ? value : value.Substring(0, max) + "...";
+
+        /// <summary>null·빈 문자열·공백을 건너뛰고 첫 유효 값을 반환합니다. 모두 비면 빈 문자열.</summary>
+        private static string Coalesce(params string?[] values)
+        {
+            foreach (var v in values)
+            {
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+            }
+            return string.Empty;
+        }
     }
 
     /// <summary>
