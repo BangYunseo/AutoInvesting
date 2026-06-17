@@ -143,7 +143,7 @@ namespace AutoInvest.Data
                 "KIS_ACCOUNT_NO"        => "Kis:AccountNo",
                 "AI_PROVIDER"           => "Ai:Provider",
                 "GEMINI_API_KEY"        => "Ai:GeminiApiKey",
-                "BREVO_API_KEY"         => "Brevo:ApiKey",
+                "RESEND_API_KEY"        => "Resend:ApiKey",
                 "API_ACCESS_KEY"        => "Security:ApiAccessKey",
                 "QUANT_WEIGHT"          => "Consensus:QuantWeight",
                 "CHART_AI_WEIGHT"       => "Consensus:ChartAiWeight",

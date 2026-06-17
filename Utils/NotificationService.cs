@@ -10,37 +10,40 @@ namespace AutoInvest.Utils
     /// <summary>
     /// 관리자 알림 메일 발송 서비스.
     /// Render.com이 아웃바운드 SMTP 포트(25/465/587)를 차단하므로, SMTP(MailKit) 대신
-    /// Brevo의 HTTP(REST) 트랜잭션 이메일 API(443 포트)를 사용한다.
+    /// Resend의 HTTP(REST) 이메일 API(443 포트)를 사용한다.
     /// </summary>
     public static class NotificationService
     {
-        private const string BrevoEndpoint = "https://api.brevo.com/v3/smtp/email";
+        private const string ResendEndpoint = "https://api.resend.com/emails";
+
+        // Resend 기본(테스트) 발신 도메인 — 도메인/발신자 인증 없이 사용 가능.
+        // 단, 이 주소로는 "Resend 계정에 등록된 본인 이메일"로만 수신 가능.
+        private const string DefaultSender = "onboarding@resend.dev";
 
         // 무한 대기 방지 — HTTP 호출 타임아웃 (SMTP 시절 2분 hang 재발 방지)
         private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
         private static readonly HttpClient _httpClient = new HttpClient { Timeout = RequestTimeout };
 
         private static string _apiKey = "";
-        private static string _senderEmail = "";
+        private static string _senderEmail = DefaultSender;
         private static string _senderName = "AutoInvesting System";
         private static string _adminEmail = "";
 
         public static void Initialize(Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
-            var brevoSection = configuration.GetSection("Brevo");
-            var smtpSection = configuration.GetSection("Smtp"); // 발신/수신 주소는 기존 설정과 호환 유지
+            var resendSection = configuration.GetSection("Resend");
+            var smtpSection = configuration.GetSection("Smtp"); // 수신 주소는 기존 설정과 호환 유지
 
-            // 빈 문자열("")도 미설정으로 간주 (appsettings 템플릿의 "" 값이 폴백을 막지 않도록)
             // API 키는 환경변수 우선 (시크릿)
-            _apiKey = Coalesce(Environment.GetEnvironmentVariable("BREVO_API_KEY"), brevoSection["ApiKey"]);
+            _apiKey = Coalesce(Environment.GetEnvironmentVariable("RESEND_API_KEY"), resendSection["ApiKey"]);
 
-            // 수신자(관리자) — Brevo:AdminEmail 우선, 없으면 기존 Smtp:AdminEmail 재사용
-            _adminEmail = Coalesce(brevoSection["AdminEmail"], smtpSection["AdminEmail"]);
+            // 수신자(관리자) — Resend:AdminEmail 우선, 없으면 기존 Smtp:AdminEmail 재사용
+            _adminEmail = Coalesce(resendSection["AdminEmail"], smtpSection["AdminEmail"]);
 
-            // 발신자 이메일 — Brevo에 인증된 발신 주소. 미지정 시 관리자 이메일을 발신자로 사용
-            _senderEmail = Coalesce(brevoSection["SenderEmail"], _adminEmail);
+            // 발신자 이메일 — 자체 도메인을 Resend에 인증했다면 그 주소, 아니면 기본 테스트 도메인 사용
+            _senderEmail = Coalesce(resendSection["SenderEmail"], DefaultSender);
 
-            _senderName = Coalesce(brevoSection["SenderName"], smtpSection["SenderName"], _senderName);
+            _senderName = Coalesce(resendSection["SenderName"], smtpSection["SenderName"], _senderName);
         }
 
         /// <summary>
@@ -68,7 +71,7 @@ namespace AutoInvest.Utils
         }
 
         /// <summary>
-        /// 관리자에게 알림 메일을 Brevo HTTP API로 발송합니다. (진단용 — 실패 시 예외를 그대로 전파)
+        /// 관리자에게 알림 메일을 Resend HTTP API로 발송합니다. (진단용 — 실패 시 예외를 그대로 전파)
         /// 설정 누락 시 <see cref="InvalidOperationException"/>, API 호출 실패 시 응답 본문을 담은 예외를 던집니다.
         /// 테스트/헬스체크 엔드포인트처럼 "실제 실패 원인"을 응답으로 확인해야 하는 곳에서 사용합니다.
         /// </summary>
@@ -79,23 +82,26 @@ namespace AutoInvest.Utils
             if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_senderEmail) || string.IsNullOrEmpty(_adminEmail))
             {
                 throw new InvalidOperationException(
-                    "이메일 설정(Brevo ApiKey / SenderEmail / AdminEmail)이 비어 있어 알림 메일을 발송할 수 없습니다. " +
-                    "Render 환경변수 BREVO_API_KEY 및 appsettings의 Smtp:AdminEmail(또는 Brevo:SenderEmail)을 확인하세요.");
+                    "이메일 설정(Resend ApiKey / SenderEmail / AdminEmail)이 비어 있어 알림 메일을 발송할 수 없습니다. " +
+                    "Render 환경변수 RESEND_API_KEY 및 appsettings의 Smtp:AdminEmail(또는 Resend:AdminEmail)을 확인하세요.");
             }
 
-            // ── Brevo 요청 본문 구성 ──
+            // ── Resend 요청 본문 구성 ──
+            string fromHeader = string.IsNullOrEmpty(_senderName)
+                ? _senderEmail
+                : $"{_senderName} <{_senderEmail}>";
+
             var payload = new
             {
-                sender = new { name = _senderName, email = _senderEmail },
-                to = new[] { new { email = _adminEmail, name = "Admin" } },
+                from = fromHeader,
+                to = new[] { _adminEmail },
                 subject = $"[AutoInvesting] {subject}",
-                htmlContent = messageBody
+                html = messageBody
             };
             string json = JsonSerializer.Serialize(payload);
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, BrevoEndpoint);
-            request.Headers.Add("accept", "application/json");
-            request.Headers.Add("api-key", _apiKey);
+            using var request = new HttpRequestMessage(HttpMethod.Post, ResendEndpoint);
+            request.Headers.Add("Authorization", $"Bearer {_apiKey}");
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
             using var cts = new CancellationTokenSource(RequestTimeout);
@@ -105,7 +111,7 @@ namespace AutoInvest.Utils
             {
                 string body = await response.Content.ReadAsStringAsync();
                 throw new HttpRequestException(
-                    $"Brevo 발송 실패 (HTTP {(int)response.StatusCode}): {Truncate(body, 500)}");
+                    $"Resend 발송 실패 (HTTP {(int)response.StatusCode}): {Truncate(body, 500)}");
             }
 
             Logger.Info($"[Notification] 관리자에게 알림 메일을 발송했습니다: {subject}");
@@ -118,7 +124,7 @@ namespace AutoInvest.Utils
         {
             return new EmailConfigStatus
             {
-                Provider = "Brevo (HTTP API)",
+                Provider = "Resend (HTTP API)",
                 ApiKeySet = !string.IsNullOrEmpty(_apiKey),
                 SenderEmail = _senderEmail,
                 SenderName = _senderName,
