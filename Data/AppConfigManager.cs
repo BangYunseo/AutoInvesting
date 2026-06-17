@@ -8,8 +8,9 @@ namespace AutoInvest.Data
 {
     /// <summary>
     /// 애플리케이션 설정값을 통합 관리합니다.
-    /// 우선순위: 환경변수 → appsettings.json → PostgreSQL DB (TB_APP_CONFIG)
+    /// 우선순위: 환경변수 → PostgreSQL DB (TB_APP_CONFIG) → appsettings.json
     /// 민감 정보(KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NO)는 환경변수 전용입니다.
+    /// DB는 런타임에 UI로 저장한 값을 보관하며, appsettings.json의 기본값을 항상 덮어씁니다.
     /// </summary>
     public static class AppConfigManager
     {
@@ -25,7 +26,8 @@ namespace AutoInvest.Data
         }
 
         /// <summary>
-        /// 설정값 조회. 우선순위: 환경변수 → appsettings.json → DB → 기본값
+        /// 설정값 조회. 우선순위: 환경변수 → DB(TB_APP_CONFIG) → appsettings.json → 기본값.
+        /// UI에서 저장한 DB 값이 appsettings.json 기본값을 항상 덮어씁니다.
         /// </summary>
         public static string Get(string key, string defaultValue = "")
         {
@@ -35,7 +37,12 @@ namespace AutoInvest.Data
                 string? envValue = Environment.GetEnvironmentVariable(key);
                 if (!string.IsNullOrEmpty(envValue)) return envValue;
 
-                // 2. appsettings.json (IConfiguration)
+                // 2. PostgreSQL DB (런타임 수정 가능한 설정 — 저장 시 항상 덮어쓰기)
+                //    DB 장애 시 null을 반환해 appsettings.json 기본값으로 폴백한다.
+                string? dbValue = TryGetFromDb(key);
+                if (!string.IsNullOrEmpty(dbValue)) return dbValue;
+
+                // 3. appsettings.json (IConfiguration) — DB에 저장된 적 없는 키의 초기 기본값
                 if (_configuration != null)
                 {
                     // 평탄화된 키 매핑: IS_PAPER_TRADING → Trading:IsPaperTrading 등
@@ -43,20 +50,37 @@ namespace AutoInvest.Data
                     if (!string.IsNullOrEmpty(configValue)) return configValue;
                 }
 
-                // 3. PostgreSQL DB (런타임 수정 가능한 설정)
-                using (var conn = DBManager.Instance.GetConnection())
-                using (var cmd = new NpgsqlCommand(
-                    "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
-                {
-                    cmd.Parameters.AddWithValue("@k", key);
-                    var result = cmd.ExecuteScalar();
-                    return result?.ToString() ?? defaultValue;
-                }
+                // 4. 기본값
+                return defaultValue;
             }
             catch (Exception ex)
             {
                 Logger.Error($"Config 조회 실패 [{key}]: {ex.Message}");
                 return defaultValue;
+            }
+        }
+
+        /// <summary>
+        /// TB_APP_CONFIG에서 설정값을 조회합니다.
+        /// 행이 없거나 DB 오류가 발생하면 null을 반환해 상위 호출부가
+        /// appsettings.json 기본값으로 폴백하도록 합니다.
+        /// </summary>
+        private static string? TryGetFromDb(string key)
+        {
+            try
+            {
+                using (var conn = DBManager.Instance.GetConnection())
+                using (var cmd = new NpgsqlCommand(
+                    "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
+                {
+                    cmd.Parameters.AddWithValue("@k", key);
+                    return cmd.ExecuteScalar()?.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"[Config] DB 조회 실패, 기본 설정으로 폴백 [{key}]: {ex.Message}");
+                return null;
             }
         }
 
