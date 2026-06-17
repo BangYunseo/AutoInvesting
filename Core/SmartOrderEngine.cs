@@ -337,8 +337,15 @@ namespace AutoInvest.Core
 
             Logger.Info($"[SmartOrder] === 스마트 주문 분석 시작 (종목 {strategies.Count}개, 전략={strategyType}) ===");
 
-            foreach (var strategy in strategies)
+            // ── 종목 간 AI 호출 간격(throttle) — Gemini 무료 티어 RPM 한도(429) 분산용 ──
+            //    실 AI(Gemini)일 때만 적용하고, Mock/Sim 검증 시에는 지연을 두지 않는다.
+            int throttleMs = (_analyzer is GeminiMarketAnalyzer)
+                ? (int.TryParse(AppConfigManager.Get("AI_THROTTLE_MS", "4000"), out int t) ? t : 4000)
+                : 0;
+
+            for (int i = 0; i < strategies.Count; i++)
             {
+                var strategy = strategies[i];
                 try
                 {
                     var result = await AnalyzeAsync(strategy.Ticker, strategyType);
@@ -373,6 +380,12 @@ namespace AutoInvest.Core
                 {
                     Logger.Error($"[SmartOrder] {strategy.Ticker} 처리 실패: {ex.Message}");
                     _ = NotificationService.SendEmailAsync($"주문 처리 실패: {strategy.Ticker}", $"오류 내용: {ex.Message}");
+                }
+
+                // ── 다음 종목 전 호출 간격 (마지막 종목 뒤에는 대기하지 않음) ──
+                if (throttleMs > 0 && i < strategies.Count - 1)
+                {
+                    await Task.Delay(throttleMs);
                 }
             }
 

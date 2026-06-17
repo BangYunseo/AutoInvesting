@@ -65,41 +65,33 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 차트 에이전트와 펀더멘털 에이전트를 병렬 실행하여 MultiAgentAnalysisResult를 반환합니다.
-        /// 하나 이상의 에이전트가 실패하면 해당 에이전트는 HOLD fallback으로 대체됩니다.
+        /// 차트 + 펀더멘털 두 관점을 단일 Gemini 호출로 동시에 분석하여 MultiAgentAnalysisResult를 반환합니다.
+        /// (무료 티어 호출 한도(429) 절감을 위해 종목당 호출을 2회 → 1회로 통합)
+        /// 호출/파싱 실패 시 두 에이전트 모두 HOLD fallback으로 대체됩니다.
         /// </summary>
         /// <param name="ticker">종목 코드</param>
         /// <param name="indicators">퀀트 지표 (RSI, MACD 등)</param>
-        /// <param name="ohlcv">최근 OHLCV 데이터 (차트 에이전트 입력용)</param>
+        /// <param name="ohlcv">최근 OHLCV 데이터 (차트 분석 입력용)</param>
         public async Task<MultiAgentAnalysisResult> AnalyzeAsync(
             string ticker,
             IndicatorDto indicators,
             List<OhlcvDto>? ohlcv = null)
         {
-            Logger.Info($"[GeminiAI] {ticker} — 다중 에이전트 분석 시작 (차트 + 펀더멘털 병렬 실행)");
+            Logger.Info($"[GeminiAI] {ticker} — 통합 분석 시작 (차트 + 펀더멘털 단일 호출)");
 
             // ── 투자 철학 로드 ──
             string philosophy = AppConfigManager.Get("AI_PHILOSOPHY", "");
 
-            // ── 프롬프트 조립 (에이전트별 분리) ──
-            string chartSystemPrompt      = PromptBuilder.BuildSystemPrompt(philosophy);
-            string chartUserPrompt        = PromptBuilder.BuildUserPrompt(ticker, indicators, ohlcv);
-            string fundamentalSystemPrompt = PromptBuilder.BuildFundamentalSystemPrompt(philosophy);
-            string fundamentalUserPrompt   = PromptBuilder.BuildFundamentalUserPrompt(ticker, indicators);
+            // ── 통합 프롬프트 조립 (두 관점을 한 번에) ──
+            string systemPrompt = PromptBuilder.BuildCombinedSystemPrompt(philosophy);
+            string userPrompt   = PromptBuilder.BuildCombinedUserPrompt(ticker, indicators, ohlcv);
 
-            // ── Task.WhenAll: 두 에이전트 병렬 실행 ──
-            var chartTask       = CallGeminiAsync(chartSystemPrompt, chartUserPrompt, ticker, "차트");
-            var fundamentalTask = CallGeminiAsync(fundamentalSystemPrompt, fundamentalUserPrompt, ticker, "펀더멘털");
+            var (chartResult, fundamentalResult) = await CallGeminiCombinedAsync(systemPrompt, userPrompt, ticker);
 
-            AiAnalysisResult[] results = await Task.WhenAll(chartTask, fundamentalTask);
-
-            AiAnalysisResult chartResult       = results[0];
-            AiAnalysisResult fundamentalResult = results[1];
-
-            // ── 두 에이전트 모두 정상 응답했는지 판단 ──
+            // ── 두 의견 모두 정상 응답했는지 판단 ──
             bool isFull = chartResult.ConfidenceScore > 0m && fundamentalResult.ConfidenceScore > 0m;
 
-            Logger.Info($"[GeminiAI] {ticker} — 에이전트 의견 수집 완료 | " +
+            Logger.Info($"[GeminiAI] {ticker} — 의견 수집 완료 | " +
                 $"차트: {chartResult.Signal}({chartResult.ConfidenceScore:F2}) | " +
                 $"펀더멘털: {fundamentalResult.Signal}({fundamentalResult.ConfidenceScore:F2}) | " +
                 $"전체응답: {isFull}");
@@ -113,22 +105,20 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 단일 Gemini API 호출을 수행합니다 (에이전트 1개).
-        /// 실패 시 HOLD fallback을 반환하여 다른 에이전트와의 합의 흐름을 보호합니다.
+        /// 통합 Gemini API 호출을 1회 수행하여 차트/펀더멘털 두 의견을 함께 받아옵니다.
+        /// 실패 시 두 의견 모두 HOLD fallback을 반환하여 합의 흐름을 보호합니다.
         /// </summary>
-        /// <param name="systemPrompt">에이전트 역할 정의 프롬프트</param>
-        /// <param name="userPrompt">분석 요청 프롬프트</param>
+        /// <param name="systemPrompt">두 분석가 역할을 정의한 통합 System Prompt</param>
+        /// <param name="userPrompt">공통 종목 데이터 User Prompt</param>
         /// <param name="ticker">종목 코드 (로그용)</param>
-        /// <param name="agentLabel">에이전트 식별자 ("차트" 또는 "펀더멘털", 로그용)</param>
-        private async Task<AiAnalysisResult> CallGeminiAsync(
+        private async Task<(AiAnalysisResult Chart, AiAnalysisResult Fundamental)> CallGeminiCombinedAsync(
             string systemPrompt,
             string userPrompt,
-            string ticker,
-            string agentLabel)
+            string ticker)
         {
             try
             {
-                // ── Gemini API 요청 Body ──
+                // ── Gemini API 요청 Body (두 의견을 담기 위해 출력 토큰 상향) ──
                 var requestBody = new
                 {
                     system_instruction = new
@@ -142,7 +132,7 @@ namespace AutoInvest.Core
                     generationConfig = new
                     {
                         temperature = 0.3,
-                        maxOutputTokens = 256
+                        maxOutputTokens = 512
                     }
                 };
 
@@ -160,24 +150,24 @@ namespace AutoInvest.Core
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Logger.Warn($"[GeminiAI-{agentLabel}] {ticker} API 오류 HTTP {(int)response.StatusCode}: " +
+                    Logger.Warn($"[GeminiAI] {ticker} API 오류 HTTP {(int)response.StatusCode}: " +
                         $"{responseBody[..Math.Min(200, responseBody.Length)]}");
-                    return BuildFallback(agentLabel);
+                    return (BuildFallback("차트"), BuildFallback("펀더멘털"));
                 }
 
-                return ParseResponse(responseBody, ticker, agentLabel);
+                return ParseCombinedResponse(responseBody, ticker);
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[GeminiAI-{agentLabel}] {ticker} 에이전트 호출 실패 — HOLD fallback: {ex.Message}");
-                return BuildFallback(agentLabel);
+                Logger.Warn($"[GeminiAI] {ticker} 통합 호출 실패 — HOLD fallback: {ex.Message}");
+                return (BuildFallback("차트"), BuildFallback("펀더멘털"));
             }
         }
 
         /// <summary>
-        /// Gemini 응답 JSON을 파싱하여 AiAnalysisResult로 변환합니다.
+        /// 통합 Gemini 응답 JSON(chart/fundamental 두 객체)을 파싱합니다.
         /// </summary>
-        private AiAnalysisResult ParseResponse(string responseBody, string ticker, string agentLabel)
+        private (AiAnalysisResult Chart, AiAnalysisResult Fundamental) ParseCombinedResponse(string responseBody, string ticker)
         {
             try
             {
@@ -191,7 +181,7 @@ namespace AutoInvest.Core
                     .GetProperty("text")
                     .GetString() ?? string.Empty;
 
-                // ── Token Usage 파싱 및 DB 기록 ──
+                // ── Token Usage 파싱 및 DB 기록 (단일 호출이므로 1건 합산 기록) ──
                 if (doc.RootElement.TryGetProperty("usageMetadata", out var usageProp))
                 {
                     int promptTokens = usageProp.TryGetProperty("promptTokenCount", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
@@ -201,7 +191,7 @@ namespace AutoInvest.Core
                     TokenUsageDAO.Insert(new TokenUsageDto
                     {
                         Ticker = ticker,
-                        AgentType = agentLabel == "차트" ? "CHART_AI" : "FUND_AI",
+                        AgentType = "COMBINED_AI",
                         PromptTokens = promptTokens,
                         CompletionTokens = compTokens,
                         TotalTokens = totalTokens
@@ -213,35 +203,53 @@ namespace AutoInvest.Core
                 using var resultDoc = JsonDocument.Parse(cleanJson);
                 var root = resultDoc.RootElement;
 
-                string signalStr   = root.GetProperty("signal").GetString() ?? "HOLD";
-                decimal confidence = root.GetProperty("confidence").GetDecimal();
-                string reason      = root.GetProperty("reason").GetString() ?? string.Empty;
-
-                SmartOrderSignal signal = signalStr.ToUpper() switch
-                {
-                    "BUY"  => SmartOrderSignal.BUY,
-                    "SELL" => SmartOrderSignal.SELL,
-                    _      => SmartOrderSignal.HOLD
-                };
-
-                Logger.Info($"[GeminiAI-{agentLabel}] {ticker} → {signal} (확신도: {confidence:F2}) | {reason}");
-
-                return new AiAnalysisResult
-                {
-                    Signal          = signal,
-                    ConfidenceScore = confidence,
-                    Reason          = reason
-                };
+                var chart       = ParseAgentObject(root, "chart", ticker, "차트");
+                var fundamental = ParseAgentObject(root, "fundamental", ticker, "펀더멘털");
+                return (chart, fundamental);
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[GeminiAI-{agentLabel}] {ticker} 응답 파싱 실패: {ex.Message}. " +
+                Logger.Warn($"[GeminiAI] {ticker} 통합 응답 파싱 실패: {ex.Message}. " +
                     $"원문: {responseBody[..Math.Min(300, responseBody.Length)]}");
                 _ = NotificationService.SendEmailAsync(
-                    $"AI [{agentLabel}] 응답 파싱 실패 (HOLD Fallback)",
-                    $"종목: {ticker}\n에이전트: {agentLabel}\n\n원문:\n{responseBody}");
+                    "AI 통합 응답 파싱 실패 (HOLD Fallback)",
+                    $"종목: {ticker}\n\n원문:\n{responseBody}");
+                return (BuildFallback("차트"), BuildFallback("펀더멘털"));
+            }
+        }
+
+        /// <summary>
+        /// 통합 응답 JSON에서 지정 키("chart"/"fundamental")의 의견 객체를 AiAnalysisResult로 파싱합니다.
+        /// 키가 없거나 필드가 비면 HOLD fallback을 반환합니다.
+        /// </summary>
+        private static AiAnalysisResult ParseAgentObject(JsonElement root, string key, string ticker, string agentLabel)
+        {
+            if (!root.TryGetProperty(key, out var obj) || obj.ValueKind != JsonValueKind.Object)
+            {
+                Logger.Warn($"[GeminiAI-{agentLabel}] {ticker} 응답에 '{key}' 항목 누락 — HOLD fallback");
                 return BuildFallback(agentLabel);
             }
+
+            string signalStr = obj.TryGetProperty("signal", out var s) ? (s.GetString() ?? "HOLD") : "HOLD";
+            decimal confidence = obj.TryGetProperty("confidence", out var c) && c.ValueKind == JsonValueKind.Number
+                ? c.GetDecimal() : 0m;
+            string reason = obj.TryGetProperty("reason", out var r) ? (r.GetString() ?? string.Empty) : string.Empty;
+
+            SmartOrderSignal signal = signalStr.ToUpper() switch
+            {
+                "BUY"  => SmartOrderSignal.BUY,
+                "SELL" => SmartOrderSignal.SELL,
+                _      => SmartOrderSignal.HOLD
+            };
+
+            Logger.Info($"[GeminiAI-{agentLabel}] {ticker} → {signal} (확신도: {confidence:F2}) | {reason}");
+
+            return new AiAnalysisResult
+            {
+                Signal          = signal,
+                ConfidenceScore = confidence,
+                Reason          = reason
+            };
         }
 
         /// <summary>

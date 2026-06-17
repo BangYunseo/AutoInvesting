@@ -155,5 +155,85 @@ namespace AutoInvest.Utils
             sb.AppendLine($"\n[YOUR ROLE] You are the FUNDAMENTAL ANALYST on the Investment Committee. Analyze the macro/sector context for {ticker} and provide your BUY/SELL/HOLD decision:");
             return sb.ToString();
         }
+
+        // ── 통합 단일 호출 (차트 + 펀더멘털을 한 번의 Gemini 호출로) ─────────────
+        // 무료 티어 호출 한도(429) 절감을 위해 두 애널리스트를 1회 호출로 합칩니다.
+
+        /// <summary>
+        /// [통합] 차트 분석가와 펀더멘털 분석가 역할을 한 번에 수행하도록 지시하는 System Prompt.
+        /// 응답은 chart/fundamental 두 의견을 담은 단일 JSON으로 받습니다.
+        /// </summary>
+        /// <param name="investmentPhilosophy">사용자 설정 투자 철학 (선택적)</param>
+        public static string BuildCombinedSystemPrompt(string investmentPhilosophy = "")
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("You are an overseas ETF Investment Committee composed of TWO INDEPENDENT analysts.");
+            sb.AppendLine("In a SINGLE response you must produce BOTH analysts' opinions. They must reason independently — do not copy one into the other.");
+
+            if (!string.IsNullOrWhiteSpace(investmentPhilosophy))
+            {
+                sb.AppendLine("\n[INVESTMENT PHILOSOPHY — both analysts MUST reflect this]");
+                sb.AppendLine(investmentPhilosophy);
+            }
+
+            sb.AppendLine("\n[ANALYST 1 — CHART TECHNICAL ANALYST]");
+            sb.AppendLine("Decide BUY/SELL/HOLD using ONLY technical indicators (RSI, MACD, Bollinger Bands, price position, OHLCV trend). Ignore macro/news.");
+            sb.AppendLine("- Avoid catching a falling knife: if RSI is very low (< 30) but MACD Histogram is sharply negative or BB is breaking lower severely, output HOLD.");
+            sb.AppendLine("- A BUY is safer when MACD Line crosses above MACD Signal alongside a low RSI (< 40).");
+            sb.AppendLine("- If RSI > 70 and Position > 0.85, confidently signal SELL.");
+            sb.AppendLine("- When indicators conflict or are unclear, output HOLD.");
+
+            sb.AppendLine("\n[ANALYST 2 — MACRO & FUNDAMENTAL ANALYST]");
+            sb.AppendLine("Judge whether the CURRENT MARKET ENVIRONMENT favors this ETF, based on its inferred sector, the macro cycle (rates, USD, inflation), and a 3~6 month horizon.");
+            sb.AppendLine("- Tech ETF (QQQ/XLK/QQQM...) with low RSI: weigh whether macro (rate cuts vs hikes) supports a bounce.");
+            sb.AppendLine("- Bond ETF (TLT/IEF/AGG...) with rising rates: lean HOLD/SELL even if technicals look attractive.");
+            sb.AppendLine("- Commodity ETF (GLD/SLV/DBC...) with high inflation expectations: a low position may be a long-term entry.");
+            sb.AppendLine("- When macro context is uncertain or the ticker is unrecognized, default to HOLD.");
+
+            sb.AppendLine("\nYou MUST respond with ONLY a valid JSON object in this EXACT format (no markdown, no extra text):");
+            sb.AppendLine("{\"chart\":{\"signal\":\"BUY\",\"confidence\":0.82,\"reason\":\"한국어 1~2문장\"},\"fundamental\":{\"signal\":\"HOLD\",\"confidence\":0.60,\"reason\":\"한국어 1~2문장\"}}");
+
+            sb.AppendLine("\nRules:");
+            sb.AppendLine("- Each signal: exactly \"BUY\", \"SELL\", or \"HOLD\"");
+            sb.AppendLine("- Each confidence: a decimal from 0.0 to 1.0");
+            sb.AppendLine("- Each reason: 1~2 sentences in Korean");
+            sb.AppendLine("- Output ONLY the JSON object, nothing else");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// [통합] 두 분석가가 공통으로 사용할 종목 데이터(차트 지표 + OHLCV + 섹터 추론 컨텍스트) User Prompt.
+        /// </summary>
+        /// <param name="ticker">종목 코드</param>
+        /// <param name="indicators">퀀트 지표</param>
+        /// <param name="ohlcv">최근 OHLCV 데이터 (최대 20개 사용)</param>
+        public static string BuildCombinedUserPrompt(string ticker, IndicatorDto indicators, List<OhlcvDto>? ohlcv = null)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Ticker: {ticker}");
+            sb.AppendLine($"Current Price Position (20-day range, 0=lowest, 1=highest): {indicators.Position:F3}");
+            sb.AppendLine($"RSI(14): {indicators.Rsi14:F2}");
+            sb.AppendLine($"MACD Line: {indicators.MacdLine:F4}");
+            sb.AppendLine($"MACD Signal: {indicators.MacdSignal:F4}");
+            sb.AppendLine($"MACD Histogram: {indicators.MacdHistogram:F4}");
+            sb.AppendLine($"Bollinger Band Upper: {indicators.BbUpper:F2}");
+            sb.AppendLine($"Bollinger Band Middle: {indicators.BbMiddle:F2}");
+            sb.AppendLine($"Bollinger Band Lower: {indicators.BbLower:F2}");
+
+            if (ohlcv != null && ohlcv.Count > 0)
+            {
+                int take = System.Math.Min(ohlcv.Count, 20);
+                sb.AppendLine($"\nRecent {take}-day OHLCV (Date, Close, Volume):");
+                for (int i = ohlcv.Count - take; i < ohlcv.Count; i++)
+                {
+                    var bar = ohlcv[i];
+                    sb.AppendLine($"  {bar.Date:yyyy-MM-dd}  C={bar.Close:F2}  V={bar.Volume}");
+                }
+            }
+
+            sb.AppendLine($"\nProvide BOTH the CHART analyst's and the FUNDAMENTAL analyst's independent decisions for {ticker} in the required JSON format.");
+            return sb.ToString();
+        }
     }
 }
