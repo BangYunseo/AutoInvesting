@@ -4,7 +4,7 @@ import ProgressLoader from '../components/ProgressLoader';
 const STRATEGY_TYPES = ['MEAN_REVERSION', 'MOMENTUM', 'MIXED'];
 
 // 예상 소요시간(초) — 진행바 추정용
-const ANALYZE_EST_SEC = 8;     // 단일 종목 분석: 시세·OHLCV 조회 + AI 통합 1회
+const ANALYZE_EST_SEC = 24;    // 단일 종목 분석: 시세·OHLCV 조회 + AI 통합 1회 (실측 ~24초)
 const EXECUTE_EST_SEC = 45;    // 전체 실행: 종목별 순차 분석 + 호출 간격(throttle)
 
 /**
