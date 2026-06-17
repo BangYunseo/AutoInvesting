@@ -140,6 +140,10 @@ namespace AutoInvest.Controllers
             }
         }
 
+        /// <summary>
+        /// SMTP 설정으로 실제 테스트 이메일을 발송하고, 실패 시 그 원인을 HTTP 응답에 그대로 반환합니다.
+        /// (운영 경로와 달리 예외를 삼키지 않으므로 "메일이 안 오는 진짜 이유"를 즉시 확인할 수 있습니다.)
+        /// </summary>
         [HttpGet("send-test-email")]
         public async Task<IActionResult> SendTestEmail()
         {
@@ -147,14 +151,89 @@ namespace AutoInvest.Controllers
             string body = "<p>이것은 <b>AutoInvesting 시스템</b>에서 보낸 <b>테스트 이메일</b>입니다.<br/>이 메일이 성공적으로 도착했다면 SMTP 설정이 올바르게 작동하는 것입니다.</p>";
             try
             {
-                await NotificationService.SendEmailAsync(subject, body);
-                return Ok("테스트 이메일 발송 시도 완료. Render.com 로그를 확인하거나 이메일 수신 여부를 확인하세요.");
+                // 진단용: 실패 원인을 응답으로 확인하기 위해 예외 전파 버전을 사용
+                await NotificationService.SendEmailOrThrowAsync(subject, body);
+                return Ok(new { ok = true, message = "테스트 이메일 발송 성공. 수신함(스팸함 포함)을 확인하세요." });
             }
-            catch (System.Exception ex)
+            catch (InvalidOperationException ex)
             {
-                Logger.Error($"[TestController] 테스트 이메일 발송 중 오류 발생: {ex.Message}");
-                return StatusCode(500, $"테스트 이메일 발송 중 오류 발생: {ex.Message}");
+                // 설정 누락 — 발송 시도조차 못 한 경우
+                Logger.Warn($"[TestController] 테스트 이메일 설정 누락: {ex.Message}");
+                return StatusCode(503, new { ok = false, reason = "CONFIG_MISSING", message = ex.Message });
             }
+            catch (Exception ex)
+            {
+                // SMTP 연결/인증/발송 실패 — 실제 원인을 그대로 노출
+                Logger.Error($"[TestController] 테스트 이메일 발송 중 오류 발생: {ex.Message}");
+                return StatusCode(500, new { ok = false, reason = "SMTP_ERROR", message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// 시스템 핵심 의존성(SMTP 설정 / DB 연결 / KIS·Sim 로그인)을 한 번에 점검합니다.
+        /// 비밀번호·계정 등 시크릿 값은 노출하지 않고 "설정됨/연결됨" 여부만 반환합니다.
+        /// "지금 무엇이 동작하지 않는지"를 응답 한 번으로 확인하기 위한 헬스체크입니다.
+        /// </summary>
+        [HttpGet("health")]
+        public async Task<IActionResult> Health()
+        {
+            // ── SMTP 설정 점검 (시크릿 미노출) ──
+            var smtp = NotificationService.GetConfigStatus();
+
+            // ── DB 연결 점검 ──
+            bool dbOk = false;
+            string? dbError = null;
+            try
+            {
+                using var conn = DBManager.Instance.GetConnection();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT 1";
+                cmd.ExecuteScalar();
+                dbOk = true;
+            }
+            catch (Exception ex)
+            {
+                dbError = ex.Message;
+                Logger.Error($"[Health] DB 연결 점검 실패: {ex.Message}");
+            }
+
+            // ── 브로커(KIS/Sim) 로그인 점검 ──
+            bool brokerOk = false;
+            string? brokerError = null;
+            try
+            {
+                var broker = _sessionManager.GetClient();
+                if (!broker.IsLoggedIn)
+                {
+                    await broker.LoginAsync();
+                }
+                brokerOk = broker.IsLoggedIn;
+            }
+            catch (Exception ex)
+            {
+                brokerError = ex.Message;
+                Logger.Error($"[Health] 브로커 로그인 점검 실패: {ex.Message}");
+            }
+
+            bool allOk = smtp.IsReady && dbOk && brokerOk;
+            var payload = new
+            {
+                ok = allOk,
+                smtp = new
+                {
+                    ready = smtp.IsReady,
+                    host = smtp.Host,
+                    port = smtp.Port,
+                    useSsl = smtp.UseSsl,
+                    usernameSet = smtp.UsernameSet,
+                    passwordSet = smtp.PasswordSet,
+                    adminEmailSet = smtp.AdminEmailSet
+                },
+                db = new { ok = dbOk, error = dbError },
+                broker = new { ok = brokerOk, error = brokerError }
+            };
+
+            return allOk ? Ok(payload) : StatusCode(503, payload);
         }
     }
 }
