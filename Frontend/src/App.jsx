@@ -12,6 +12,12 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app-layout">
+        {/* ── 시스템 가동 상태 (우측 상단 고정) ── */}
+        <div className="app-status-fixed">
+          <span className="status-dot" />
+          시스템 가동 중
+        </div>
+
         {/* ── 네비게이션 바 ── */}
         <nav className="app-nav">
           <div className="app-nav__brand">
@@ -52,11 +58,6 @@ function App() {
               <span className="nav-link__icon">⚙️</span>
               설정
             </NavLink>
-          </div>
-
-          <div className="app-nav__status">
-            <span className="status-dot" />
-            시스템 가동 중
           </div>
         </nav>
 

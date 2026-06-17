@@ -208,12 +208,21 @@ a:hover {
   font-size: 1rem;
 }
 
-.app-nav__status {
+.app-status-fixed {
+  position: fixed;
+  top: 16px;
+  right: 32px;
+  z-index: 200;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 6px 12px;
   font-size: 0.8rem;
   color: var(--text-muted);
+  background: rgba(11, 14, 20, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
 }
 
 .status-dot {
@@ -713,7 +722,7 @@ a:hover {
     grid-template-columns: 1fr;
   }
 
-  .app-nav__status {
+  .app-status-fixed {
     display: none;
   }
 }
