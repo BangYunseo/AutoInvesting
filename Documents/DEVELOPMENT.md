@@ -24,6 +24,79 @@
 - **Phase 5-c** (모니터링 대시보드 UI — 성과/비용 조회 화면): ✅ **완료**
 - **Phase 5-d** (성과 기반 피드백 루프: 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증): ✅ **완료**
 - **Phase 6-a** (SimBroker 학습데이터 생성 + SIM/REAL 출처 분리): ✅ **완료**
+- **Phase 6-b** (실데이터 운영 전환 · AI 호출 최적화 · UX 개선): ✅ **완료**
+
+---
+
+## Phase 6-b 상세 변경 이력 — 실데이터 운영 전환 · AI 호출 최적화 · UX 개선
+
+### 핵심: "로컬 목업에 머물던 운영을 Render 실데이터로 정상화 + 무료 티어 한도(429) 대응 + 분석 UX 개선"
+
+배경: Render 배포본의 AI가 (1) 폐기된 Gemini 모델(`gemini-1.5-flash`, v1beta 404)과
+(2) 무료 티어 쿼터 초과(429)로 사실상 동작하지 못해 전 종목이 관망(HOLD) 처리되고 있었다.
+또한 분석 판단 기준의 가시성과 분석 대기 중 UX가 부족했다.
+
+> 환경 구분: 로컬/회사 PC는 `appsettings.local.json` 부재 시 SimBroker+mock으로 동작하고,
+> Render는 환경변수로 KIS 모의투자 실시세 + 실 Gemini로 동작한다.
+> (SimBroker는 현재가가 가격범위 정중앙으로 고정되어 Position이 항상 0.5 → MEAN_REVERSION 진입조건 미충족)
+
+### 1. 실 Gemini 연동 정상화 — 폐기 모델 대응 (`fix`, ff5c75d)
+- `gemini-1.5-flash` 폐기(404) → 모델명을 `GEMINI_MODEL` 설정값으로 분리, 기본값 `gemini-2.0-flash`
+- 모델이 폐기돼도 코드 수정 없이 환경변수/설정만 교체하면 되도록 개선
+- 사용 가능 모델 확인: Gemini ListModels(`GET /v1beta/models`)
+
+### 2. 무료 티어 429 대응 — AI 호출 최적화 (`perf`, 69bb371)
+- **호출 통합(A)**: 종목당 Gemini 호출 2회(차트+펀더 병렬) → **1회 통합**. 한 응답에 chart/fundamental 두 의견을 담아 파싱 → 호출량 50% 절감
+- **호출 간격(B)**: 종목 순회에 `AI_THROTTLE_MS`(기본 4초) 간격 추가. 실 Gemini일 때만 적용(Mock/Sim 미적용)
+- 토큰 사용 기록은 단일 호출이므로 `COMBINED_AI`로 1건 기록(기존 CHART_AI/FUND_AI 과거 데이터는 보존)
+
+### 3. AI 모델 선택 UI (`feat`, b9cec0a)
+- `GET /api/config/gemini-models` — 현재 키로 사용 가능한 gemini 계열(generateContent 지원) 모델 목록 프록시 조회
+- `ConfigController`에 `SessionManager` 주입 → 설정 저장 후 `Reset()` 호출로 다음 분석부터 즉시 반영
+- 설정 화면에 "AI 분석 모델" 드롭다운 카드 추가(Gemini 모드일 때 활성, DB 저장 → 환경변수 미설정 시 적용)
+
+### 4. 적응형 임계값 진단 API (`feat`, 00c8455)
+- `GET /api/strategy/adaptive-status` — 활성 전략 종목별 누적 스냅샷 표본 수 + 현재 적용 임계값(기본값/적응값 구분)을 한 번에 조회
+- `AdaptiveThresholdEngine.GetStatus()` 추가(기존 판정 로직은 불변, 읽기 전용 진단)
+
+### 5. UX 개선 (`design`, 5d05bff / dcfd59d)
+- 퀀트 분석/스마트 주문 실행 시 **예상시간 진행바 + 경과 시간** 표시(`ProgressLoader`)
+- "시스템 가동 중" 표시를 네비게이션 흐름에서 분리해 화면 우측 상단 고정
+
+### 6-b 신규 파일 (2건)
+| 파일 | 설명 |
+|------|------|
+| `Data/DTO/AdaptiveThresholdStatusDto.cs` | 적응형 임계값 진단 결과 DTO |
+| `Frontend/src/components/ProgressLoader.jsx` | 예상시간 기반 진행바 + 경과초 로딩 컴포넌트 |
+
+### 6-b 수정 파일
+| 파일 | 변경 |
+|------|------|
+| `Core/GeminiMarketAnalyzer.cs` | 모델명 설정화 + 차트/펀더 단일 호출 통합 파싱 |
+| `Core/SmartOrderEngine.cs` | 종목 간 호출 간격(`AI_THROTTLE_MS`) |
+| `Core/Quant/AdaptiveThresholdEngine.cs` | `GetStatus()` 진단 메서드 |
+| `Utils/PromptBuilder.cs` | 통합 프롬프트 `BuildCombinedSystemPrompt`/`BuildCombinedUserPrompt` |
+| `Data/AppConfigManager.cs` | `GEMINI_MODEL → Ai:Model` 매핑 |
+| `Controllers/ConfigController.cs` | SessionManager 주입+Reset, GET 확장, `gemini-models` 엔드포인트 |
+| `Controllers/StrategyController.cs` | `adaptive-status` 엔드포인트 |
+| `appsettings.json` | `Ai:Model` 기본값(gemini-2.0-flash) |
+| `Frontend/src/pages/Settings.jsx` | AI 모델 드롭다운 카드 |
+| `Frontend/src/pages/Order.jsx` | 진행바 연동 |
+| `Frontend/src/App.jsx` + `index.css` | 가동 상태 표시 고정 + 진행바 스타일 |
+
+### 신규 설정 키
+| 키 | 기본값 | 용도 |
+|----|--------|------|
+| `GEMINI_MODEL` | `gemini-2.0-flash` | 사용할 Gemini 모델명 (UI/환경변수로 변경) |
+| `AI_THROTTLE_MS` | `4000` | 종목 간 AI 호출 간격(ms, 실 Gemini일 때만) |
+
+### 관련 커밋
+- `dcfd59d` design: 시스템 가동 상태 표시를 우측 상단 고정
+- `00c8455` feat: 적응형 임계값 작동 현황 진단 API 추가
+- `ff5c75d` fix: 폐기된 Gemini 1.5-flash 모델을 설정값 기반으로 교체
+- `69bb371` perf: Gemini 차트+펀더 단일 호출 통합 및 종목 간 호출 간격 추가
+- `b9cec0a` feat: 설정 화면에서 AI 분석 모델 선택 기능 추가
+- `5d05bff` design: 퀀트 분석 진행 상태 표시(진행바+경과시간) 추가
 
 ---
 
