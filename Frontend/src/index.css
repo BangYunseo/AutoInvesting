@@ -924,18 +924,13 @@ a:hover {
   background: rgba(6, 182, 212, 0.06);
 }
 
-/* ── Order 페이지 2단 레이아웃 ── */
+/* ── Order 페이지 세로 적층 레이아웃 ── */
+/* 창 너비를 늘려도 종목 퀀트 분석과 수동 스마트 주문 카드가 같은 가로줄에 오지 않도록 항상 1단으로 쌓는다. */
 .order-layout {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: 1fr;
   gap: 20px;
   align-items: start;
-}
-
-@media (max-width: 1024px) {
-  .order-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ── Settings 페이지 그리드 ── */
