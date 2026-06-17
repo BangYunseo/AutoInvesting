@@ -15,10 +15,10 @@ namespace AutoInvest.Controllers
     [Route("api/[controller]")]
     public class MonitoringController : ControllerBase
     {
-        // Gemini 1.5 Flash 공식 단가 (128k 이하 컨텍스트 기준, USD / 1M tokens)
-        // 참고: https://ai.google.dev/pricing — 입력 $0.075, 출력 $0.30
-        private const decimal INPUT_USD_PER_MILLION = 0.075m;
-        private const decimal OUTPUT_USD_PER_MILLION = 0.30m;
+        // Gemini 2.0 Flash 공식 단가 (USD / 1M tokens) — 현재 기본 모델 gemini-2.0-flash 기준
+        // 참고: https://ai.google.dev/pricing — 입력 $0.10, 출력 $0.40
+        private const decimal INPUT_USD_PER_MILLION = 0.10m;
+        private const decimal OUTPUT_USD_PER_MILLION = 0.40m;
 
         private static decimal EstimateCostUsd(long promptTokens, long completionTokens)
         {
