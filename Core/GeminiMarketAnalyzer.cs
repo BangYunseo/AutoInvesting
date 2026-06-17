@@ -35,15 +35,22 @@ namespace AutoInvest.Core
         private readonly string _apiKey;
         private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
 
-        // Gemini 1.5 Flash — 무료 티어: 분당 15회, 일 1,500회
-        // 종목 5개 × 에이전트 2개 = 사이클당 최대 10회 호출 → 제한 내 여유 있음
-        private const string ModelEndpoint =
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+        // 사용할 Gemini 모델명은 GEMINI_MODEL 설정값으로 관리합니다.
+        // (모델이 폐기되면 코드 수정 없이 환경변수만 교체하면 됩니다.)
+        // 사용 가능한 모델은 ListModels API로 확인: GET /v1beta/models?key=...
+        private const string DefaultModel = "gemini-2.0-flash";
+        private readonly string _modelEndpoint;
 
         /// <param name="apiKey">Gemini API 키 (AI Studio에서 발급)</param>
         public GeminiMarketAnalyzer(string apiKey)
         {
             _apiKey = apiKey;
+
+            // ── 모델명 로드 (설정 없으면 기본 모델 사용) ──
+            string model = AppConfigManager.Get("GEMINI_MODEL", DefaultModel);
+            _modelEndpoint =
+                $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent";
+            Logger.Info($"[GeminiAI] 사용 모델: {model}");
 
             // ── Polly 재시도: 429/5xx 발생 시 최대 3회, 지수 백오프 ──
             _retryPolicy = Policy
@@ -144,7 +151,7 @@ namespace AutoInvest.Core
                 // ── HTTP 호출 (Polly 재시도 포함) ──
                 var response = await _retryPolicy.ExecuteAsync(() =>
                     _httpClient.SendAsync(new HttpRequestMessage(
-                        HttpMethod.Post, $"{ModelEndpoint}?key={_apiKey}")
+                        HttpMethod.Post, $"{_modelEndpoint}?key={_apiKey}")
                     {
                         Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
                     }));
