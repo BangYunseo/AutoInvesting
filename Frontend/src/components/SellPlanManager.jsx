@@ -123,100 +123,121 @@ const SellPlanManager = () => {
 
   return (
     <div>
-      <div className="card">
-        <h2>새 분할매도 설정</h2>
-        <form onSubmit={handleCreatePlan} className="grid-2">
-          <div className="form-group">
-            <label>종목명 (Ticker)</label>
-            <input type="text" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} required />
-          </div>
-          <div className="form-group">
-            <label>전략 종류</label>
-            <select value={strategyType} onChange={e => setStrategyType(e.target.value)}>
-              <option value="PRICE">가격 익절 (목표가 도달 시)</option>
-              <option value="TIME">기간 익절 (지정일 도달 시)</option>
-              <option value="CHART">차트 익절 (지지선 이탈 시)</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>목표 총 매도 수량</label>
-            <input type="number" value={targetQty} onChange={e => setTargetQty(e.target.value)} required min="1" />
-          </div>
-          <div className="form-group">
-            <label>1회 분할 수량</label>
-            <input type="number" value={trancheQty} onChange={e => setTrancheQty(e.target.value)} required min="1" />
-          </div>
-          
-          {strategyType === 'PRICE' && (
+      {/* ── 새 분할매도 설정 ── */}
+      <div className="card fade-in">
+        <div className="section-header">
+          <h2>새 분할매도 설정</h2>
+          <span className="section-header__sub">목표 수량을 정해진 단위로 나눠 자동 매도합니다</span>
+        </div>
+        <form onSubmit={handleCreatePlan}>
+          <div className="settings-grid">
             <div className="form-group">
-              <label>목표 가격 ($)</label>
-              <input type="number" step="0.01" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} required />
+              <label>종목명 (Ticker)</label>
+              <input type="text" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} required />
             </div>
-          )}
-          {strategyType === 'TIME' && (
             <div className="form-group">
-              <label>첫 매도일</label>
-              <input type="date" value={nextExecutionDate} onChange={e => setNextExecutionDate(e.target.value)} required />
-            </div>
-          )}
-          {strategyType === 'CHART' && (
-            <div className="form-group">
-              <label>이탈 조건</label>
-              <select value={condition} onChange={e => setCondition(e.target.value)}>
-                <option value="MA20_BREAK">20일 이평선 이탈 (MA20_BREAK)</option>
+              <label>전략 종류</label>
+              <select value={strategyType} onChange={e => setStrategyType(e.target.value)}>
+                <option value="PRICE">가격 익절 (목표가 도달 시)</option>
+                <option value="TIME">기간 익절 (지정일 도달 시)</option>
+                <option value="CHART">차트 익절 (지지선 이탈 시)</option>
               </select>
             </div>
-          )}
-          
-          <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
-            <button type="submit">플랜 생성</button>
+            <div className="form-group">
+              <label>목표 총 매도 수량</label>
+              <input type="number" value={targetQty} onChange={e => setTargetQty(e.target.value)} required min="1" />
+            </div>
+            <div className="form-group">
+              <label>1회 분할 수량</label>
+              <input type="number" value={trancheQty} onChange={e => setTrancheQty(e.target.value)} required min="1" />
+            </div>
+
+            {strategyType === 'PRICE' && (
+              <div className="form-group">
+                <label>목표 가격 ($)</label>
+                <input type="number" step="0.01" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} required />
+              </div>
+            )}
+            {strategyType === 'TIME' && (
+              <div className="form-group">
+                <label>첫 매도일</label>
+                <input type="date" value={nextExecutionDate} onChange={e => setNextExecutionDate(e.target.value)} required />
+              </div>
+            )}
+            {strategyType === 'CHART' && (
+              <div className="form-group">
+                <label>이탈 조건</label>
+                <select value={condition} onChange={e => setCondition(e.target.value)}>
+                  <option value="MA20_BREAK">20일 이평선 이탈 (MA20_BREAK)</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="submit" className="btn btn--primary">플랜 생성</button>
           </div>
         </form>
       </div>
 
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <h2>활성 분할매도 플랜 (Active Plans)</h2>
+      {/* ── 활성 분할매도 플랜 ── */}
+      <div className="card fade-in" style={{ marginTop: 16 }}>
+        <div className="section-header">
+          <h2>활성 분할매도 플랜</h2>
+          <span className="section-header__sub">{plans.length}건 진행 중</span>
+        </div>
         {loading ? (
-          <p>로딩 중...</p>
+          <div className="loading-container" style={{ padding: 40 }}>
+            <div className="loading-spinner" />
+            <p className="loading-text">분할매도 플랜을 불러오는 중...</p>
+          </div>
         ) : plans.length === 0 ? (
-          <p>현재 진행 중인 분할매도 플랜이 없습니다.</p>
+          <div className="empty-state">
+            <div className="empty-state__icon">📭</div>
+            <p className="empty-state__text">현재 진행 중인 분할매도 플랜이 없습니다.</p>
+          </div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Ticker</th>
-                <th>Type</th>
-                <th>상태 / 진행률</th>
-                <th>설정 파라미터</th>
-                <th>관리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map((p, index) => {
-                const progress = Math.min(100, Math.round((p.soldQty / p.targetQty) * 100));
-                return (
-                  <tr key={p.planId}>
-                    <td>{index + 1}</td>
-                    <td><strong>{p.ticker}</strong></td>
-                    <td><span className="badge active">{getStrategyLabel(p.strategyType)}</span></td>
-                    <td>
-                      <div style={{ marginBottom: '5px' }}>{p.soldQty} / {p.targetQty} 주</div>
-                      <div className="progress-container">
-                        <div className="progress-bar" style={{ width: `${progress}%` }}></div>
-                      </div>
-                    </td>
-                    <td style={{ fontSize: '14px', color: '#495057', lineHeight: '1.5' }}>
-                      {renderParams(p.strategyType, p.params)}
-                    </td>
-                    <td>
-                      <button className="danger" onClick={() => handleCancel(p.planId)}>취소</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="data-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>종목</th>
+                  <th>전략</th>
+                  <th>상태 / 진행률</th>
+                  <th>설정 파라미터</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plans.map((p, index) => {
+                  const progress = Math.min(100, Math.round((p.soldQty / p.targetQty) * 100));
+                  return (
+                    <tr key={p.planId}>
+                      <td>{index + 1}</td>
+                      <td className="text-strong">{p.ticker}</td>
+                      <td><span className="badge active">{getStrategyLabel(p.strategyType)}</span></td>
+                      <td style={{ minWidth: 160 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                          <span>{p.soldQty} / {p.targetQty} 주</span>
+                          <span style={{ color: 'var(--text-muted)' }}>{progress}%</span>
+                        </div>
+                        <div className="progress-container">
+                          <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+                        </div>
+                      </td>
+                      <td style={{ whiteSpace: 'normal', lineHeight: 1.6 }}>
+                        {renderParams(p.strategyType, p.params)}
+                      </td>
+                      <td>
+                        <button className="btn btn--danger" onClick={() => handleCancel(p.planId)}>취소</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
