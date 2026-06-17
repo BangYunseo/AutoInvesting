@@ -11,6 +11,10 @@ const Settings = () => {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
+  // ── AI 모델 목록 (Gemini ListModels 조회 결과) ──
+  const [geminiModels, setGeminiModels] = useState([]);
+  const [modelsNote, setModelsNote] = useState(null);
+
   const fetchConfigs = useCallback(async () => {
     try {
       setLoading(true);
@@ -26,9 +30,22 @@ const Settings = () => {
     }
   }, []);
 
+  const fetchGeminiModels = useCallback(async () => {
+    try {
+      const res = await fetch('/api/config/gemini-models');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setGeminiModels(data.models || []);
+      setModelsNote(data.error || null);
+    } catch {
+      setModelsNote('모델 목록을 불러오지 못했습니다.');
+    }
+  }, []);
+
   useEffect(() => {
     fetchConfigs();
-  }, [fetchConfigs]);
+    fetchGeminiModels();
+  }, [fetchConfigs, fetchGeminiModels]);
 
   const handleChange = (key, value) => {
     setConfigs(prev => ({ ...prev, [key]: value }));
@@ -201,6 +218,40 @@ const Settings = () => {
           <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 8 }}>
             보유 비중이 목표 대비 이 값 이상 벗어나면 자동 재조정합니다. (예: 0.05 = 5%)
           </p>
+        </div>
+
+        {/* ── AI 분석 모델 ── */}
+        <div className="card fade-in" style={{ animationDelay: '0.3s', opacity: 0 }}>
+          <h2>AI 분석 모델</h2>
+          {configs['AI_PROVIDER'] === 'gemini' ? (
+            <>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Gemini 모델</label>
+                <select
+                  value={configs['GEMINI_MODEL'] || ''}
+                  onChange={e => handleChange('GEMINI_MODEL', e.target.value)}
+                >
+                  {/* 현재 설정값이 목록에 없으면 직접 포함 */}
+                  {configs['GEMINI_MODEL'] && !geminiModels.includes(configs['GEMINI_MODEL']) && (
+                    <option value={configs['GEMINI_MODEL']}>{configs['GEMINI_MODEL']} (현재)</option>
+                  )}
+                  {geminiModels.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                {geminiModels.length > 0
+                  ? `사용 가능한 모델 ${geminiModels.length}개. 변경 후 저장하면 다음 분석부터 적용됩니다.`
+                  : (modelsNote || '모델 목록을 불러오는 중...')}
+              </p>
+            </>
+          ) : (
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              현재 AI 공급자가 <strong>Mock 모드</strong>입니다. 실제 모델 선택은 Gemini 모드에서만 가능합니다.
+              (AI_PROVIDER 환경변수를 <code>gemini</code>로 설정하세요)
+            </p>
+          )}
         </div>
       </div>
 
