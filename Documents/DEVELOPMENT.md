@@ -25,6 +25,43 @@
 - **Phase 5-d** (성과 기반 피드백 루프: 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증): ✅ **완료**
 - **Phase 6-a** (SimBroker 학습데이터 생성 + SIM/REAL 출처 분리): ✅ **완료**
 - **Phase 6-b** (실데이터 운영 전환 · AI 호출 최적화 · UX 개선): ✅ **완료**
+- **Phase 7** (보안: 시크릿 키 암호화 저장 + 관리자 로그인 게이트): ✅ **완료**
+
+---
+
+## Phase 7 — 시크릿 암호화 + 로그인 게이트
+
+> 목적: KIS/AI 키를 평문(로컬 파일·DB)에서 **암호화 저장**으로 전환하고, UI 접근에 **비밀번호 로그인**을 도입한다.
+> 1인 운영 + 24시간 자동매매 유지(B모델). 마스터 키만 서버 밖(`MASTER_KEY`)에 둔다.
+
+### 신규 파일
+| 파일 | 용도 |
+|------|------|
+| `Utils/CryptoUtil.cs` | AES-256-GCM 시크릿 암복호화, PBKDF2 비밀번호 해시, HMAC 세션 토큰 |
+| `Utils/PublicEndpointAttribute.cs` | 전역 인증 면제 마커 (로그인/설정/상태) |
+| `Controllers/AuthController.cs` | `/api/auth/status·setup·login` — 7일 만료 세션 토큰 발급 |
+| `Frontend/src/pages/Login.jsx` | 로그인 / 최초 비밀번호 설정 화면 |
+
+### 수정 파일
+| 파일 | 변경 요약 |
+|------|----------|
+| `Data/AppConfigManager.cs` | 민감 키 Set 시 암호화, Get 시 `enc:v1:` 복호화 (접두사 방식 → 마이그레이션 불요) |
+| `Utils/ApiKeyAuthAttribute.cs` | Bearer 세션 토큰 **OR** x-api-key 허용, PublicEndpoint 면제 |
+| `Controllers/ConfigController.cs` | 시크릿 값 대신 `*_SET` 설정여부만 노출, 빈 입력 미변경 |
+| `Program.cs` | `CryptoUtil.Initialize` 추가 |
+| `Frontend/src/main.jsx` | 인터셉터를 Bearer 토큰으로 전환, 401 → `/login` |
+| `Frontend/src/App.jsx` | `/login` 라우트 + `RequireAuth` 가드 + 로그아웃 |
+| `Frontend/src/pages/Settings.jsx` | KIS/Gemini 키·계좌·서버 입력 카드(설정됨/미설정 배지) |
+
+### 환경 변수
+| KEY | 설명 |
+|-----|------|
+| `MASTER_KEY` | base64 32바이트. 시크릿 암복호화 + 토큰 서명. 미설정 시 평문 저장(경고) |
+| `AUTH_TOKEN_SECRET` | (선택) 토큰 서명 전용 키. 없으면 `MASTER_KEY`에서 파생 |
+
+### 동작 분기
+- 사람(브라우저): 로그인 → 세션 토큰 → `Authorization: Bearer`
+- 크론/머신: 기존 `x-api-key` 그대로 (자동매매 `POST /api/order/daily-run` 무중단)
 
 ---
 
