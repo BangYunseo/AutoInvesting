@@ -26,7 +26,7 @@ trigger: always_on
 | 비즈니스 로직/엔진 | `Core/` | `SmartOrderEngine.cs` |
 | 퀀트 모듈 | `Core/Quant/` | `QuantFilter.cs` |
 | REST API 컨트롤러 | `Controllers/` | `OrderController.cs` |
-| 백그라운드 서비스 | `Core/BackgroundServices/` | `TradingBackgroundService.cs` |
+| 일일 실행 진입점 | `Core/` | `DailyExecutionService.cs` |
 | 유틸리티 / 통신 | `Utils/` | `Logger.cs`, `NotificationService.cs` |
 
 ## 파일 구조

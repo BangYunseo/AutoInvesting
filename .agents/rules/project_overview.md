@@ -34,14 +34,21 @@ AutoInvesting/
 │   ├── IBrokerClient.cs                # 증권사 API 추상화
 │   ├── KisBrokerClient.cs              # KIS 실거래 연동 모듈 (Polly 적용)
 │   ├── SimBrokerClient.cs              # 가상 모의투자 환경
+│   ├── IMarketAnalyzer.cs              # AI 시장 분석 추상화
+│   ├── AiMarketAnalyzer.cs             # Mock 분석기 (폴백)
+│   ├── GeminiMarketAnalyzer.cs         # Gemini 실연동 (차트+펀더멘털 통합 호출)
 │   ├── SmartOrderEngine.cs             # 퀀트 필터 통과 시 실거래 주문 실행
-│   ├── SessionManager.cs               # 모의/실전 브로커 생명주기 관리
+│   ├── DailyExecutionService.cs        # 일일 매매 사이클 진입점 (Scoped) — 외부 크론이 POST /api/order/daily-run 호출 시 실행
+│   ├── SessionManager.cs               # 모의/실전 브로커·AI 엔진 생명주기 관리
 │   ├── AllocationEngine.cs             # 자산 배분 비중 계산
-│   ├── BackgroundServices/             # IHostedService 구현체 
-│   │   └── TradingBackgroundService.cs # 24시간 백그라운드 루프 (1분 간격)
+│   ├── Advisors/                       # 컨텍스트 어드바이저 (환율 등 보조 판단 정보)
 │   └── Quant/                          # 퀀트 분석 모듈
 │       ├── QuantIndicator.cs           # 지표 생성(RSI, BB, MACD)
-│       └── QuantFilter.cs              # 전략 조건 판단 로직
+│       ├── QuantFilter.cs              # 전략 조건 판단 로직
+│       ├── AdaptiveThresholdEngine.cs  # 종목별 적응형 매수/매도 임계값 (Phase 5)
+│       ├── PerformanceFeedbackEngine.cs# 성과 기반 피드백·가중치 A/B (Phase 5-d, 읽기 전용)
+│       ├── BacktestEngine.cs / RebalancingEngine.cs / SellStrategyManager.cs
+│       └── SimTrainingDataGenerator.cs # SIM 학습데이터 합성 (Phase 6-a)
 │
 ├── Controllers/                        # 외부 제어용 REST API 엔드포인트
 │   ├── OrderController.cs
@@ -62,8 +69,10 @@ AutoInvesting/
 ├── appsettings.json                    # 환경 설정 및 DB/SMTP 정보 등
 ├── README.md
 └── Documents/
-    ├── DEVELOPMENT.md              # 개발 진척도 및 변경 이력
-    └── THEME_GUIDE.md              # ⚠️ 레거시 — WinForms 제거로 무효. 참조 금지
+    ├── DEVELOPMENT.md              # 개발 진척도 및 변경 이력 (CHANGELOG)
+    ├── ONBOARDING_GUIDE.md         # 신규 개발자 온보딩 가이드
+    ├── CODE_READING_GUIDE.md       # 소스 코드 리딩 순서 내비게이션
+    └── API_REFERENCE.md / API_REFERENCE_TABLE.md / API_REFERENCE.csv  # API 명세·일람표
 ```
  
 ## 핵심 인터페이스: IBrokerClient

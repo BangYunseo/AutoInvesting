@@ -1,6 +1,6 @@
 ---
 name: core-developer
-description: Core 레이어(SmartOrderEngine, DailyExecutionService, SessionManager, AllocationEngine, BackgroundServices) 구현·수정 시 사용. 매매 실행 로직, 백그라운드 루프, 세션 생명주기 작업에 적극 활용.
+description: Core 레이어(SmartOrderEngine, DailyExecutionService, SessionManager, AllocationEngine) 구현·수정 시 사용. 매매 실행 로직, 일일 매매 사이클, 세션 생명주기 작업에 적극 활용.
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
@@ -11,7 +11,7 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 - `Core/DailyExecutionService.cs` — 매매 스케줄 실행 (Scoped, `IServiceScopeFactory` 패턴)
 - `Core/SessionManager.cs` — 브로커/AI 인스턴스 생명주기 분기
 - `Core/AllocationEngine.cs` — 자산 배분 비중 계산
-- `Core/BackgroundServices/` — 24시간 IHostedService 루프
+- 일일 매매 트리거 — 외부 크론이 `POST /api/order/daily-run` 호출 → `OrderController`가 Scoped로 `DailyExecutionService` 구동 (상시 IHostedService 루프 없음)
 
 ## 작업 시작 시 로딩 순서 (MUST)
 1. `.agents/rules/project_overview.md` — 현재 Phase/구조

@@ -12,18 +12,21 @@ trigger: always_on
 
 ## 레이어 구조 및 의존성 방향
 ```
-API (Controllers/) & Background (BackgroundServices/)
+API (Controllers/) & 일일 실행 진입점 (DailyExecutionService)
   ↓ (단방향)
-Core (Core/, Core/Quant/)
+Core (Core/, Core/Quant/, Core/Advisors/)
   ↓ (단방향)
 Data (Data/, Data/DTO/, Data/DAO/)
   ← Utils (Utils/) — 모든 레이어에서 접근 가능
 ```
 
+> 참고: 앱 내부에 상시 백그라운드 루프(IHostedService)는 없다. 24시간 자동 매매는 외부 스케줄러(크론)가
+> `POST /api/order/daily-run`을 호출 → `OrderController`가 Scoped `DailyExecutionService`를 구동하는 방식이다.
+
 ### 의존성 규칙
-- **API/Background → Core**: 허용 (컨트롤러나 스케줄러에서 Core 엔진 호출)
+- **API/실행서비스 → Core**: 허용 (컨트롤러·DailyExecutionService에서 Core 엔진 호출)
 - **Core → Data**: 허용 (엔진에서 DAO/DTO 사용)
-- **Core → API**: 금지 (Core는 컨트롤러나 백그라운드 서비스를 알지 못함)
+- **Core → API**: 금지 (Core는 컨트롤러나 실행 서비스를 알지 못함)
 - **Data → Core**: 금지 (Data는 Core를 알지 못함)
 - **Utils**: 모든 레이어에서 접근 가능한 유틸리티
 
@@ -45,7 +48,7 @@ Data (Data/, Data/DTO/, Data/DAO/)
 ```
 ASP.NET Core Host (Program.cs)
       ├── [REST API 호출] → Controllers (수동 제어, 상태 조회)
-      └── [Scoped 실행] → DailyExecutionService (스케줄 실행 진입점)
+      └── [외부 크론 → POST /api/order/daily-run → Scoped 실행] → DailyExecutionService (일일 매매 사이클 진입점)
                                        ↓
                                   SmartOrderEngine
                                        ├── 현재가/가격범위/OHLCV 조회 (IBrokerClient)

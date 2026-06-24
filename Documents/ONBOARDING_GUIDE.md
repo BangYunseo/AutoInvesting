@@ -19,7 +19,7 @@
       └── (데이터 단순 조회) ─▶ [ Data/DAO ] ──▶ PostgreSQL DB
 ```
 
-- **백그라운드 루프 (TradingBackgroundService)**: `Controllers`의 개입 없이 `IHostedService`를 통해 1분 간격으로 동작하며, 설정된 시간(예: 오후 10시 30분)이 되면 스스로 `SmartOrderEngine`을 호출하여 전 종목 자동분석 및 매매를 수행합니다.
+- **일일 매매 사이클 (DailyExecutionService)**: 앱 내부에 상시 동작하는 백그라운드 루프(`IHostedService`)는 없습니다. 외부 스케줄러(크론)가 `POST /api/order/daily-run`을 호출하면 `OrderController`가 Scoped 수명으로 `DailyExecutionService`를 구동하고, 이 서비스가 `SmartOrderEngine`을 호출하여 전 종목 자동분석 및 매매를 수행합니다. (과거 `TradingBackgroundService`(IHostedService, 1분 간격) 구조를 대체)
 
 ## 2. 생명주기와 의존성 주입 (Dependency Injection)
 

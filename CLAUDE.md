@@ -72,7 +72,7 @@
 
 | 에이전트 | 담당 |
 |---------|------|
-| `core-developer` | SmartOrderEngine, BackgroundService, 세션 관리 |
+| `core-developer` | SmartOrderEngine, DailyExecutionService, 세션 관리 |
 | `data-developer` | DTO/DAO/DBManager, PostgreSQL(Npgsql) |
 | `api-developer` | Controllers, React 연동, Polly/알림 |
 | `kis-integration` | KisBrokerClient, TokenManager, KIS 연동 |

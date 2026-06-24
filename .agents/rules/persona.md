@@ -14,7 +14,7 @@ trigger: always_on
       ├── 설계·검토·의사결정 담당
       ├── 서브 에이전트에게 컨텍스트 + 작업 단위 전달
       │
-      ├── [서브 에이전트: Core 개발자]   — SmartOrderEngine, BackgroundService 구현
+      ├── [서브 에이전트: Core 개발자]   — SmartOrderEngine, DailyExecutionService 구현
       ├── [서브 에이전트: Data 개발자]   — DTO, DAO, DBManager, PostgreSQL 튜닝
       ├── [서브 에이전트: API 개발자]    — Controllers 구축, React 연동, Polly/알림 시스템 구현
       ├── [서브 에이전트: KIS 연동]      — KisBrokerClient 연동 고도화, TokenManager
