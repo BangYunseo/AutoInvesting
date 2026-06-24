@@ -141,7 +141,7 @@ AutoInvesting/
 기존 WinForms 기반에서 **ASP.NET Core Web API** 기반의 Headless 서버로 구조가 개편되었습니다.
 UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시간 무인으로 동작합니다.
 
-- **스케줄 실행**: 외부 크론(GitHub Actions 워크플로우 `.github/workflows/daily-run.yml`, 매일 KST 23:25)이 `POST /api/order/daily-run`을 호출 → `OrderController`가 Scoped `DailyExecutionService`를 구동 → `SmartOrderEngine`이 전 종목을 **퀀트 단독**으로 분석·매매
+- **스케줄 실행**: 외부 크론(GitHub Actions 워크플로우 `.github/workflows/daily-run.yml`, 매일 KST 23:40)이 `POST /api/order/daily-run`을 호출 → `OrderController`가 Scoped `DailyExecutionService`를 구동 → `SmartOrderEngine`이 전 종목을 **퀀트 단독**으로 분석·매매
 - **REST API 컨트롤러**: React 웹 대시보드 및 외부 클라이언트에서 상태 조회, 원격 제어 제공
 - **배포**: 단일 Docker 컨테이너 — ASP.NET Core가 React SPA 빌드 결과를 정적 파일로 서빙 (SPA 라우팅 지원)
 

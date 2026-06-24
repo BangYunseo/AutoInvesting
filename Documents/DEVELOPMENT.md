@@ -72,8 +72,8 @@
 
 ## 운영(배포·스케줄링) 변경 이력
 
-### 일일 매매 트리거: cron-job.org → GitHub Actions (KST 23:25)
-- 일일 사이클(`POST /api/order/daily-run`) 호출을 **GitHub Actions 워크플로우** `.github/workflows/daily-run.yml`로 일원화 (매일 KST 23:25 = UTC `25 14 * * *`).
+### 일일 매매 트리거: cron-job.org → GitHub Actions (KST 23:40)
+- 일일 사이클(`POST /api/order/daily-run`) 호출을 **GitHub Actions 워크플로우** `.github/workflows/daily-run.yml`로 일원화 (매일 KST 23:40 = UTC `40 14 * * *`). 미장 개장(여름 22:30/겨울 23:30 KST) 이후라 "장시작전" 거부를 피한다.
 - 워크플로우가 `GET /api/health`를 10초 간격으로 폴링해 Render 인스턴스를 깨운 뒤 호출 → Render 무료 티어의 콜드 스타트를 흡수한다.
 - 인증: GitHub Secret `CRON_API_KEY`(= 서버 `API_ACCESS_KEY`)를 `x-api-key` 헤더로 전달. `workflow_dispatch`로 수동 테스트 실행 가능.
 - 배경: 기존 cron-job.org는 콜드 스타트 시 Render가 주는 `503 + Retry-After`를 재시도 없이 "실패"로 처리하고, 연속 실패한 잡을 자동 비활성화한다. 그 결과 깨우기 크론이 멈춰 매일 운용 리포트 메일이 누락되었다.

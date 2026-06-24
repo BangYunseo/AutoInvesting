@@ -1,12 +1,13 @@
 name: Daily Trading Run
 
-# 매일 한국시간(KST) 23:25 에 자동 매매 사이클을 실행한다.
-# GitHub Actions 는 UTC 기준이므로 KST 23:25 = UTC 14:25 로 설정한다.
+# 매일 한국시간(KST) 23:40 에 자동 매매 사이클을 실행한다.
+# GitHub Actions 는 UTC 기준이므로 KST 23:40 = UTC 14:40 로 설정한다.
+# (미장 개장: 여름 22:30 / 겨울 23:30 KST → 23:40은 연중 개장 후라 "장시작전" 거부를 피한다.)
 # Render 무료 인스턴스는 잠들어 있으므로, 먼저 /api/health 를 폴링해 깨운 뒤
 # 깨어난 것이 확인되면 /api/order/daily-run 을 호출한다 (콜드 스타트 100% 흡수).
 on:
   schedule:
-    - cron: '25 14 * * *'   # KST 23:25 (UTC 14:25)
+    - cron: '40 14 * * *'   # KST 23:40 (UTC 14:40)
   workflow_dispatch:          # 수동 실행(테스트)용 버튼
 
 jobs:
