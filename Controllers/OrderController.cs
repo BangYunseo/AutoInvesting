@@ -83,7 +83,7 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
-        /// 외부 크론잡(Cron-job.org 등)에서 매일 한 번 호출하여 전체 일일 사이클을 실행합니다.
+        /// 외부 스케줄러(운영 환경에서는 GitHub Actions 워크플로우)에서 매일 한 번 호출하여 전체 일일 사이클을 실행합니다.
         /// (매매, 리밸런싱, AI 평가, 메일 리포트 발송 포함)
         ///
         /// 사이클은 KIS 로그인 + 종목별 Gemini 호출 + SMTP까지 수십 초 이상 걸릴 수 있어
