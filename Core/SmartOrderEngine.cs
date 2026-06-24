@@ -351,11 +351,13 @@ namespace AutoInvest.Core
 
             Logger.Info($"[SmartOrder] === 스마트 주문 분석 시작 (종목 {strategies.Count}개, 전략={strategyType}) ===");
 
-            // ── 종목 간 AI 호출 간격(throttle) — Gemini 무료 티어 RPM 한도(429) 분산용 ──
-            //    실 AI(Gemini)일 때만 적용하고, Mock/Sim 검증 시에는 지연을 두지 않는다.
-            int throttleMs = (_analyzer is GeminiMarketAnalyzer)
-                ? (int.TryParse(AppConfigManager.Get("AI_THROTTLE_MS", "4000"), out int t) ? t : 4000)
-                : 0;
+            // ── 종목 간 호출 간격 ──
+            //    [AI 비활성화] 원래 Gemini 무료 티어 RPM(429) 분산용으로 종목마다 AI_THROTTLE_MS(기본 4초)를
+            //    넣었으나, AI 호출을 껐으므로 그 4초 지연은 순차분석을 느리게 하던 순수 낭비였다.
+            //    이제 KIS(특히 모의투자) 시세 레이트리밋 보호용으로 짧은 간격만 둔다.
+            int throttleMs = 300;
+            // (원본) int throttleMs = (_analyzer is GeminiMarketAnalyzer)
+            //     ? (int.TryParse(AppConfigManager.Get("AI_THROTTLE_MS", "4000"), out int t) ? t : 4000) : 0;
 
             for (int i = 0; i < strategies.Count; i++)
             {
