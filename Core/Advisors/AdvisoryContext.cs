@@ -29,5 +29,9 @@ namespace AutoInvest.Core.Advisors
         /// <summary>매수 진입 의향 여부 (퀀트 또는 최종 신호가 BUY).</summary>
         public bool HasBuyIntent =>
             QuantSignal == SmartOrderSignal.BUY || FinalSignal == SmartOrderSignal.BUY;
+
+        /// <summary>매도 의향 여부 (퀀트 또는 최종 신호가 SELL).</summary>
+        public bool HasSellIntent =>
+            QuantSignal == SmartOrderSignal.SELL || FinalSignal == SmartOrderSignal.SELL;
     }
 }

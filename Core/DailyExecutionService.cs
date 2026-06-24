@@ -154,7 +154,21 @@ namespace AutoInvest.Core
                 foreach (var r in todayResults)
                 {
                     string actionStr = r.Signal == SmartOrderSignal.BUY ? "샀습니다" : (r.Signal == SmartOrderSignal.SELL ? "팔았습니다" : "그대로 두었습니다");
-                    ordersHtml += $"<li><strong>{r.Ticker}</strong> 종목을 <strong>{actionStr}</strong>. (이유: {r.Reason})</li>";
+                    ordersHtml += $"<li><strong>{r.Ticker}</strong> 종목을 <strong>{actionStr}</strong>. (이유: {r.Reason})";
+
+                    // ── 환율 등 부가 조언 첨부 (매매 판정에는 개입하지 않는 참고 정보) ──
+                    if (r.AdvisoryNotes != null && r.AdvisoryNotes.Count > 0)
+                    {
+                        ordersHtml += "<ul>";
+                        foreach (var note in r.AdvisoryNotes)
+                        {
+                            string icon = note.Severity == AdvisorySeverity.WARNING ? "⚠️"
+                                        : (note.Severity == AdvisorySeverity.CAUTION ? "🔸" : "💡");
+                            ordersHtml += $"<li>{icon} <strong>[{note.Source}] {note.Title}</strong><br/>{note.Message}</li>";
+                        }
+                        ordersHtml += "</ul>";
+                    }
+                    ordersHtml += "</li>";
                 }
                 if (todayResults.Count > 0) ordersHtml += "</ul>";
 
