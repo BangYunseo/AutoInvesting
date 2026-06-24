@@ -25,6 +25,15 @@ namespace AutoInvest.Controllers
             Timeout = TimeSpan.FromSeconds(15)
         };
 
+        /// <summary>
+        /// 복호화 값을 단건 조회(보기)할 수 있는 시크릿 키 화이트리스트.
+        /// 이 목록에 없는 키는 값 노출을 거부합니다.
+        /// </summary>
+        private static readonly HashSet<string> RevealableSecretKeys = new(StringComparer.Ordinal)
+        {
+            "KIS_APP_KEY", "KIS_APP_SECRET", "KIS_ACCOUNT_NO", "GEMINI_API_KEY"
+        };
+
         public ConfigController(SessionManager session)
         {
             _session = session;
@@ -89,6 +98,32 @@ namespace AutoInvest.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 저장된 시크릿 값(복호화 평문)을 단건 조회합니다.
+        /// 입력한 키가 올바른지 UI에서 눈 아이콘으로 확인하는 용도이며,
+        /// 글로벌 인증 필터(관리자 Bearer 또는 크론 x-api-key)를 통과한 요청만 도달합니다.
+        /// 화이트리스트에 없는 키는 거부하고, 값은 로그에 남기지 않습니다.
+        /// </summary>
+        /// <param name="key">조회할 시크릿 키 (예: KIS_APP_KEY)</param>
+        [HttpGet("secret/{key}")]
+        public IActionResult RevealSecret(string key)
+        {
+            try
+            {
+                if (!RevealableSecretKeys.Contains(key))
+                    return BadRequest(new { error = "조회할 수 없는 키입니다." });
+
+                string value = AppConfigManager.Get(key, "");
+                Logger.Info($"[Config] 시크릿 값 조회: {key} (값 비노출)");
+                return Ok(new { key, value, set = !string.IsNullOrWhiteSpace(value) });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Config] 시크릿 조회 실패 [{key}]: {ex.Message}");
+                return StatusCode(500, new { error = "서버 내부 오류가 발생했습니다." });
             }
         }
 

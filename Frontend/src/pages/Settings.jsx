@@ -1,29 +1,214 @@
 import { useState, useEffect, useCallback } from 'react';
 
-/**
- * 시크릿 입력 필드. 저장 여부 배지를 보여주고, 값은 절대 화면에 표시하지 않습니다.
- * 빈 입력은 기존 값 유지(서버가 빈 값 미변경 처리).
- */
-const SecretField = ({ label, set, onChange }) => (
-  <div className="form-group" style={{ marginBottom: 0 }}>
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {label}
-      <span style={{
-        fontSize: '0.68rem', padding: '1px 7px', borderRadius: 10,
-        background: set ? 'var(--profit-green-bg)' : 'var(--loss-red-bg)',
-        color: set ? 'var(--profit-green)' : 'var(--loss-red)'
-      }}>
-        {set ? '설정됨' : '미설정'}
-      </span>
-    </label>
-    <input
-      type="password"
-      autoComplete="new-password"
-      placeholder={set ? '변경하려면 새 값 입력' : '값 입력'}
-      onChange={e => onChange(e.target.value)}
-    />
-  </div>
+/** 눈 아이콘 (값 보기) */
+const EyeIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
 );
+
+/** 눈에 사선 아이콘 (값 숨기기) */
+const EyeOffIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+);
+
+/** 설정됨/미설정 배지 */
+const SetBadge = ({ set }) => (
+  <span style={{
+    fontSize: '0.68rem', padding: '1px 7px', borderRadius: 10,
+    background: set ? 'var(--profit-green-bg)' : 'var(--loss-red-bg)',
+    color: set ? 'var(--profit-green)' : 'var(--loss-red)'
+  }}>
+    {set ? '설정됨' : '미설정'}
+  </span>
+);
+
+// 모달에서 보기/변경할 시크릿 정의
+const SECRET_DEFS = [
+  { key: 'KIS_APP_KEY', label: 'KIS App Key' },
+  { key: 'KIS_APP_SECRET', label: 'KIS App Secret' },
+  { key: 'KIS_ACCOUNT_NO', label: 'KIS 계좌번호' },
+  { key: 'GEMINI_API_KEY', label: 'Gemini API Key' },
+];
+
+const iconBtnStyle = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: 38, height: 38, flexShrink: 0,
+  background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
+  borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer'
+};
+
+/**
+ * API 키 / 계좌 정보 관리 모달.
+ * 저장된 시크릿 값을 눈 아이콘으로 보기/숨기기(서버에서 복호화 조회)하고, 새 값으로 변경합니다.
+ */
+const SecretManagerModal = ({ open, onClose, configs, onSaved }) => {
+  const [edits, setEdits] = useState({});            // { KEY: 새 값 }
+  const [revealed, setRevealed] = useState({});       // { KEY: bool }
+  const [revealedValues, setRevealedValues] = useState({}); // { KEY: 복호화 평문 }
+  const [loadingKey, setLoadingKey] = useState(null);
+  const [server, setServer] = useState(configs['KIS_SERVER'] || 'vps');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  // 모달이 "열릴 때만" 임시 상태 초기화 (저장 후 configs 갱신으로 메시지가 지워지지 않도록
+  // configs는 의존성에서 제외 — 열리는 시점의 최신 값을 그대로 사용).
+  useEffect(() => {
+    if (open) {
+      setEdits({});
+      setRevealed({});
+      setRevealedValues({});
+      setLoadingKey(null);
+      setServer(configs['KIS_SERVER'] || 'vps');
+      setMsg(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  if (!open) return null;
+
+  const toggleReveal = async (key) => {
+    // 이미 보이는 상태면 숨김
+    if (revealed[key]) {
+      setRevealed(prev => ({ ...prev, [key]: false }));
+      return;
+    }
+    // 값을 아직 안 받았으면 서버에서 복호화 값을 조회
+    if (revealedValues[key] === undefined) {
+      try {
+        setLoadingKey(key);
+        const res = await fetch(`/api/config/secret/${key}`);
+        if (!res.ok) throw new Error(`조회 실패 (${res.status})`);
+        const data = await res.json();
+        setRevealedValues(prev => ({ ...prev, [key]: data.value || '' }));
+      } catch (err) {
+        setMsg(`❌ ${err.message}`);
+        return;
+      } finally {
+        setLoadingKey(null);
+      }
+    }
+    setRevealed(prev => ({ ...prev, [key]: true }));
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setMsg(null);
+      // 변경 입력이 있는 시크릿만 포함(빈 값은 서버가 미변경 처리) + KIS 서버
+      const payload = { KIS_SERVER: server };
+      for (const { key } of SECRET_DEFS) {
+        if (edits[key] && edits[key].trim() !== '') payload[key] = edits[key];
+      }
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
+      setMsg('✅ 저장되었습니다.');
+      // 갱신된 설정 여부/값을 다시 받도록 부모에 알리고, 본 값 캐시 초기화
+      setEdits({});
+      setRevealed({});
+      setRevealedValues({});
+      onSaved?.();
+    } catch (err) {
+      setMsg(`❌ ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+        <h3 style={{ marginBottom: 8, borderBottom: '1px solid var(--border-primary)', paddingBottom: 12 }}>
+          🔐 API 키 / 계좌 정보
+        </h3>
+        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 18px' }}>
+          저장된 값은 서버에서 암호화되어 보관됩니다. 눈 아이콘으로 입력한 값이 맞는지 확인하고,
+          <strong> 변경하려면 새 값을 입력 후 저장</strong>하세요. (빈 칸은 기존 값 유지)
+        </p>
+
+        {msg && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: 14, fontSize: '0.82rem',
+            background: msg.startsWith('✅') ? 'var(--profit-green-bg)' : 'var(--loss-red-bg)',
+            color: msg.startsWith('✅') ? 'var(--profit-green)' : 'var(--loss-red)'
+          }}>
+            {msg}
+          </div>
+        )}
+
+        {SECRET_DEFS.map(({ key, label }) => {
+          const isSet = configs[`${key}_SET`] === '1';
+          const isRevealed = !!revealed[key];
+          const shownValue = isRevealed ? (revealedValues[key] ?? '') : (isSet ? '••••••••••••' : '미설정');
+          return (
+            <div className="form-group" key={key} style={{ marginBottom: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {label} <SetBadge set={isSet} />
+              </label>
+              {/* 저장된 값 보기 */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={shownValue}
+                  style={{
+                    flex: 1, fontFamily: 'monospace', fontSize: '0.85rem',
+                    color: isRevealed ? 'var(--text-primary)' : 'var(--text-muted)'
+                  }}
+                />
+                <button
+                  type="button"
+                  style={{ ...iconBtnStyle, opacity: isSet ? 1 : 0.45, cursor: isSet ? 'pointer' : 'not-allowed' }}
+                  disabled={!isSet || loadingKey === key}
+                  onClick={() => toggleReveal(key)}
+                  title={isRevealed ? '숨기기' : '저장된 값 보기'}
+                  aria-label={isRevealed ? '숨기기' : '저장된 값 보기'}
+                >
+                  {loadingKey === key ? '…' : isRevealed ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              {/* 변경 입력 */}
+              <input
+                type="password"
+                autoComplete="new-password"
+                placeholder={isSet ? '변경하려면 새 값 입력' : '값 입력'}
+                value={edits[key] || ''}
+                onChange={e => setEdits(prev => ({ ...prev, [key]: e.target.value }))}
+                style={{ marginTop: 6 }}
+              />
+            </div>
+          );
+        })}
+
+        {/* KIS 서버 (계좌 환경) */}
+        <div className="form-group" style={{ marginBottom: 20 }}>
+          <label>KIS 서버</label>
+          <select value={server} onChange={e => setServer(e.target.value)}>
+            <option value="vps">모의투자 (vps)</option>
+            <option value="prod">실전투자 (prod)</option>
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button className="btn btn--outline" onClick={onClose}>닫기</button>
+          <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
+            {saving ? '저장 중...' : '💾 저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * 시스템 설정 페이지.
@@ -35,6 +220,7 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
+  const [secretModalOpen, setSecretModalOpen] = useState(false);
 
   // ── AI 모델 목록 (Gemini ListModels 조회 결과) ──
   const [geminiModels, setGeminiModels] = useState([]);
@@ -80,9 +266,11 @@ const Settings = () => {
     try {
       setSaving(true);
       setMessage(null);
-      // 읽기 전용 상태 플래그(*_SET)는 저장 대상에서 제외
+      // 읽기 전용 상태 플래그(*_SET)와 시크릿 키는 저장 대상에서 제외
+      //  (시크릿/계좌 정보는 전용 모달에서 관리)
+      const secretKeys = new Set(['KIS_APP_KEY', 'KIS_APP_SECRET', 'KIS_ACCOUNT_NO', 'GEMINI_API_KEY', 'KIS_SERVER']);
       const payload = Object.fromEntries(
-        Object.entries(configs).filter(([k]) => !k.endsWith('_SET'))
+        Object.entries(configs).filter(([k]) => !k.endsWith('_SET') && !secretKeys.has(k))
       );
       const res = await fetch('/api/config', {
         method: 'POST',
@@ -283,33 +471,23 @@ const Settings = () => {
           )}
         </div>
 
-        {/* ── 증권사/AI API 키 ── */}
+        {/* ── 증권사/AI API 키 (전용 모달에서 관리) ── */}
         <div className="card fade-in" style={{ animationDelay: '0.35s', opacity: 0, gridColumn: '1 / -1' }}>
           <h2>🔐 API 키 / 계좌 정보</h2>
           <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: -4, marginBottom: 14 }}>
-            저장 시 서버에서 암호화되어 보관됩니다. 보안상 저장된 값은 화면에 표시되지 않으며,
-            <strong> 빈 칸으로 두면 기존 값이 유지</strong>됩니다.
+            보안을 위해 키 값은 이 화면에 표시하지 않습니다. 아래 버튼을 눌러 별도 창에서
+            저장된 값을 확인하거나 변경하세요.
           </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-            <SecretField label="KIS App Key" set={configs['KIS_APP_KEY_SET'] === '1'}
-              onChange={v => handleChange('KIS_APP_KEY', v)} />
-            <SecretField label="KIS App Secret" set={configs['KIS_APP_SECRET_SET'] === '1'}
-              onChange={v => handleChange('KIS_APP_SECRET', v)} />
-            <SecretField label="KIS 계좌번호" set={configs['KIS_ACCOUNT_NO_SET'] === '1'}
-              onChange={v => handleChange('KIS_ACCOUNT_NO', v)} />
-            <SecretField label="Gemini API Key" set={configs['GEMINI_API_KEY_SET'] === '1'}
-              onChange={v => handleChange('GEMINI_API_KEY', v)} />
-
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>KIS 서버</label>
-              <select
-                value={configs['KIS_SERVER'] || 'vps'}
-                onChange={e => handleChange('KIS_SERVER', e.target.value)}
-              >
-                <option value="vps">모의투자 (vps)</option>
-                <option value="prod">실전투자 (prod)</option>
-              </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <button className="btn btn--outline" onClick={() => setSecretModalOpen(true)}>
+              🔐 API 키 / 계좌 정보 관리
+            </button>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+              {SECRET_DEFS.map(({ key, label }) => (
+                <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {label} <SetBadge set={configs[`${key}_SET`] === '1'} />
+                </span>
+              ))}
             </div>
           </div>
         </div>
@@ -321,6 +499,13 @@ const Settings = () => {
           {saving ? '저장 중...' : '💾 설정 저장'}
         </button>
       </div>
+
+      <SecretManagerModal
+        open={secretModalOpen}
+        onClose={() => setSecretModalOpen(false)}
+        configs={configs}
+        onSaved={fetchConfigs}
+      />
     </div>
   );
 };
