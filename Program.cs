@@ -33,6 +33,11 @@ namespace AutoInvest
                 AppConfigManager.Initialize(builder.Configuration);
                 NotificationService.Initialize(builder.Configuration);
 
+                // ── 암호화 유틸 초기화 (MASTER_KEY: 시크릿 암복호화 + 토큰 서명) ──
+                CryptoUtil.Initialize(builder.Configuration);
+                if (!CryptoUtil.IsConfigured)
+                    Logger.Warn("[서버] MASTER_KEY 미설정 — 시크릿이 평문으로 저장됩니다. 운영 환경에서는 반드시 설정하세요.");
+
                 // ── 서비스 등록 ──
                 builder.Services.AddControllers(options =>
                 {

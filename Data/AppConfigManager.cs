@@ -17,6 +17,20 @@ namespace AutoInvest.Data
         private static IConfiguration? _configuration;
 
         /// <summary>
+        /// DB(TB_APP_CONFIG)에 저장 시 암호화하고 조회 시 복호화하는 민감 키 목록.
+        /// 환경변수로 주입된 값은 평문 그대로 사용됩니다(이 목록과 무관).
+        /// </summary>
+        private static readonly HashSet<string> SensitiveKeys = new(StringComparer.Ordinal)
+        {
+            "KIS_APP_KEY",
+            "KIS_APP_SECRET",
+            "KIS_ACCOUNT_NO",
+            "GEMINI_API_KEY",
+            "RESEND_API_KEY",
+            "API_ACCESS_KEY"
+        };
+
+        /// <summary>
         /// ASP.NET Core IConfiguration을 주입합니다. Program.cs에서 호출.
         /// </summary>
         public static void Initialize(IConfiguration configuration)
@@ -74,7 +88,13 @@ namespace AutoInvest.Data
                     "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
                 {
                     cmd.Parameters.AddWithValue("@k", key);
-                    return cmd.ExecuteScalar()?.ToString();
+                    string? value = cmd.ExecuteScalar()?.ToString();
+
+                    // 암호문(enc:v1:...)이면 복호화. 평문/비민감 키는 접두사 검사로 그대로 통과.
+                    if (CryptoUtil.IsEncrypted(value ?? string.Empty))
+                        return CryptoUtil.DecryptSecret(value!);
+
+                    return value;
                 }
             }
             catch (Exception ex)
@@ -91,11 +111,21 @@ namespace AutoInvest.Data
         {
             try
             {
+                // ── 민감 키는 저장 직전 암호화 ──
+                string storedValue = value;
+                if (SensitiveKeys.Contains(key) && !string.IsNullOrEmpty(value))
+                {
+                    if (CryptoUtil.IsConfigured)
+                        storedValue = CryptoUtil.EncryptSecret(value);
+                    else
+                        Logger.Warn($"[Config] MASTER_KEY 미설정 — 민감 키를 평문으로 저장합니다 [{key}]. 운영 환경에서는 MASTER_KEY를 설정하세요.");
+                }
+
                 using (var conn = DBManager.Instance.GetConnection())
                 using (var cmd = new NpgsqlCommand(
                     "UPDATE TB_APP_CONFIG SET CONFIG_VALUE=@v WHERE CONFIG_KEY=@k", conn))
                 {
-                    cmd.Parameters.AddWithValue("@v", value);
+                    cmd.Parameters.AddWithValue("@v", storedValue);
                     cmd.Parameters.AddWithValue("@k", key);
                     int affected = cmd.ExecuteNonQuery();
 
@@ -105,11 +135,16 @@ namespace AutoInvest.Data
                         using var insertCmd = new NpgsqlCommand(
                             "INSERT INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE) VALUES (@k, @v)", conn);
                         insertCmd.Parameters.AddWithValue("@k", key);
-                        insertCmd.Parameters.AddWithValue("@v", value);
+                        insertCmd.Parameters.AddWithValue("@v", storedValue);
                         insertCmd.ExecuteNonQuery();
                     }
                 }
-                Logger.Info($"[Config] 저장: {key} = {value}");
+
+                // 민감 키는 값 노출 없이 키 이름만 기록 (security.md 마스킹 규칙)
+                if (SensitiveKeys.Contains(key))
+                    Logger.Info($"[Config] 저장: {key} = ****(암호화)");
+                else
+                    Logger.Info($"[Config] 저장: {key} = {value}");
             }
             catch (Exception ex)
             {
