@@ -6,7 +6,6 @@ import History from './pages/History';
 import Order from './pages/Order';
 import Backtest from './pages/Backtest';
 import Settings from './pages/Settings';
-import Monitoring from './pages/Monitoring';
 import Login from './pages/Login';
 import SellPlanManager from './components/SellPlanManager';
 
@@ -89,10 +88,6 @@ function Layout() {
               <span className="nav-link__icon">📜</span>
               거래 내역
             </NavLink>
-            <NavLink to="/monitoring" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <span className="nav-link__icon">🧠</span>
-              AI 모니터링
-            </NavLink>
             <NavLink to="/sell-plans" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <span className="nav-link__icon">📋</span>
               분할매도
@@ -113,7 +108,6 @@ function Layout() {
             <Route path="/history" element={<History />} />
             <Route path="/order" element={<Order />} />
             <Route path="/backtest" element={<Backtest />} />
-            <Route path="/monitoring" element={<Monitoring />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/sell-plans" element={<SellPlanManager />} />
           </Routes>
