@@ -2,13 +2,14 @@
 
 > 시트처럼 한눈에 보는 평면 표. 상세 요청/응답 예시는 [`API_REFERENCE.md`](API_REFERENCE.md), 인터랙티브 명세는 `/swagger` 참조.
 > 인증: 헬스체크(`/api/health`) 외 **모든 엔드포인트는 `x-api-key` 헤더 필수**.
+> ℹ️ 현재 매매 결정은 **퀀트 단독**(AI 결정 경로 휴면). 모니터링/적응형/가중치 A/B 엔드포인트는 유지되나 신규 데이터 미적재(휴면).
 
 | # | 그룹 | Method | 경로 | 설명 | 요청 (파라미터/본문) | 주요 응답(200) | 오류 코드 | 비고 |
 |---|------|--------|------|------|----------------------|----------------|-----------|------|
 | 1 | 주문 | POST | `/api/order/execute` | 활성 전략 스마트 주문 즉시 실행 | 없음 | `{message, results[]}` | 400/503/500 | |
 | 2 | 주문 | POST | `/api/order/daily-run` | 일일 전체 사이클 백그라운드 실행 | 없음 | `202 {message}` | — | 외부 크론용·즉시 202·결과는 로그/메일 |
 | 3 | 주문 | POST | `/api/order/manual` | 신호 무관 즉시 매수/매도 | body: `ticker*`, `qty*`, `orderType`, `price` | `{message, orderNo, ...}` | 400/503/502/500 | 검증용·체결 시 이력 저장 |
-| 4 | 주문 | GET | `/api/order/analyze/{ticker}` | 단일 종목 분석(주문 X) | path: `ticker`; query: `strategy`=MEAN_REVERSION | `{signal, indicators, conditions, advisoryNotes}` | 500 | 합의 신호 포함 |
+| 4 | 주문 | GET | `/api/order/analyze/{ticker}` | 단일 종목 분석(주문 X) | path: `ticker`; query: `strategy`=MEAN_REVERSION | `{signal, indicators, conditions, advisoryNotes}` | 500 | 퀀트 단독 신호 + 환율 코멘트(advisoryNotes) |
 | 5 | 설정 | GET | `/api/config` | 운영 설정 조회(시크릿 제외) | 없음 | `{IS_PAPER_TRADING, ACTIVE_STRATEGY, ...}` | 500 | |
 | 6 | 설정 | POST | `/api/config` | 설정 저장 + 세션 리셋 | body: `{key:value}` | `{message}` | 500 | |
 | 7 | 설정 | GET | `/api/config/gemini-models` | 사용 가능 Gemini 모델 목록 | 없음 | `{models[]}` | 500 | 키 미설정 시 `{models:[], error}` |
@@ -18,7 +19,7 @@
 | 11 | 전략 | POST | `/api/strategy/{name}` | 전략 저장(덮어쓰기) | path: `name`; body: `StrategyDto[]` | `{message}` | 400/500 | |
 | 12 | 전략 | DELETE | `/api/strategy/{name}` | 전략 삭제 | path: `name` | `{message}` | 500 | |
 | 13 | 모니터링 | GET | `/api/monitoring/summary` | 요약 핵심 지표 | query: `days`=30 | `{todayTotalTokens, evaluatedCount, ...}` | 500 | |
-| 14 | 모니터링 | GET | `/api/monitoring/performance` | 최근 AI 판단 성과 | query: `limit`=50 | `[성과]` | 500 | |
+| 14 | 모니터링 | GET | `/api/monitoring/performance` | 최근 AI 판단 성과 | query: `limit`=50 | `[성과]` | 500 | 휴면·과거 데이터만 |
 | 15 | 모니터링 | GET | `/api/monitoring/tokens/by-agent` | 에이전트별 토큰/비용 | query: `days`=30 | `{periodDays, agents[]}` | 500 | |
 | 16 | 모니터링 | GET | `/api/monitoring/tokens/daily` | 일자별 토큰/비용 | query: `days`=14 | `{periodDays, daily[]}` | 500 | |
 | 17 | 모니터링 | GET | `/api/monitoring/agent-accuracy` | 에이전트 실측 적중률 | query: `horizonDays`=7 | `{horizonDays, agents}` | 500 | Phase 5-d |

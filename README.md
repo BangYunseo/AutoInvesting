@@ -5,8 +5,13 @@
 ## 📌 프로젝트 개요
 
 설정한 시각에 자동으로 해외 ETF를 매수·매도하는 Headless 백그라운드 서비스입니다.
-**퀀트 엔진**을 통해 RSI, MACD, 볼린저밴드 등 다중 기술적 지표를 분석하고,
+**퀀트 엔진**을 통해 RSI, MACD, 볼린저밴드, Position 등 다중 기술적 지표를 분석하고,
 모든 조건을 만족할 때만 주문을 실행하여 **감정을 배제한 데이터 기반 투자**를 실현합니다.
+
+> **현재 동작(퀀트 단독)**: 매매 결정은 **퀀트 신호(`QuantFilter`)만으로** 이루어집니다.
+> Phase 4~6에서 개발한 AI 결정 경로(차트AI+펀더멘털AI 합의, 적응형 임계값, 확률 스코어링)는
+> **코드에 주석으로 비활성화(보존)** 되어 현재 매매에 사용되지 않습니다(휴면). 분석/실행 중 AI 호출은 없습니다.
+> 환율(USD/KRW)은 매수·매도 시 유불리를 알려주는 **설명·경고 전용 컨텍스트**로 참여하며, 매매를 막지는 않습니다.
 
 ### 핵심 목적
 
@@ -14,7 +19,7 @@
 |---|------|------|
 | 1 | **자동 투자** | 사용자가 직접 주문하지 않아도, 설정된 시각에 자동으로 매매 실행 |
 | 2 | **감정 배제** | "더 오를거다/내릴거다" 같은 심리적 판단을 제거하고 규칙 기반 매매 |
-| 3 | **계산식/AI 기반 투자** | 퀀트 지표, 계산식, AI를 활용한 정량적 데이터 기반 매매 |
+| 3 | **계산식 기반 투자** | 퀀트 지표·계산식을 활용한 정량적 데이터 기반 매매 (AI 결정 경로는 현재 휴면) |
 
 ### 증권사 API
 
@@ -43,21 +48,25 @@ AutoInvesting/
 │   ├── KisBrokerClient.cs              # KIS 실거래 구현체 (Polly 내결함성 적용)
 │   ├── KisTokenManager.cs              # KIS OAuth 토큰 발급 + 만료 전 자동 갱신
 │   ├── SessionManager.cs               # IBrokerClient/IMarketAnalyzer 생명주기 관리
-│   ├── SmartOrderEngine.cs             # 스마트 주문 판단 + 퀀트 + AI 합의 스코어링
+│   ├── SmartOrderEngine.cs             # 퀀트 신호(QuantFilter)만으로 매수/매도/보류 판정 (AI 합의 경로는 주석 비활성화·휴면)
 │   ├── DailyExecutionService.cs        # 일별 매매 스케줄 실행 진입점 (Scoped)
 │   ├── AllocationEngine.cs             # 투자금 배분 계산 엔진
-│   ├── IMarketAnalyzer.cs              # AI 시장 분석 인터페이스
-│   ├── AiMarketAnalyzer.cs             # Mock AI 구현체 (폴백)
-│   ├── GeminiMarketAnalyzer.cs         # Gemini API 이중 에이전트 (차트 + 펀더멘털 병렬)
+│   ├── Advisors/                       # 컨텍스트 어드바이저 (매매 veto 없이 설명·경고 전용)
+│   │   ├── IContextAdvisor.cs          # 어드바이저 인터페이스
+│   │   ├── FxRateAdvisor.cs            # 환율(USD/KRW) 유불리 설명·경고 (매수/매도 컨텍스트)
+│   │   └── ContextAdvisorService.cs    # 어드바이저 수집·실행
+│   ├── IMarketAnalyzer.cs              # AI 시장 분석 인터페이스 (휴면 — 결정 경로 미사용)
+│   ├── AiMarketAnalyzer.cs             # Mock AI 구현체 (휴면)
+│   ├── GeminiMarketAnalyzer.cs         # Gemini API 이중 에이전트 (휴면 — 현재 AI 호출 안 함)
 │   ├── IMcpDataProvider.cs             # MCP 외부 데이터 공급자 인터페이스 (확장점)
-│   └── Quant/                          # 퀀트 엔진 모듈
+│   └── Quant/                          # 퀀트 엔진 모듈 (현재 매매 결정의 단일 근거)
 │       ├── QuantIndicator.cs           # RSI, MACD, 볼린저밴드 계산
-│       ├── QuantFilter.cs              # 전략 유형별 다중 조건 AND 필터
+│       ├── QuantFilter.cs              # 전략 유형별 다중 조건 AND 필터 (매수/매도/보류 결정)
 │       ├── BacktestEngine.cs           # 과거 데이터 기반 전략 검증
 │       ├── RebalancingEngine.cs        # 보유 비중 자동 재조정
 │       ├── SellStrategyManager.cs      # 분할매도 플랜 관리
-│       ├── AdaptiveThresholdEngine.cs  # 종목별 적응형 매수/매도 임계값 계산 (Phase 5-a/5-d)
-│       ├── PerformanceFeedbackEngine.cs # 에이전트별 실측 적중률 + 가중치 A/B 분석 (Phase 5-d, 읽기 전용)
+│       ├── AdaptiveThresholdEngine.cs  # 종목별 적응형 매수/매도 임계값 (Phase 5-a/5-d, 휴면)
+│       ├── PerformanceFeedbackEngine.cs # 에이전트별 실측 적중률 + 가중치 A/B 분석 (Phase 5-d, 읽기 전용·휴면)
 │       └── SimTrainingDataGenerator.cs # SimBroker+Mock AI 학습데이터 대량 생성 (Phase 6-a)
 │
 ├── Data/                               # 데이터 액세스 계층
@@ -132,7 +141,7 @@ AutoInvesting/
 기존 WinForms 기반에서 **ASP.NET Core Web API** 기반의 Headless 서버로 구조가 개편되었습니다.
 UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시간 무인으로 동작합니다.
 
-- **스케줄 실행**: `DailyExecutionService`가 설정된 시각(`OrderSchedule`)에 `SmartOrderEngine`을 호출하여 전 종목 자동 분석 및 매매 실행
+- **스케줄 실행**: 외부 크론(GitHub Actions 워크플로우 `.github/workflows/daily-run.yml`, 매일 KST 23:25)이 `POST /api/order/daily-run`을 호출 → `OrderController`가 Scoped `DailyExecutionService`를 구동 → `SmartOrderEngine`이 전 종목을 **퀀트 단독**으로 분석·매매
 - **REST API 컨트롤러**: React 웹 대시보드 및 외부 클라이언트에서 상태 조회, 원격 제어 제공
 - **배포**: 단일 Docker 컨테이너 — ASP.NET Core가 React SPA 빌드 결과를 정적 파일로 서빙 (SPA 라우팅 지원)
 
@@ -172,7 +181,8 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 | 로깅 | Serilog |
 | 내결함성 | Polly (KIS API Retry + 지수 백오프) |
 | 이메일 알림 | MailKit (Naver SMTP) |
-| AI 엔진 | Google Gemini API (차트 + 펀더멘털 이중 에이전트) |
+| AI 엔진 | Google Gemini API (차트 + 펀더멘털 이중 에이전트) — **현재 휴면**(매매 결정 미사용, 코드 보존) |
+| 환율 컨텍스트 | FxRateAdvisor — 매수/매도 환율 유불리 설명·경고 (veto 없음) |
 | 증권사 API | 한국투자증권 (KIS) REST API |
 | 환율 API | Frankfurter API (무료, 키 불필요) |
 | 배포 | Docker (단일 컨테이너, React 정적 서빙 통합) |
@@ -242,6 +252,14 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 ### Phase 6 — 실데이터 운영 전환 · AI 호출 최적화 (✅ 완료)
 - [x] Phase 6-a: SimBroker 학습데이터 대량 생성 + DATA_SOURCE(SIM/REAL) 출처 분리
 - [x] Phase 6-b: 실데이터 운영 전환(Gemini 모델 설정화) + 무료 한도 429 대응(호출 통합·throttle) + AI 모델 선택 UI + 분석 진행바 UX
+
+### Phase 7 — 보안 (✅ 완료)
+- [x] 시크릿 키 암호화 저장(AES-256-GCM, MASTER_KEY) + 관리자 로그인 게이트(세션 토큰) — 크론은 x-api-key 유지
+
+### Phase 8 — 퀀트 단독 전환 + 환율 컨텍스트 (✅ 완료)
+- [x] 매매 결정을 **퀀트 단독**으로 전환 — AI 결정 경로(다중 에이전트·적응형 임계값·합의 스코어링)는 주석 비활성화(휴면, 코드 보존)
+- [x] 환율(FX) 어드바이저를 **설명·경고 전용**으로 매매 컨텍스트(단일 종목 분석/일일 리포트)에 반영 (veto 없음)
+- [x] `TB_MARKET_SNAPSHOT` AI 컬럼은 스키마 유지하되 기록 중단(0/빈값), 누적 데이터 보존
 
 ---
 

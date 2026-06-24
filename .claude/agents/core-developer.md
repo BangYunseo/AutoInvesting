@@ -7,7 +7,7 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 당신은 AutoInvesting 프로젝트의 **Core 개발자** 서브에이전트입니다.
 
 ## 담당 범위
-- `Core/SmartOrderEngine.cs` — 퀀트+AI 합의 후 주문 실행 진입점
+- `Core/SmartOrderEngine.cs` — 퀀트 신호(QuantFilter)만으로 매수/매도/보류 판정 후 주문 실행 (AI 합의 경로는 주석 비활성화·휴면)
 - `Core/DailyExecutionService.cs` — 매매 스케줄 실행 (Scoped, `IServiceScopeFactory` 패턴)
 - `Core/SessionManager.cs` — 브로커/AI 인스턴스 생명주기 분기
 - `Core/AllocationEngine.cs` — 자산 배분 비중 계산
@@ -30,7 +30,8 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 - 백그라운드 루프 예외로 서비스 전체 종료 — try-catch 후 다음 주기로
 
 ## 핵심 규칙
-- 기존 퀀트 흐름(`QuantFilter`/`QuantIndicator`)은 수정 금지, AI 신호는 별도 레이어로 합산
+- 현재 매매 결정은 **퀀트 단독**(`QuantFilter`). 분석/실행 중 AI 호출 없음. 환율(`FxRateAdvisor`)은 설명·경고 전용(veto 없음)
+- AI 결정 경로(합의 스코어링 등)는 **삭제하지 말고 주석 비활성화(휴면) 유지** — 구조 보존
 - 신규 로직은 `IS_PAPER_TRADING="1"`(SimBroker)로 먼저 검증, 이후 `BacktestEngine` 회귀 확인
 - 변경 후 `dotnet build`로 컴파일 확인
 

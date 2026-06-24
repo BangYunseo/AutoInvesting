@@ -34,21 +34,28 @@ trigger: always_on
 - 백그라운드 서비스 루프 내부 예외 발생 시 서비스 전체가 종료되지 않도록 `try-catch`로 감싸고 다음 주기로 넘어가게 처리합니다.
 
 
-## Phase 4 AI 엔진 도입 규칙
- 
-### 인터페이스 우선 설계
-- `IMarketAnalyzer` 인터페이스를 먼저 정의하고, `SmartOrderEngine`은 인터페이스에만 의존
-- AI 판단 결과는 `CombineSignals()`를 통해 기존 퀀트 신호와 합산 — 기존 퀀트 로직 직접 수정 금지
-- AI 엔진 인스턴스 생명주기는 `SessionManager`에서 관리 (기존 브로커 분기 패턴 동일하게 적용)
+## 매매 결정 규칙 (현재 — 퀀트 단독)
 
-### TB_MARKET_SNAPSHOT 데이터 보호
-- `TB_MARKET_SNAPSHOT`은 AI 학습용 축적 데이터 — 임의 수정 및 삭제 절대 금지
-- Phase 2.5부터 매매 시점마다 자동 저장되고 있으므로 데이터 연속성 유지가 중요
+### 퀀트 단독 결정
+- 매수/매도/보류는 `QuantFilter`(전략 유형별 AND 조건)만으로 결정한다. **AI 호출 없음.**
+- 환율(FX)은 `FxRateAdvisor`로 **설명·경고만** 한다 — 매매를 막지 않는다(veto 없음).
+- `QuantFilter`, `QuantIndicator`의 기존 로직 변경 시 반드시 `BacktestEngine`으로 회귀 확인.
+
+### AI 코드 휴면 처리 규칙 (보존)
+- Phase 4~6에서 개발한 AI 결정 경로(`IMarketAnalyzer`/`AiMarketAnalyzer`/`GeminiMarketAnalyzer`,
+  `CalculateConsensusScore`, `AdaptiveThresholdEngine`, `PerformanceFeedbackEngine`, `MonitoringController` 등)는
+  **삭제하지 않고 주석으로 비활성화(보존)** 한다. 향후 재활성화 가능하도록 구조를 깨지 않는다.
+- AI 컬럼(`BuyProbability`, `ChartAiScore` 등)은 **스키마 유지하되 더 이상 기록하지 않는다(0/빈값)**.
+
+### (참고) 과거 AI 엔진 도입 시 설계 규칙 — 재활성화 시 준수
+- `IMarketAnalyzer` 인터페이스에만 의존하고, AI 판단은 별도 레이어로 합산 (기존 퀀트 로직 직접 수정 금지)
+- AI 엔진 인스턴스 생명주기는 `SessionManager`에서 관리 (브로커 분기 패턴과 동일)
+- AI confidence가 낮거나 없으면 **퀀트 조건만으로 동작하는 fallback 유지**
+
+### TB_MARKET_SNAPSHOT 데이터 보호 (현행 유지 — MUST)
+- `TB_MARKET_SNAPSHOT`은 누적 데이터 — **임의 수정 및 삭제 절대 금지** (AI 컬럼 포함)
+- Phase 2.5부터 축적된 데이터 연속성 유지가 중요
 - 스키마 변경이 필요한 경우 기존 컬럼 유지 + 신규 컬럼 추가(ALTER TABLE)만 허용
-
-### 기존 퀀트 흐름 보호
-- `QuantFilter`, `QuantIndicator`의 기존 로직은 수정하지 않고 AI 신호를 별도 레이어로 추가
-- AI confidence score가 낮거나 없을 경우 기존 퀀트 조건만으로 동작하는 fallback 유지 필수
 ---
  
 ## 테스트 규칙

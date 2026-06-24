@@ -9,8 +9,14 @@ trigger: always_on
 ## 목적
  
 설정한 시각에 자동으로 해외 ETF를 매수·매도하는 Headless 백그라운드 서비스입니다.
-퀀트 엔진(RSI, MACD, 볼린저밴드)으로 다중 기술적 지표를 분석하고,
+퀀트 엔진(RSI, MACD, 볼린저밴드, Position)으로 다중 기술적 지표를 분석하고,
 모든 조건을 만족할 때만 주문을 실행하여 **감정을 배제한 데이터 기반 투자**를 실현합니다.
+
+> **현재 동작(퀀트 단독)**: 매수/매도/보류 판정은 **퀀트 신호(`QuantFilter`)만으로** 결정합니다.
+> 과거 Phase 4~6에서 개발한 AI 결정 경로 — (a) 다중 AI 에이전트(차트AI+펀더멘털AI) 분석,
+> (b) 종목별 적응형 임계값, (c) 확률 기반 합의 스코어링(consensus) — 은 **코드에 주석으로 비활성화(보존)** 되어
+> 매매 결정에 사용되지 않습니다(휴면). 분석/실행 중 Gemini 등 AI 호출은 더 이상 일어나지 않습니다.
+> 환율(FX) 어드바이저는 매매를 막지 않는 **설명·경고 전용 컨텍스트**로만 참여합니다(아래 참조).
  
 ## 기술 스택
  
@@ -34,19 +40,19 @@ AutoInvesting/
 │   ├── IBrokerClient.cs                # 증권사 API 추상화
 │   ├── KisBrokerClient.cs              # KIS 실거래 연동 모듈 (Polly 적용)
 │   ├── SimBrokerClient.cs              # 가상 모의투자 환경
-│   ├── IMarketAnalyzer.cs              # AI 시장 분석 추상화
-│   ├── AiMarketAnalyzer.cs             # Mock 분석기 (폴백)
-│   ├── GeminiMarketAnalyzer.cs         # Gemini 실연동 (차트+펀더멘털 통합 호출)
-│   ├── SmartOrderEngine.cs             # 퀀트 필터 통과 시 실거래 주문 실행
-│   ├── DailyExecutionService.cs        # 일일 매매 사이클 진입점 (Scoped) — 외부 크론이 POST /api/order/daily-run 호출 시 실행
-│   ├── SessionManager.cs               # 모의/실전 브로커·AI 엔진 생명주기 관리
+│   ├── IMarketAnalyzer.cs              # AI 시장 분석 추상화 (휴면 — 결정 경로 미사용)
+│   ├── AiMarketAnalyzer.cs             # Mock 분석기 (휴면 — 결정 경로 미사용)
+│   ├── GeminiMarketAnalyzer.cs         # Gemini 실연동 (휴면 — 현재 AI 호출 안 함)
+│   ├── SmartOrderEngine.cs             # 퀀트 신호(QuantFilter)만으로 매수/매도/보류 판정 + 주문 실행 (AI 결정 경로는 주석 비활성화)
+│   ├── DailyExecutionService.cs        # 일일 매매 사이클 진입점 (Scoped) — 외부 크론(GitHub Actions)이 POST /api/order/daily-run 호출 시 실행
+│   ├── SessionManager.cs               # 모의/실전 브로커 생명주기 관리 (AI 엔진 분기는 휴면)
 │   ├── AllocationEngine.cs             # 자산 배분 비중 계산
-│   ├── Advisors/                       # 컨텍스트 어드바이저 (환율 등 보조 판단 정보)
-│   └── Quant/                          # 퀀트 분석 모듈
+│   ├── Advisors/                       # 컨텍스트 어드바이저 — FxRateAdvisor(환율) 등. 매매 veto 없이 설명·경고 전용
+│   └── Quant/                          # 퀀트 분석 모듈 (현재 매매 결정의 단일 근거)
 │       ├── QuantIndicator.cs           # 지표 생성(RSI, BB, MACD)
-│       ├── QuantFilter.cs              # 전략 조건 판단 로직
-│       ├── AdaptiveThresholdEngine.cs  # 종목별 적응형 매수/매도 임계값 (Phase 5)
-│       ├── PerformanceFeedbackEngine.cs# 성과 기반 피드백·가중치 A/B (Phase 5-d, 읽기 전용)
+│       ├── QuantFilter.cs              # 전략 조건 판단 로직 (매수/매도/보류 결정)
+│       ├── AdaptiveThresholdEngine.cs  # 종목별 적응형 매수/매도 임계값 (Phase 5, 휴면 — 결정 경로 미사용)
+│       ├── PerformanceFeedbackEngine.cs# 성과 기반 피드백·가중치 A/B (Phase 5-d, 읽기 전용·휴면)
 │       ├── BacktestEngine.cs / RebalancingEngine.cs / SellStrategyManager.cs
 │       └── SimTrainingDataGenerator.cs # SIM 학습데이터 합성 (Phase 6-a)
 │
@@ -103,3 +109,9 @@ AutoInvesting/
 | **6-a** | **SimBroker 학습데이터 대량 생성 + DATA_SOURCE(SIM/REAL) 출처 분리** | ✅ **완료** |
 | **6-b** | **실데이터 운영 전환(Gemini 모델 설정화) + 무료 한도 429 대응(호출 통합·throttle) + AI 모델 선택 UI + 분석 진행바 UX** | ✅ **완료** |
 | **7** | **보안: 시크릿 키 암호화 저장(AES-256-GCM, MASTER_KEY) + 관리자 로그인 게이트(세션 토큰) — 크론은 x-api-key 유지** | ✅ **완료** |
+| **8** | **퀀트 단독 전환: AI 결정 경로(다중 에이전트·적응형 임계값·합의 스코어링) 비활성화(주석 보존) + 환율(FX) 어드바이저를 설명·경고 전용으로 매매 컨텍스트에 반영** | ✅ **완료** |
+
+> **현재 동작 요약**: Phase 4~6의 AI 기능은 **개발 이력으로 보존**하되, 현재 매매 결정은 **퀀트 단독**입니다.
+> AI 관련 코드(IMarketAnalyzer, AiMarketAnalyzer, GeminiMarketAnalyzer, ConsensusScoreDto, AdaptiveThresholdEngine,
+> PerformanceFeedbackEngine, MonitoringController 등)는 **삭제하지 않고 휴면 상태로 존재**합니다.
+> `TB_MARKET_SNAPSHOT`의 AI 컬럼(BuyProbability, ChartAiScore 등)은 **유지하되 더 이상 기록하지 않습니다(0/빈값)**.

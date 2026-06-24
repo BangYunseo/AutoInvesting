@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태: Phase 6-b 완료 🚀
+## 현재 상태: Phase 8 완료 🚀 (퀀트 단독 매매 전환)
 
 - **Phase 1** (기반): ✅ 완료
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
@@ -26,6 +26,47 @@
 - **Phase 6-a** (SimBroker 학습데이터 생성 + SIM/REAL 출처 분리): ✅ **완료**
 - **Phase 6-b** (실데이터 운영 전환 · AI 호출 최적화 · UX 개선): ✅ **완료**
 - **Phase 7** (보안: 시크릿 키 암호화 저장 + 관리자 로그인 게이트): ✅ **완료**
+- **Phase 8** (퀀트 단독 전환 + 환율 매매판정 반영, AI 결정 경로 비활성화): ✅ **완료**
+
+---
+
+## Phase 8 — 퀀트 단독 전환 + 환율 매매판정 반영, AI 결정 경로 비활성화(주석 보존)
+
+### 핵심: "퀀트 + 다중 AI 합의" → "퀀트 단독 매매 + 환율(FX) 설명·경고 컨텍스트"
+
+매매 결정에서 AI를 완전히 제거하고, `SmartOrderEngine`이 **퀀트 신호(`QuantFilter`: RSI·MACD·볼린저·Position)만으로**
+매수/매도/보류를 결정하도록 전환했습니다. 기존 AI 결정 경로는 삭제하지 않고 **주석으로 비활성화(휴면)** 하여 보존합니다.
+
+```
+변경 전 (Phase 4-e~6):
+  SmartOrderEngine → [퀀트] + [차트AI] + [펀더멘털AI] → CalculateConsensusScore(확률 합산) → 매수/매도
+
+변경 후 (Phase 8):
+  SmartOrderEngine → [퀀트(QuantFilter)] → 매수/매도/보류 결정
+                          └── FxRateAdvisor(환율 유불리 설명·경고, veto 없음) → 결과/리포트에 첨부
+  (차트AI+펀더멘털AI 분석, 적응형 임계값, 합의 스코어링 경로는 주석 비활성화·보존 → 분석/실행 중 Gemini 호출 없음)
+```
+
+### 주요 변경 내용
+
+- **AI 완전 제거(매매 경로)**: `SmartOrderEngine`의 (a) 다중 AI 에이전트 분석(차트AI+펀더멘털AI), (b) 적응형 임계값,
+  (c) 확률 기반 합의 스코어링(`CalculateConsensusScore`)을 **코드에서 주석으로 비활성화(보존)**. 분석/실행 중 AI 호출이 더 이상 일어나지 않음.
+- **환율(FX) 어드바이저 매매 컨텍스트 참여**: `Core/Advisors/FxRateAdvisor`가 매수 시 환율 低=유리(INFO)·高=환차손 경고(WARNING, 환헤지 대안 제시),
+  매도 시 환율 高=원화 환산 유리(INFO)·低=불리 경고(WARNING)를 제공. **매매를 막지 않는 설명·경고 전용**(veto 없음).
+  단일 종목 분석 응답(`advisoryNotes`)과 일일 운용 리포트 이메일에 표시.
+- **TB_MARKET_SNAPSHOT**: AI 컬럼(`BuyProbability`, `ChartAiScore` 등)은 **유지하되 더 이상 기록하지 않음(0/빈값)**. 컬럼·기존 누적 데이터는 보존.
+
+### 휴면(보존) 상태 파일 — 삭제하지 않음
+
+`IMarketAnalyzer`, `AiMarketAnalyzer`, `GeminiMarketAnalyzer`, `ConsensusScoreDto`, `AdaptiveThresholdEngine`,
+`PerformanceFeedbackEngine`, `MonitoringController` 등은 **존재하지만 매매 결정 경로에서는 사용되지 않습니다(휴면)**.
+향후 재활성화 가능하도록 구조를 보존합니다.
+
+### 안전 제약 (준수)
+
+- `TB_MARKET_SNAPSHOT` 등 누적 테이블 수정·삭제 없음 (AI 컬럼은 스키마 유지, 기록만 중단)
+- AI 관련 코드/파일 삭제 없음 — 주석 비활성화로 보존
+- Phase 4~6의 AI 개발 이력은 본 CHANGELOG에 그대로 보존
 
 ---
 

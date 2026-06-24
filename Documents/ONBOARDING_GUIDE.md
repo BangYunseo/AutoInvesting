@@ -14,10 +14,14 @@
 [ Controllers ] (REST API Endpoint)
       │
       ├── (주문/분석 요청) ──▶ [ Core/SessionManager ] ──▶ [ 브로커 클라이언트 분기 (Sim/KIS) ]
-      │                            └── [ Core/SmartOrderEngine ] ──▶ 퀀트 엔진 + AI 엔진 구동
+      │                            └── [ Core/SmartOrderEngine ] ──▶ 퀀트 엔진(QuantFilter) 단독 판정 + 환율 어드바이저(설명·경고)
       │
       └── (데이터 단순 조회) ─▶ [ Data/DAO ] ──▶ PostgreSQL DB
 ```
+
+> **현재 동작(퀀트 단독)**: 매수/매도/보류는 퀀트 신호만으로 결정합니다. Phase 4~6에서 만든 AI 결정 경로
+> (차트AI+펀더멘털AI 합의, 적응형 임계값, 확률 스코어링)는 **코드에 주석으로 비활성화(보존)** 되어 매매에 쓰이지 않습니다(휴면).
+> 분석/실행 중 Gemini 등 AI 호출은 일어나지 않습니다. 아래 4번 섹션의 합의 스코어링 설명은 **휴면 코드의 과거 동작 기록**입니다.
 
 - **일일 매매 사이클 (DailyExecutionService)**: 앱 내부에 상시 동작하는 백그라운드 루프(`IHostedService`)는 없습니다. 외부 스케줄러(크론)가 `POST /api/order/daily-run`을 호출하면 `OrderController`가 Scoped 수명으로 `DailyExecutionService`를 구동하고, 이 서비스가 `SmartOrderEngine`을 호출하여 전 종목 자동분석 및 매매를 수행합니다. (과거 `TradingBackgroundService`(IHostedService, 1분 간격) 구조를 대체)
 
@@ -25,7 +29,7 @@
 
 프로젝트 핵심 인스턴스들은 `Program.cs`에서 **싱글턴(Singleton)**으로 선언되어 시스템 전역에서 생명기가 하나로 관리됩니다.
 
-- `SessionManager`: 앱 내에서 브로커 세션(토큰 등)과 AI 엔진의 상태를 관리합니다. Controllers는 DI를 통해 주입받아 사용합니다.
+- `SessionManager`: 앱 내에서 브로커 세션(토큰 등)을 관리합니다. (AI 엔진 분기 코드는 보존되어 있으나 현재 매매 결정에 사용되지 않음) Controllers는 DI를 통해 주입받아 사용합니다.
 - `DBManager`: PostgreSQL 커넥션(Npgsql) 관리를 책임집니다.
 - **예시 흐름 (`OrderController` 수동 실행 시)**:
   `OrderController`가 `execute` 엔드포인트 수신 → DI로 주입받은 `SessionManager`에서 API/브로커 상태 수령 → `SmartOrderEngine`에 브로커/AI엔진을 넣고 로직 실행.
@@ -38,24 +42,28 @@ AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(�
 - 반대로 키가 정상적으로 존재하면 **`KisBrokerClient` (한국투자증권 실거래망/모의망 연결)**를 주입합니다.
   - KIS 연동에서도 `Kis:Server` 값을 통해 KIS 실전망(prod)과 KIS 모의투자망(vps)으로 한 번 더 분기할 수 있습니다.
 
-## 4. 판단 로직: 퀀트 + AI 합의 스코어링 (CalculateConsensusScore)
+## 4. 판단 로직: 퀀트 단독 + 환율 컨텍스트 (현재)
 
 매매 결정 로직은 철저하게 데이터와 알고리즘 기반으로 이루어집니다. `SmartOrderEngine` 내 로직의 흐름을 살펴봅시다.
 
 1. **퀀트 지표 계산 (`QuantIndicator`)**: OHLCV(일봉) 데이터를 이용해 `RSI`, `MACD`, `Bollinger Bands`, 그리고 가격 위치(`Position`)를 도출합니다.
-2. **퀀트 필터 통과 (`QuantFilter`)**: 설정된 전략(`MEAN_REVERSION`, `MOMENTUM`, `MIXED`)에 따라 AND 조합으로 검사합니다.
-   - 예: "고점 대비 하위 30% 이내이면서, RSI가 45 이하인가?" → 1차 관문 통과 시 퀀트 기여 40% 확보.
-3. **AI 이중 에이전트 평가 (`GeminiMarketAnalyzer`)**: `Task.WhenAll`로 차트 에이전트와 펀더멘털 에이전트를 **병렬** 호출합니다.
-   - 각 에이전트는 `PromptBuilder`가 생성한 서로 다른 역할 프롬프트를 받아 독립적으로 판단합니다.
-   - Gemini는 `{ "signal": "BUY", "confidence": 0.76 }` JSON으로 응답합니다.
-   - `Ai:Provider`가 `mock`이거나 API 호출 실패 시 `AiMarketAnalyzer`(Mock)가 폴백으로 동작합니다.
-4. **확률 기반 합산 (`CalculateConsensusScore`)**:
-   ```
-   BuyProbability = 퀀트기여(40%) + 차트AI확신도×30% + 펀더멘털AI확신도×30%
-   BuyProbability ≥ BUY_THRESHOLD(기본 0.65) → 매수 실행
-   ```
-   - 퀀트가 HOLD면 최대 60%로 제한 → 임계값(65%) 자동 미달, 별도 분기 불필요.
-   - 판단 근거는 `ConsensusScoreDto`에 저장되어 로그와 MarketSnapshot에 기록됩니다.
+2. **퀀트 필터 판정 (`QuantFilter`)**: 설정된 전략(`MEAN_REVERSION`, `MOMENTUM`, `MIXED`)에 따라 AND 조합으로 검사하여 **매수/매도/보류를 최종 결정**합니다.
+   - 예: "고점 대비 하위 30% 이내이면서, RSI가 45 이하인가?" → 모든 조건 충족 시 매수.
+3. **환율(FX) 컨텍스트 (`FxRateAdvisor`)**: 매매 방향이 정해지면 USD/KRW 환율의 최근 분포상 위치를 보고 유불리를 **설명·경고**합니다. **매매를 막지는 않습니다(veto 없음).**
+   - 매수: 환율 低 → 유리(INFO) / 환율 高 → 환차손 경고(WARNING) + 환헤지 대안 제시
+   - 매도: 환율 高 → 원화 환산 유리(INFO) / 환율 低 → 불리 경고(WARNING)
+   - 이 코멘트는 `GET /api/order/analyze/{ticker}` 응답의 `advisoryNotes`와 일일 운용 리포트 이메일에 표시됩니다.
+
+> ℹ️ **(휴면) 과거 AI 합의 스코어링** — 아래는 Phase 4-e~6에서 동작하던 방식으로, **현재는 주석으로 비활성화(보존)** 되어
+> 매매에 사용되지 않습니다. 향후 재활성화를 위해 기록만 남깁니다.
+>
+> - AI 이중 에이전트 평가(`GeminiMarketAnalyzer`): `Task.WhenAll`로 차트/펀더멘털 에이전트를 병렬 호출, `{ "signal": "BUY", "confidence": 0.76 }` JSON 응답
+> - 확률 기반 합산(`CalculateConsensusScore`):
+>   ```
+>   BuyProbability = 퀀트기여(40%) + 차트AI확신도×30% + 펀더멘털AI확신도×30%
+>   BuyProbability ≥ BUY_THRESHOLD(기본 0.65) → 매수 실행
+>   ```
+> - 판단 근거는 `ConsensusScoreDto`에 보관되었고, `TB_MARKET_SNAPSHOT`의 AI 컬럼은 스키마는 유지되나 **현재 기록되지 않습니다(0/빈값)**.
 
 ## 5. 보안 정책: 내 로컬 API 자격 증명 다루기
 

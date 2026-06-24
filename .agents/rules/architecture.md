@@ -36,13 +36,14 @@ Data (Data/, Data/DTO/, Data/DAO/)
   - 새 증권사 추가 시 반드시 이 인터페이스를 구현
 - `SessionManager` — 브로커 인스턴스 생명주기 관리
   - `IS_PAPER_TRADING` 설정값에 따라 SimBroker 또는 KisBroker 분기
-  - `AI_PROVIDER` 설정에 따라 `AiMarketAnalyzer`(Mock) 또는 `GeminiMarketAnalyzer` 분기
-- `IMarketAnalyzer` — AI 시장 분석 인터페이스
-  - 구현체: `AiMarketAnalyzer` (Mock), `GeminiMarketAnalyzer` (Gemini API, 차트+펀더멘털 이중 에이전트)
+  - (휴면) `AI_PROVIDER`에 따른 `AiMarketAnalyzer`/`GeminiMarketAnalyzer` 분기 코드는 보존되어 있으나 현재 매매 결정 경로에서 사용하지 않음
+- `QuantFilter` — **현재 매매 결정의 단일 근거**. 전략 유형별 AND 조건(RSI·MACD·볼린저·Position)으로 매수/매도/보류 판정
+- `FxRateAdvisor`(`IContextAdvisor`) — 환율(USD/KRW) 분포상 위치를 보고 매매 유불리를 설명. **매매를 막지 않는 설명·경고 전용**(veto 없음), 단일 종목 분석 응답과 일일 운용 리포트에 첨부
 - `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (MailKit, Naver SMTP)
 - `DailyExecutionService` — 매매 스케줄 실행 진입점 (Scoped, `IServiceScopeFactory` 패턴 필요)
-- `AdaptiveThresholdEngine` — 종목별 과거 BuyProbability/SellProbability 분포 기반 적응형 매수·매도 임계값 계산 (Phase 5-a 매수 / 5-d 매도)
-- `PerformanceFeedbackEngine` — TB_MARKET_SNAPSHOT의 에이전트별 신호를 미래 가격과 대조하여 실측 적중률·합의 가중치 A/B 산출 (Phase 5-d, 읽기 전용 분석)
+- (휴면) `IMarketAnalyzer`/`AiMarketAnalyzer`/`GeminiMarketAnalyzer` — AI 시장 분석 추상화·구현. 코드는 보존되나 결정 경로 미사용
+- (휴면) `AdaptiveThresholdEngine` — 종목별 적응형 매수·매도 임계값 (Phase 5). 결정 경로 미사용
+- (휴면) `PerformanceFeedbackEngine` — TB_MARKET_SNAPSHOT 기반 실측 적중률·가중치 A/B 산출 (Phase 5-d, 읽기 전용 분석)
 
 ## 아키텍처 흐름
 ```
@@ -53,18 +54,29 @@ ASP.NET Core Host (Program.cs)
                                   SmartOrderEngine
                                        ├── 현재가/가격범위/OHLCV 조회 (IBrokerClient)
                                        ├── QuantIndicator (RSI, MACD, BB 계산)
-                                       ├── QuantFilter (전략 유형별 AND 조건)
-                                       ├── IMarketAnalyzer (차트AI + 펀더멘털AI 병렬 호출)
-                                       ├── CalculateConsensusScore (가중치 확률 합산 → BuyProbability)
+                                       ├── QuantFilter (전략 유형별 AND 조건) → 매수/매도/보류 결정
+                                       ├── FxRateAdvisor (환율 유불리 설명·경고 — veto 없음, 결과에 첨부)
                                        ├── 주문 실행 → TradeHistoryDAO (거래 기록 저장)
-                                       └── 메일 발송 → NotificationService (성공/오류 알림)
+                                       └── 메일 발송 → NotificationService (성공/오류 알림 + 환율 코멘트)
+   (휴면) IMarketAnalyzer(차트AI+펀더멘털AI) · CalculateConsensusScore(합의 확률) 경로는 주석으로 비활성화·보존
 ```
 
-## AI 합의 시스템 (Phase 4-e~)
+## 매매 결정: 퀀트 단독 (현재)
+- 매수/매도/보류는 `QuantFilter`의 전략 유형별 AND 조건만으로 결정합니다 (RSI·MACD·볼린저·Position).
+- 분석/실행 중 Gemini 등 **AI 호출은 일어나지 않습니다**.
+- 환율(FX)은 `FxRateAdvisor`가 매매 방향에 맞춰 유불리를 설명/경고만 합니다 — **매매를 막지 않습니다(veto 없음)**.
+  - 매수: 환율 低 → 유리(INFO) / 환율 高 → 환차손 경고(WARNING) + 환헤지 대안 제시
+  - 매도: 환율 高 → 원화 환산 유리(INFO) / 환율 低 → 불리 경고(WARNING)
+  - 표시 위치: `GET /api/order/analyze/{ticker}` 응답의 `advisoryNotes`, 일일 운용 리포트 이메일
+
+## (휴면) AI 합의 시스템 — Phase 4-e~6 개발 이력
+> 아래 합의 스코어링은 **현재 매매에 사용되지 않으며, 코드에서 주석으로 비활성화(보존)** 되어 있습니다.
+> 향후 재활성화를 위해 설명만 남깁니다.
 - `CalculateConsensusScore()`: 퀀트(40%) + 차트AI(30%) + 펀더멘털AI(30%) 가중치 × 확신도 합산
 - 임계값(`BUY_THRESHOLD`, `SELL_THRESHOLD`) 초과 시에만 매매 실행 (기본값 0.65)
 - 가중치/임계값은 `appsettings.json > Consensus` 섹션에서 설정
 - `ConsensusScoreDto` — 확률 분해 결과 보관 (BuyProbability, 에이전트별 기여도)
+- `TB_MARKET_SNAPSHOT`의 AI 컬럼(BuyProbability, ChartAiScore 등)은 **유지하되 더 이상 기록하지 않음(0/빈값)**
 
 ## 새 기능 추가 순서
 1. DTO → DAO → Core 로직 → API Controller 또는 BackgroundService 순서로 구현

@@ -18,7 +18,7 @@ trigger: always_on
       ├── [서브 에이전트: Data 개발자]   — DTO, DAO, DBManager, PostgreSQL 튜닝
       ├── [서브 에이전트: API 개발자]    — Controllers 구축, React 연동, Polly/알림 시스템 구현
       ├── [서브 에이전트: KIS 연동]      — KisBrokerClient 연동 고도화, TokenManager
-      └── [서브 에이전트: 퀀트 분석]    — QuantIndicator, AI MarketAnalyzer 고도화, 적응형 임계값 시스템 (Phase 5)
+      └── [서브 에이전트: 퀀트 분석]    — QuantIndicator/QuantFilter(현재 매매 결정 단일 근거), FxRateAdvisor, BacktestEngine. AI 분석·적응형 임계값(Phase 5)은 휴면 코드 유지보수
 ```
 
 ## 리드 에이전트의 책임

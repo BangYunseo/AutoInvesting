@@ -2,7 +2,7 @@
 
 > 해외 ETF 자동투자 시스템 · ASP.NET Core Web API (.NET 8.0, C#) + React SPA
 > 24시간 동작 Headless 백그라운드 서비스 · 증권사: 한국투자증권(KIS)
-> 현재 **Phase 6-b** 완료.
+> 현재 **Phase 8** 완료(퀀트 단독 매매 전환). 매매 결정은 퀀트 단독이며, Phase 4~6의 AI 결정 경로는 주석 비활성화(휴면)되어 보존됩니다.
 
 ---
 
@@ -76,4 +76,4 @@
 | `data-developer` | DTO/DAO/DBManager, PostgreSQL(Npgsql) |
 | `api-developer` | Controllers, React 연동, Polly/알림 |
 | `kis-integration` | KisBrokerClient, TokenManager, KIS 연동 |
-| `quant-analyst` | QuantIndicator, AI MarketAnalyzer, 적응형 임계값(Phase 5) |
+| `quant-analyst` | QuantIndicator/QuantFilter(현재 매매 결정 단일 근거), FxRateAdvisor, BacktestEngine. AI 분석·적응형 임계값(Phase 5)은 휴면 코드 유지보수 |
