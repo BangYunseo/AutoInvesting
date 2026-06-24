@@ -167,6 +167,14 @@ namespace AutoInvest.Core
                 quantReason = buyFilter.Summary;
             }
 
+            // ════════════════════════════════════════════════════════════════
+            // [AI 비활성화 — 퀀트 단독 매매로 전환] (2026-06)
+            //   Gemini 호출/지연/429/비용 제거를 위해 AI 기여를 없애고 퀀트 신호로만 매매한다.
+            //   아래 원본(다중 AI 분석 → 적응형 임계값 → 확률 합의 스코어링)은 삭제하지 않고
+            //   참고용으로 주석 보존한다. AI를 되살리려면 아래 블록 주석을 해제하고
+            //   하단의 '퀀트 단독 판정'을 제거하면 된다.
+            // ════════════════════════════════════════════════════════════════
+            /*
             // ── Phase 4-e: 다중 AI 에이전트 분석 (차트 + 펀더멘털 병렬 실행) ──
             var multiAgentResult = await _analyzer.AnalyzeAsync(ticker, indicators, ohlcv);
 
@@ -220,21 +228,28 @@ namespace AutoInvest.Core
                         $"미동의 에이전트: {dissentStr}. [퀀트 의견] {quantReason}";
                 }
             }
+            */
 
-            // ── 확률 분해 상세 로그 (Phase 4-e & 5-a) ──
-            string quantIcon = quantSignal == SmartOrderSignal.BUY ? "BUY" : (quantSignal == SmartOrderSignal.SELL ? "SELL" : "HOLD");
+            // ── 퀀트 단독 판정: 퀀트 신호(BUY/SELL/HOLD)를 그대로 최종 신호로 사용 ──
+            SmartOrderSignal finalSignal = quantSignal;
+            string finalReason = quantReason;
+
+            // ── 판정 상세 로그 (퀀트 단독) ──
             string resultIcon = finalSignal == SmartOrderSignal.HOLD ? "⚠️" : "✅";
-            decimal buyProb = consensusScore.BuyProbability;
-            decimal sellProb = consensusScore.SellProbability;
+            string quantIcon = quantSignal == SmartOrderSignal.BUY ? "BUY" : (quantSignal == SmartOrderSignal.SELL ? "SELL" : "HOLD");
 
             string decisionDetail =
-                $"[{strategyType}] {ticker} 최종 판정: {finalSignal} {resultIcon}\n" +
+                $"[{strategyType}] {ticker} 최종 판정: {finalSignal} {resultIcon} (퀀트 단독)\n" +
+                $"  └── 퀀트 신호: {quantIcon} → {finalReason}";
+
+            /* [AI 비활성화] 기존 확률 분해 상세 로그(차트AI/펀더멘털AI 기여도 + 적응형 임계값)는 참고용 주석 보존:
+            decimal buyProb = consensusScore.BuyProbability;
+            decimal sellProb = consensusScore.SellProbability;
+            string aiDetail =
                 $"  ├── 퀀트       : {quantIcon}  → +{consensusScore.QuantContribution:P1}\n" +
                 $"  ├── 차트AI     : {multiAgentResult.ChartAgent.Signal} (확신도:{multiAgentResult.ChartAgent.ConfidenceScore:F2}) → +{consensusScore.ChartAiContribution:P1}\n" +
-                $"  └── 펀더멘털AI : {multiAgentResult.FundamentalAgent.Signal} (확신도:{multiAgentResult.FundamentalAgent.ConfidenceScore:F2}) → +{consensusScore.FundamentalAiContribution:P1}\n" +
-                $"  ─────────────────────────────────────\n" +
-                $"  적응형 매수 임계값: {adaptiveBuyThreshold:P1} ({adaptiveReason})\n" +
-                $"  매수 확률: {buyProb:P1} {(buyProb >= adaptiveBuyThreshold ? "≥" : "<")} {adaptiveBuyThreshold:P1} (임계값) → {finalReason}";
+                $"  └── 펀더멘털AI : {multiAgentResult.FundamentalAgent.Signal} (확신도:{multiAgentResult.FundamentalAgent.ConfidenceScore:F2}) → +{consensusScore.FundamentalAiContribution:P1}";
+            */
 
             Logger.LogQuant(ticker, quantConditions, finalSignal, strategyType);
             Logger.Info($"[SmartOrder] {decisionDetail}");
@@ -271,9 +286,8 @@ namespace AutoInvest.Core
                 Indicators       = indicators,
                 QuantConditions  = quantConditions,
                 DecisionReason   = decisionDetail,
-                MultiAgentResult = multiAgentResult,
-                AdvisoryNotes    = advisoryNotes,
-                ConsensusScore   = consensusScore
+                // [AI 비활성화] MultiAgentResult/ConsensusScore 미설정(null) — 스냅샷 저장부는 null 허용(AI 컬럼 0/빈값 기록)
+                AdvisoryNotes    = advisoryNotes
             };
         }
 
