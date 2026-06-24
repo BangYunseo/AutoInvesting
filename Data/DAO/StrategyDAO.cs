@@ -54,6 +54,27 @@ namespace AutoInvest.Data.DAO
         }
 
         /// <summary>
+        /// 자산 마스터(TB_ASSET_MASTER)의 전체 종목 목록을 조회합니다. 전략에 편입 가능한 허용 종목입니다.
+        /// </summary>
+        public static List<AssetMasterDto> GetAssetMaster()
+        {
+            var list = new List<AssetMasterDto>();
+            using (var conn = DBManager.Instance.GetConnection())
+            using (var cmd = new NpgsqlCommand(
+                "SELECT TICKER, NAME, CURRENCY, IS_ACTIVE FROM TB_ASSET_MASTER ORDER BY TICKER", conn))
+            using (var rdr = cmd.ExecuteReader())
+                while (rdr.Read())
+                    list.Add(new AssetMasterDto
+                    {
+                        Ticker = rdr.GetString(0),
+                        Name = rdr.GetString(1),
+                        Currency = rdr.GetString(2),
+                        IsActive = rdr.GetInt32(3) == 1
+                    });
+            return list;
+        }
+
+        /// <summary>
         /// 전략을 저장합니다. 동일 이름의 기존 전략을 삭제 후 새로 INSERT.
         /// </summary>
         public static void SaveStrategy(string strategyName, List<StrategyDto> items)
@@ -74,6 +95,18 @@ namespace AutoInvest.Data.DAO
                     // 새 전략 INSERT
                     foreach (var item in items)
                     {
+                        // ── 자산 마스터 선등록 (FK 제약 충족: TB_INVEST_STRATEGY.TICKER → TB_ASSET_MASTER.TICKER) ──
+                        //    종목이 자산 마스터에 없으면 INSERT가 FK 위반(23503)으로 실패하므로, 먼저 upsert로 보장한다.
+                        //    표시명(NAME)을 알 수 없으므로 우선 티커로 채운다(NOT NULL 충족).
+                        using (var assetCmd = new NpgsqlCommand(
+                            "INSERT INTO TB_ASSET_MASTER (TICKER, NAME) VALUES (@ticker, @name) " +
+                            "ON CONFLICT (TICKER) DO NOTHING", conn, tx))
+                        {
+                            assetCmd.Parameters.AddWithValue("@ticker", item.Ticker);
+                            assetCmd.Parameters.AddWithValue("@name", item.Ticker);
+                            assetCmd.ExecuteNonQuery();
+                        }
+
                         using (var insCmd = new NpgsqlCommand(
                             "INSERT INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT, STRATEGY_TYPE) " +
                             "VALUES (@name, @ticker, @qty, @type)", conn, tx))

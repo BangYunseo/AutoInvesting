@@ -37,6 +37,25 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
+        /// 자산 마스터(전략에 편입 가능한 허용 종목) 전체 목록을 조회합니다.
+        /// </summary>
+        [HttpGet("assets")]
+        public IActionResult GetAssetMaster()
+        {
+            try
+            {
+                var assets = StrategyDAO.GetAssetMaster();
+                Logger.Info($"[Strategy] 자산 마스터 조회: {assets.Count}종목");
+                return Ok(assets);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Strategy] 자산 마스터 조회 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// 특정 전략의 종목 목록을 조회합니다.
         /// </summary>
         /// <param name="name">전략명 (기본: 사용자정의)</param>
