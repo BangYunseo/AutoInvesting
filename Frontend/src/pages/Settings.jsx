@@ -1,6 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
 
 /**
+ * 시크릿 입력 필드. 저장 여부 배지를 보여주고, 값은 절대 화면에 표시하지 않습니다.
+ * 빈 입력은 기존 값 유지(서버가 빈 값 미변경 처리).
+ */
+const SecretField = ({ label, set, onChange }) => (
+  <div className="form-group" style={{ marginBottom: 0 }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {label}
+      <span style={{
+        fontSize: '0.68rem', padding: '1px 7px', borderRadius: 10,
+        background: set ? 'var(--profit-green-bg)' : 'var(--loss-red-bg)',
+        color: set ? 'var(--profit-green)' : 'var(--loss-red)'
+      }}>
+        {set ? '설정됨' : '미설정'}
+      </span>
+    </label>
+    <input
+      type="password"
+      autoComplete="new-password"
+      placeholder={set ? '변경하려면 새 값 입력' : '값 입력'}
+      onChange={e => onChange(e.target.value)}
+    />
+  </div>
+);
+
+/**
  * 시스템 설정 페이지.
  * ConfigController와 연동하여 운영 설정값을 조회하고 변경합니다.
  */
@@ -55,10 +80,14 @@ const Settings = () => {
     try {
       setSaving(true);
       setMessage(null);
+      // 읽기 전용 상태 플래그(*_SET)는 저장 대상에서 제외
+      const payload = Object.fromEntries(
+        Object.entries(configs).filter(([k]) => !k.endsWith('_SET'))
+      );
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(configs)
+        body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
       setMessage('✅ 설정이 저장되었습니다.');
@@ -252,6 +281,37 @@ const Settings = () => {
               (AI_PROVIDER 환경변수를 <code>gemini</code>로 설정하세요)
             </p>
           )}
+        </div>
+
+        {/* ── 증권사/AI API 키 ── */}
+        <div className="card fade-in" style={{ animationDelay: '0.35s', opacity: 0, gridColumn: '1 / -1' }}>
+          <h2>🔐 API 키 / 계좌 정보</h2>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: -4, marginBottom: 14 }}>
+            저장 시 서버에서 암호화되어 보관됩니다. 보안상 저장된 값은 화면에 표시되지 않으며,
+            <strong> 빈 칸으로 두면 기존 값이 유지</strong>됩니다.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+            <SecretField label="KIS App Key" set={configs['KIS_APP_KEY_SET'] === '1'}
+              onChange={v => handleChange('KIS_APP_KEY', v)} />
+            <SecretField label="KIS App Secret" set={configs['KIS_APP_SECRET_SET'] === '1'}
+              onChange={v => handleChange('KIS_APP_SECRET', v)} />
+            <SecretField label="KIS 계좌번호" set={configs['KIS_ACCOUNT_NO_SET'] === '1'}
+              onChange={v => handleChange('KIS_ACCOUNT_NO', v)} />
+            <SecretField label="Gemini API Key" set={configs['GEMINI_API_KEY_SET'] === '1'}
+              onChange={v => handleChange('GEMINI_API_KEY', v)} />
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>KIS 서버</label>
+              <select
+                value={configs['KIS_SERVER'] || 'vps'}
+                onChange={e => handleChange('KIS_SERVER', e.target.value)}
+              >
+                <option value="vps">모의투자 (vps)</option>
+                <option value="prod">실전투자 (prod)</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 

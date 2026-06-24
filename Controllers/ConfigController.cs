@@ -45,7 +45,13 @@ namespace AutoInvest.Controllers
                     { "ORDER_SCHEDULE", AppConfigManager.Get("ORDER_SCHEDULE", "22:30") },
                     { "REBALANCE_THRESHOLD", AppConfigManager.Get("REBALANCE_THRESHOLD", "0.05") },
                     { "AI_PROVIDER", AppConfigManager.Get("AI_PROVIDER", "mock") },
-                    { "GEMINI_MODEL", AppConfigManager.Get("GEMINI_MODEL", "gemini-2.0-flash") }
+                    { "GEMINI_MODEL", AppConfigManager.Get("GEMINI_MODEL", "gemini-2.0-flash") },
+                    { "KIS_SERVER", AppConfigManager.Get("KIS_SERVER", "vps") },
+                    // ── 시크릿은 값 대신 설정 여부(boolean)만 노출 ──
+                    { "KIS_APP_KEY_SET", string.IsNullOrWhiteSpace(AppConfigManager.Get("KIS_APP_KEY", "")) ? "0" : "1" },
+                    { "KIS_APP_SECRET_SET", string.IsNullOrWhiteSpace(AppConfigManager.Get("KIS_APP_SECRET", "")) ? "0" : "1" },
+                    { "KIS_ACCOUNT_NO_SET", string.IsNullOrWhiteSpace(AppConfigManager.Get("KIS_ACCOUNT_NO", "")) ? "0" : "1" },
+                    { "GEMINI_API_KEY_SET", string.IsNullOrWhiteSpace(AppConfigManager.Get("GEMINI_API_KEY", "")) ? "0" : "1" }
                 };
                 return Ok(configs);
             }
@@ -60,8 +66,17 @@ namespace AutoInvest.Controllers
         {
             try
             {
+                // 시크릿 키는 빈 값으로 덮어쓰지 않음 (UI에서 미입력 시 기존 값 유지)
+                var secretKeys = new HashSet<string>
+                {
+                    "KIS_APP_KEY", "KIS_APP_SECRET", "KIS_ACCOUNT_NO", "GEMINI_API_KEY", "RESEND_API_KEY", "API_ACCESS_KEY"
+                };
+
                 foreach (var kvp in newConfigs)
                 {
+                    if (secretKeys.Contains(kvp.Key) && string.IsNullOrWhiteSpace(kvp.Value))
+                        continue; // 빈 입력은 미변경 처리
+
                     AppConfigManager.Set(kvp.Key, kvp.Value);
                 }
 

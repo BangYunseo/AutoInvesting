@@ -1,43 +1,60 @@
 using AutoInvest.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using System;
 using System.Threading.Tasks;
 
 namespace AutoInvest.Utils
 {
     /// <summary>
-    /// 글로벌 API 키 인증 필터.
-    /// 외부 무단 접근을 차단하기 위해 모든 API 엔드포인트에 x-api-key 헤더를 필수화합니다.
+    /// 글로벌 인증 필터.
+    /// 사람(브라우저)은 로그인으로 발급받은 Bearer 세션 토큰으로, 크론/머신은 기존 x-api-key로 통과합니다.
+    /// 둘 중 하나만 유효하면 허용하며, <see cref="PublicEndpointAttribute"/>가 붙은 액션은 검사를 면제합니다.
     /// </summary>
     public class ApiKeyAuthAttribute : ActionFilterAttribute
     {
         private const string API_KEY_HEADER = "x-api-key";
+        private const string AUTH_HEADER = "Authorization";
 
         public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            if (!context.HttpContext.Request.Headers.TryGetValue(API_KEY_HEADER, out var extractedApiKey))
+            // ── 공개 엔드포인트(로그인/설정/상태)는 인증 면제 ──
+            var endpoint = context.HttpContext.GetEndpoint();
+            if (endpoint?.Metadata.GetMetadata<PublicEndpointAttribute>() != null)
             {
-                context.Result = new UnauthorizedObjectResult(new { error = "API 키가 누락되었습니다. (헤더에 'x-api-key' 포함 필요)" });
+                await next();
                 return;
             }
 
-            var serverApiKey = AppConfigManager.Get("API_ACCESS_KEY", "");
-
-            // 서버 측에 키 설정이 없는 경우, 보안상 접근 거부
-            if (string.IsNullOrWhiteSpace(serverApiKey))
+            // ── 1) Bearer 세션 토큰 (브라우저) ──
+            if (context.HttpContext.Request.Headers.TryGetValue(AUTH_HEADER, out var authHeader))
             {
-                context.Result = new UnauthorizedObjectResult(new { error = "서버 측에 API Access Key가 설정되지 않았습니다. 관리자에게 문의하세요." });
-                return;
+                string raw = authHeader.ToString();
+                if (raw.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    string token = raw.Substring("Bearer ".Length).Trim();
+                    if (CryptoUtil.TryValidateToken(token, out _))
+                    {
+                        await next();
+                        return;
+                    }
+                }
             }
 
-            // 키 불일치
-            if (!serverApiKey.Equals(extractedApiKey.ToString()))
+            // ── 2) x-api-key (크론/머신) ──
+            if (context.HttpContext.Request.Headers.TryGetValue(API_KEY_HEADER, out var extractedApiKey))
             {
-                context.Result = new UnauthorizedObjectResult(new { error = "권한이 없습니다. 유효하지 않은 API 키입니다." });
-                return;
+                var serverApiKey = AppConfigManager.Get("API_ACCESS_KEY", "");
+                if (!string.IsNullOrWhiteSpace(serverApiKey) && serverApiKey.Equals(extractedApiKey.ToString()))
+                {
+                    await next();
+                    return;
+                }
             }
 
-            await next();
+            // ── 둘 다 실패 ──
+            context.Result = new UnauthorizedObjectResult(new { error = "인증이 필요합니다. 로그인하거나 유효한 API 키를 제공하세요." });
         }
     }
 }
