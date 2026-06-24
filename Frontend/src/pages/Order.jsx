@@ -3,9 +3,8 @@ import ProgressLoader from '../components/ProgressLoader';
 
 const STRATEGY_TYPES = ['MEAN_REVERSION', 'MOMENTUM', 'MIXED'];
 
-// 예상 소요시간(초) — 진행바 추정용
-const ANALYZE_EST_SEC = 24;    // 단일 종목 분석: 시세·OHLCV 조회 + AI 통합 1회 (실측 ~24초)
-const EXECUTE_EST_SEC = 45;    // 전체 실행: 종목별 순차 분석 + 호출 간격(throttle)
+// 진행바 예상시간은 ProgressLoader 기본값(약 10초)을 사용한다.
+// 퀀트 단독이라 빠르며(AI 호출 없음), 10초를 넘기면 자동으로 "곧 완료됩니다"가 표시된다.
 
 /**
  * 퀀트 분석 & 수동 주문 페이지.
@@ -124,7 +123,7 @@ const Order = () => {
 
         {/* 분석 진행 표시 */}
         {analyzing && (
-          <ProgressLoader estimatedSeconds={ANALYZE_EST_SEC} label="AI가 종목을 분석 중입니다..." />
+          <ProgressLoader label="퀀트 지표를 분석 중입니다..." />
         )}
 
         {/* 분석 결과 */}
@@ -282,7 +281,7 @@ const Order = () => {
         {/* 실행 진행 표시 */}
         {executing && (
           <div style={{ marginTop: 16 }}>
-            <ProgressLoader estimatedSeconds={EXECUTE_EST_SEC} label="전략 종목을 순차 분석 중입니다..." />
+            <ProgressLoader label="전략 종목을 순차 분석 중입니다..." />
           </div>
         )}
 

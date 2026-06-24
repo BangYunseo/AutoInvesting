@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
  * @param {number} estimatedSeconds 예상 소요 시간(초)
  * @param {string} label 표시할 안내 문구
  */
-const ProgressLoader = ({ estimatedSeconds = 8, label = 'AI가 분석 중입니다...' }) => {
+const ProgressLoader = ({ estimatedSeconds = 10, label = '분석 중입니다...' }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
