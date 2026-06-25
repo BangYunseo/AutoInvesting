@@ -146,7 +146,7 @@ namespace AutoInvest.Core
             await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
             string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
-            string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NAS&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
+            string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NASD&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
             
             var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
             response.EnsureSuccessStatusCode();
@@ -159,13 +159,17 @@ namespace AutoInvest.Core
             {
                 foreach (var item in output1.EnumerateArray())
                 {
-                    var ticker = item.GetProperty("ovrs_pdno").GetString() ?? "";
-                    if (int.TryParse(item.GetProperty("ccld_qty_smtl1").GetString(), out int qty) && qty > 0)
+                    // 보유수량: inquire-balance(TTTS3012R/VTTS3012R)의 정식 필드는 ovrs_cblc_qty(해외잔고수량).
+                    // (기존 ccld_qty_smtl1은 '체결기준현재잔고'(CTRP6504R) 전용 필드라 이 응답엔 없어 항상 0건으로 조회되었다)
+                    var ticker = item.TryGetProperty("ovrs_pdno", out var tk) ? (tk.GetString() ?? "") : "";
+                    if (item.TryGetProperty("ovrs_cblc_qty", out var qtyProp)
+                        && int.TryParse(qtyProp.GetString(), out int qty) && qty > 0)
                     {
-                        decimal.TryParse(item.GetProperty("pchs_avg_pric").GetString(), out decimal avgPrice);
-                        decimal.TryParse(item.GetProperty("now_pric2").GetString(), out decimal currentPrice);
-                        decimal.TryParse(item.GetProperty("evlu_pfls_rt").GetString(), out decimal profitRate);
-                        
+                        decimal avgPrice = 0m, currentPrice = 0m, profitRate = 0m;
+                        if (item.TryGetProperty("pchs_avg_pric", out var ap)) decimal.TryParse(ap.GetString(), out avgPrice);
+                        if (item.TryGetProperty("now_pric2", out var cp)) decimal.TryParse(cp.GetString(), out currentPrice);
+                        if (item.TryGetProperty("evlu_pfls_rt", out var pr)) decimal.TryParse(pr.GetString(), out profitRate);
+
                         list.Add(new HoldingDto
                         {
                             Ticker = ticker,
@@ -197,7 +201,7 @@ namespace AutoInvest.Core
             }
 
             string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
-            string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NAS&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
+            string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NASD&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
 
             var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
             response.EnsureSuccessStatusCode();
