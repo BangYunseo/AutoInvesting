@@ -39,7 +39,7 @@ Data (Data/, Data/DTO/, Data/DAO/)
   - (휴면) `AI_PROVIDER`에 따른 `AiMarketAnalyzer`/`GeminiMarketAnalyzer` 분기 코드는 보존되어 있으나 현재 매매 결정 경로에서 사용하지 않음
 - `QuantFilter` — **현재 매매 결정의 단일 근거**. 전략 유형별 AND 조건(RSI·MACD·볼린저·Position)으로 매수/매도/보류 판정
 - `FxRateAdvisor`(`IContextAdvisor`) — 환율(USD/KRW) 분포상 위치를 보고 매매 유불리를 설명. **매매를 막지 않는 설명·경고 전용**(veto 없음), 단일 종목 분석 응답과 일일 운용 리포트에 첨부
-- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (MailKit, Naver SMTP)
+- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (Resend HTTP API — Render의 SMTP 포트 차단 대응)
 - `DailyExecutionService` — 매매 스케줄 실행 진입점 (Scoped, `IServiceScopeFactory` 패턴 필요)
 - (휴면) `IMarketAnalyzer`/`AiMarketAnalyzer`/`GeminiMarketAnalyzer` — AI 시장 분석 추상화·구현. 코드는 보존되나 결정 경로 미사용
 - (휴면) `AdaptiveThresholdEngine` — 종목별 적응형 매수·매도 임계값 (Phase 5). 결정 경로 미사용

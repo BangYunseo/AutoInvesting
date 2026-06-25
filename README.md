@@ -50,7 +50,6 @@ AutoInvesting/
 │   ├── SessionManager.cs               # IBrokerClient/IMarketAnalyzer 생명주기 관리
 │   ├── SmartOrderEngine.cs             # 퀀트 신호(QuantFilter)만으로 매수/매도/보류 판정 (AI 합의 경로는 주석 비활성화·휴면)
 │   ├── DailyExecutionService.cs        # 일별 매매 스케줄 실행 진입점 (Scoped)
-│   ├── AllocationEngine.cs             # 투자금 배분 계산 엔진
 │   ├── Advisors/                       # 컨텍스트 어드바이저 (매매 veto 없이 설명·경고 전용)
 │   │   ├── IContextAdvisor.cs          # 어드바이저 인터페이스
 │   │   ├── FxRateAdvisor.cs            # 환율(USD/KRW) 유불리 설명·경고 (매수/매도 컨텍스트)
@@ -58,7 +57,6 @@ AutoInvesting/
 │   ├── IMarketAnalyzer.cs              # AI 시장 분석 인터페이스 (휴면 — 결정 경로 미사용)
 │   ├── AiMarketAnalyzer.cs             # Mock AI 구현체 (휴면)
 │   ├── GeminiMarketAnalyzer.cs         # Gemini API 이중 에이전트 (휴면 — 현재 AI 호출 안 함)
-│   ├── IMcpDataProvider.cs             # MCP 외부 데이터 공급자 인터페이스 (확장점)
 │   └── Quant/                          # 퀀트 엔진 모듈 (현재 매매 결정의 단일 근거)
 │       ├── QuantIndicator.cs           # RSI, MACD, 볼린저밴드 계산
 │       ├── QuantFilter.cs              # 전략 유형별 다중 조건 AND 필터 (매수/매도/보류 결정)
@@ -75,7 +73,6 @@ AutoInvesting/
 │   ├── sql/
 │   │   └── create_tables.sql           # DDL + 초기 마스터 데이터
 │   ├── DTO/                            # Data Transfer Objects
-│   │   ├── AssetDto.cs                 # 자산 마스터
 │   │   ├── StrategyDto.cs              # 투자 전략 (StrategyType, Qty)
 │   │   ├── StrategySummaryDto.cs       # 전략 요약
 │   │   ├── TradeHistoryDto.cs          # 거래 내역
@@ -89,13 +86,13 @@ AutoInvesting/
 │   │   ├── AdaptiveThresholdStatusDto.cs # 적응형 임계값 진단 결과 (표본 수/적용 임계값)
 │   │   ├── AgentAccuracyDto.cs         # 에이전트별 실측 적중률 집계 (Phase 5-d)
 │   │   ├── WeightSchemeResultDto.cs    # 가중치 조합별 A/B 결과 (Phase 5-d)
-│   │   ├── TokenUsageSummaryDto.cs     # 토큰 집계 결과 (에이전트별/일자별)
+│   │   ├── AgentTokenSummaryDto.cs     # 토큰 집계 결과 (에이전트별)
+│   │   ├── DailyTokenUsageDto.cs       # 토큰 집계 결과 (일자별)
 │   │   ├── SellPlanDto.cs              # 분할매도 플랜
 │   │   ├── AiPerformanceDto.cs         # AI 판단 성과 기록
 │   │   └── TokenUsageDto.cs            # AI API 토큰 사용량
 │   └── DAO/                            # Data Access Objects
-│       ├── AssetDAO.cs                 # TB_ASSET_MASTER 조회
-│       ├── StrategyDAO.cs              # TB_INVEST_STRATEGY CRUD
+│       ├── StrategyDAO.cs              # TB_INVEST_STRATEGY CRUD + TB_ASSET_MASTER 조회
 │       ├── TradeHistoryDAO.cs          # TB_TRADE_HISTORY CRUD
 │       ├── MarketSnapshotDAO.cs        # TB_MARKET_SNAPSHOT CRUD (확률 컬럼 포함)
 │       ├── SellPlanDAO.cs              # 분할매도 플랜 CRUD
@@ -117,10 +114,9 @@ AutoInvesting/
 │
 ├── Utils/                              # 유틸리티 (모든 레이어 접근 가능)
 │   ├── Logger.cs                       # Serilog 래퍼 (Info/Warn/Error/Fatal/LogQuant)
-│   ├── NotificationService.cs          # MailKit Naver SMTP 이메일 알림
+│   ├── NotificationService.cs          # Resend HTTP API 이메일 알림
 │   ├── ExchangeRateService.cs          # 환율 API (Frankfurter + fallback, 1시간 캐싱)
 │   ├── ApiKeyAuthAttribute.cs          # 전역 x-api-key 인증 필터
-│   ├── DateTimeHelper.cs               # NYSE 개장시각(KST) 계산 (DST 대응)
 │   └── PromptBuilder.cs                # Gemini 차트/펀더멘털 프롬프트 생성
 │
 ├── Frontend/                           # React SPA (Vite, Glassmorphism 디자인)
@@ -180,7 +176,7 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 | DB | PostgreSQL (Npgsql) |
 | 로깅 | Serilog |
 | 내결함성 | Polly (KIS API Retry + 지수 백오프) |
-| 이메일 알림 | MailKit (Naver SMTP) |
+| 이메일 알림 | Resend HTTP API (Render의 SMTP 포트 차단 대응) |
 | AI 엔진 | Google Gemini API (차트 + 펀더멘털 이중 에이전트) — **현재 휴면**(매매 결정 미사용, 코드 보존) |
 | 환율 컨텍스트 | FxRateAdvisor — 매수/매도 환율 유불리 설명·경고 (veto 없음) |
 | 증권사 API | 한국투자증권 (KIS) REST API |

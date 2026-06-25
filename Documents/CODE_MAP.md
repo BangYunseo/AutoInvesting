@@ -17,12 +17,10 @@
 | 파일 | 타입 | 책임 요약 | 핵심 멤버 |
 |------|------|-----------|-----------|
 | `AiMarketAnalyzer.cs` | class | AI 시장 분석 엔진의 임시(Mock) 구현체입니다 (Phase 4 초기 단계). | `AnalyzeAsync` |
-| `AllocationEngine.cs` | class | ⚠️ (요약 없음) | `Calculate` |
 | `DailyExecutionService.cs` | class | 외부 크론잡(Cron-job.org, GitHub Actions 등)에 의해 하루에 한 번 호출되는 일일 사이클 실행기. | `RunDailyCycleAsync` |
 | `GeminiMarketAnalyzer.cs` | class | Google Gemini API를 사용하는 다중 에이전트 AI 시장 분석 엔진 구현체 (Phase 4-d). | `AnalyzeAsync` |
 | `IBrokerClient.cs` | interface | 증권사 API 추상화 인터페이스. | — |
 | `IMarketAnalyzer.cs` | interface | AI 시장 분석 엔진 인터페이스 (Phase 4). | — |
-| `IMcpDataProvider.cs` | interface | MCP(Model Context Protocol) 기반 외부 데이터 공급자 인터페이스 (Phase 4-d 골격). | — |
 | `KisBrokerClient.cs` | class | KIS (한국투자증권) API 실거래 브로커 클라이언트. | `LoginAsync`, `GetCurrentPriceAsync`, `GetExchangeRateAsync`, `GetHoldingsAsync`, `GetCashBalanceAsync` |
 | `KisTokenManager.cs` | class | KIS (한국투자증권) API OAuth 토큰 관리자. | `EnsureValidTokenAsync`, `GetToken` |
 | `SessionManager.cs` | class | IBrokerClient 인스턴스의 생명주기를 관리합니다. | `GetClient`, `GetAnalyzer`, `Reset` |
@@ -48,7 +46,7 @@
 |------|------|-----------|-----------|
 | `AdvisoryContext.cs` | class | 부가 조언 생성에 필요한 매매 컨텍스트 (Phase 5-e). | — |
 | `ContextAdvisorService.cs` | class | 등록된 모든 를 실행하여 부가 조언 목록을 수집합니다 (Phase 5-e). | `GatherAsync` |
-| `FxRateAdvisor.cs` | class | 환율 기반 부가 조언 제공자 (Phase 5-e). | `EvaluateAsync` |
+| `FxRateAdvisor.cs` | class | 환율 기반 매매 컨텍스트 조언 제공자. | `EvaluateAsync` |
 | `IContextAdvisor.cs` | interface | 상황 기반 부가 조언 제공자 (Phase 5-e). | — |
 
 ## Controllers — REST API
@@ -57,7 +55,7 @@
 |------|------|-----------|-----------|
 | `AuthController.cs` | class | 단일 관리자 로그인 API. | `GetStatus`, `Setup`, `Login` |
 | `BacktestController.cs` | class | 백테스트 실행 API 과거 데이터 기반 전략 수익성 검증 | `RunBacktest` |
-| `ConfigController.cs` | class | 시스템 설정 값 (API 키, 전략 등)을 조회하고 변경하는 API. | `GetAllConfigs`, `UpdateConfig`, `GetGeminiModels` |
+| `ConfigController.cs` | class | 시스템 설정 값 (API 키, 전략 등)을 조회하고 변경하는 API. | `GetAllConfigs`, `UpdateConfig`, `RevealSecret`, `GetGeminiModels` |
 | `HistoryController.cs` | class | 매매 이력과 시스템 로그를 조회하는 API. | `GetTradeHistory`, `GetSystemLogs` |
 | `MonitoringController.cs` | class | AI 판단 성과 및 토큰 사용량/비용을 조회하는 모니터링 API (Phase 5-b). | `GetSummary`, `GetPerformance`, `GetTokensByAgent`, `GetTokensDaily`, `GetAgentAccuracy` |
 | `OrderController.cs` | class | 수동 주문 트리거 API. | `ExecuteSmartOrders`, `RunDailyCycle`, `PlaceManualOrder`, `AnalyzeTicker` |
@@ -65,7 +63,7 @@
 | `QuantController.cs` | class | 실시간 종목 퀀트 분석 API. | `AnalyzeTicker` |
 | `SellPlanController.cs` | class | ⚠️ (요약 없음) | `GetActivePlans`, `CreatePlan`, `CancelPlan` |
 | `SimController.cs` | class | Phase 6-a: 시뮬레이션 학습데이터 생성·검증 API. | `GenerateTrainingData`, `VerifyTrainingData` |
-| `StrategyController.cs` | class | 투자 전략 CRUD API. | `GetStrategySummaries`, `GetStrategy`, `GetAdaptiveStatus`, `SaveStrategy`, `DeleteStrategy` |
+| `StrategyController.cs` | class | 투자 전략 CRUD API. | `GetStrategySummaries`, `GetAssetMaster`, `GetStrategy`, `GetAdaptiveStatus`, `SaveStrategy` |
 | `TestController.cs` | class | ⚠️ (요약 없음) | `InjectMockData`, `TestAdaptive`, `Buy`, `SendDailyReport`, `SendTestEmail` |
 
 ## Data/DTO — 데이터 전송 객체
@@ -75,10 +73,12 @@
 | `AdaptiveThresholdStatusDto.cs` | class | 종목별 적응형 임계값 진단 상태. | — |
 | `AdvisoryNoteDto.cs` | class | 매매 신호와 별개로, 상황 컨텍스트(환율·변동성 등)에 따라 사용자에게 제공되는 부가 조언 (Phase 5-e). | — |
 | `AgentAccuracyDto.cs` | class | Phase 5-d: 에이전트(퀀트/차트AI/펀더멘털AI)별 실측 적중률 집계 결과 DTO. | — |
+| `AgentTokenSummaryDto.cs` | class | 에이전트 유형별 토큰 사용량 집계 결과 (모니터링용). | — |
 | `AiPerformanceDto.cs` | class | ⚠️ (요약 없음) | — |
-| `AssetDto.cs` | class | 투자 대상 자산 마스터 DTO. | — |
+| `AssetMasterDto.cs` | class | 자산 마스터(TB_ASSET_MASTER) 한 종목 정보. | — |
 | `BacktestResultDto.cs` | class | 백테스팅 결과 DTO. | — |
 | `ConsensusScoreDto.cs` | class | 확률 기반 합의 스코어링 결과 DTO (Phase 4-e). | — |
+| `DailyTokenUsageDto.cs` | class | 일자별 토큰 사용량 집계 결과 (모니터링 추이 차트용). | — |
 | `HoldingDto.cs` | class | 보유 종목(잔고) DTO. | — |
 | `IndicatorDto.cs` | class | 퀀트 지표 계산 결과 DTO. | — |
 | `MarketSnapshotDto.cs` | class | 매매 시점 시장 지표 스냅샷 DTO. | — |
@@ -88,7 +88,6 @@
 | `StrategyDto.cs` | class | 투자 전략 DTO. | — |
 | `StrategySummaryDto.cs` | class | ⚠️ (요약 없음) | — |
 | `TokenUsageDto.cs` | class | ⚠️ (요약 없음) | — |
-| `TokenUsageSummaryDto.cs` | class | 에이전트 유형별 토큰 사용량 집계 결과 (모니터링용). | — |
 | `TradeHistoryDto.cs` | class | 거래 내역 DTO. | — |
 | `WeightSchemeResultDto.cs` | class | Phase 5-d: 합의 가중치 조합(Scheme) A/B 백테스트 결과 DTO. | — |
 
@@ -97,10 +96,9 @@
 | 파일 | 타입 | 책임 요약 | 핵심 멤버 |
 |------|------|-----------|-----------|
 | `AiPerformanceDAO.cs` | class | ⚠️ (요약 없음) | `Insert`, `GetUnevaluated`, `UpdateEvaluation`, `GetRecent` |
-| `AssetDAO.cs` | class | 자산 마스터 DAO. | `GetActiveAssets` |
 | `MarketSnapshotDAO.cs` | class | 시장 스냅샷 DAO. | `Insert`, `GetByTicker`, `GetRecentAll`, `GetHistoricalSellProbabilities`, `GetHistoricalProbabilities` |
 | `SellPlanDAO.cs` | class | ⚠️ (요약 없음) | `GetAllActivePlans`, `GetPlansByTicker`, `Insert`, `Update` |
-| `StrategyDAO.cs` | class | ⚠️ (요약 없음) | `GetStrategy`, `GetStrategySummaries`, `SaveStrategy`, `DeleteStrategy` |
+| `StrategyDAO.cs` | class | ⚠️ (요약 없음) | `GetStrategy`, `GetStrategySummaries`, `GetAssetMaster`, `SaveStrategy`, `DeleteStrategy` |
 | `TokenUsageDAO.cs` | class | ⚠️ (요약 없음) | `Insert`, `GetTodayTotalTokens`, `GetUsageByAgent`, `GetDailyUsage` |
 | `TradeHistoryDAO.cs` | class | ⚠️ (요약 없음) | `Insert`, `GetRecent` |
 
@@ -117,7 +115,6 @@
 |------|------|-----------|-----------|
 | `ApiKeyAuthAttribute.cs` | class | 글로벌 인증 필터. | `OnActionExecutionAsync` |
 | `CryptoUtil.cs` | class | 시크릿 암복호화 · 비밀번호 해시 · 세션 토큰 발급/검증을 담당하는 공용 암호화 유틸리티입니다. | `Initialize`, `EncryptSecret`, `DecryptSecret`, `IsEncrypted`, `HashPassword` |
-| `DateTimeHelper.cs` | class | NYSE(뉴욕증권거래소) 개장 시각을 KST(한국시간)로 변환하는 유틸리티 미국 서머타임(DST) 적용 여부에 따라 시각 자동 조정 시간대 규칙: 서머타임 O… | `GetNYSEOpenTimeKST`, `GetNextNYSEOpen` |
 | `ExchangeRateService.cs` | class | 무료 환율 API를 통해 USD/KRW 환율을 조회합니다. | `GetUsdKrwAsync` |
 | `Logger.cs` | class | 시스템 로깅 유틸리티 (Serilog 래퍼). | `Initialize`, `Info`, `Error`, `Warn`, `Fatal` |
 | `NotificationService.cs` | class | 관리자 알림 메일 발송 서비스. | `Initialize`, `SendEmailAsync`, `SendEmailOrThrowAsync`, `GetConfigStatus` |
@@ -126,11 +123,10 @@
 
 ---
 
-**총 73개 파일** · 요약 없는 파일 **14개**
+**총 70개 파일** · 요약 없는 파일 **13개**
 
 <details><summary>⚠️ XML &lt;summary&gt; 보강이 필요한 파일</summary>
 
-- `Core/AllocationEngine.cs`
 - `Core/Quant/SellStrategyManager.cs`
 - `Controllers/SellPlanController.cs`
 - `Controllers/TestController.cs`

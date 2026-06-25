@@ -9,7 +9,7 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 ## 담당 범위
 - `Controllers/` — REST API 엔드포인트 (외부 제어·상태 조회)
 - `Frontend/` — React SPA 연동
-- `Utils/NotificationService.cs` — 이메일 알림 (MailKit, Naver SMTP)
+- `Utils/NotificationService.cs` — 이메일 알림 (Resend HTTP API — Render의 SMTP 포트 차단 대응)
 - Polly 기반 내결함성 적용부
 
 ## 작업 시작 시 로딩 순서 (MUST)

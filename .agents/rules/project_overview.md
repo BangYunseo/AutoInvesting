@@ -25,7 +25,7 @@ trigger: always_on
 | 언어 | C# |
 | 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
 | 통신/내결함성 | HttpClient, Polly (Phase B/C 적용) |
-| 알림/이메일 | MailKit, MimeKit (Phase B/C 적용) |
+| 알림/이메일 | Resend HTTP API — Render의 아웃바운드 SMTP 포트 차단 대응 (NotificationService) |
 | DB | PostgreSQL (`Npgsql`) — 로컬: localhost, 배포: `DATABASE_URL` 환경변수(Render.com URI) |
 | 증권사 API | 한국투자증권 KIS Developers REST API |
 | 빌드 | MSBuild / Visual Studio 2022 |
@@ -46,7 +46,6 @@ AutoInvesting/
 │   ├── SmartOrderEngine.cs             # 퀀트 신호(QuantFilter)만으로 매수/매도/보류 판정 + 주문 실행 (AI 결정 경로는 주석 비활성화)
 │   ├── DailyExecutionService.cs        # 일일 매매 사이클 진입점 (Scoped) — 외부 크론(GitHub Actions)이 POST /api/order/daily-run 호출 시 실행
 │   ├── SessionManager.cs               # 모의/실전 브로커 생명주기 관리 (AI 엔진 분기는 휴면)
-│   ├── AllocationEngine.cs             # 자산 배분 비중 계산
 │   ├── Advisors/                       # 컨텍스트 어드바이저 — FxRateAdvisor(환율) 등. 매매 veto 없이 설명·경고 전용
 │   └── Quant/                          # 퀀트 분석 모듈 (현재 매매 결정의 단일 근거)
 │       ├── QuantIndicator.cs           # 지표 생성(RSI, BB, MACD)
@@ -78,7 +77,7 @@ AutoInvesting/
     ├── DEVELOPMENT.md              # 개발 진척도 및 변경 이력 (CHANGELOG)
     ├── ONBOARDING_GUIDE.md         # 신규 개발자 온보딩 가이드
     ├── CODE_READING_GUIDE.md       # 소스 코드 리딩 순서 내비게이션
-    └── API_REFERENCE.md / API_REFERENCE_TABLE.md / API_REFERENCE.csv  # API 명세·일람표
+    └── API_REFERENCE.md / API_REFERENCE_TABLE.md  # API 명세(상세) / 일람표(요약)
 ```
  
 ## 핵심 인터페이스: IBrokerClient
