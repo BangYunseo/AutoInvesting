@@ -14,19 +14,22 @@ trigger: always_on
       ├── 설계·검토·의사결정 담당
       ├── 서브 에이전트에게 컨텍스트 + 작업 단위 전달
       │
-      ├── [서브 에이전트: Core 개발자]   — SmartOrderEngine, DailyExecutionService 구현
+      ├── [서브 에이전트: Core 개발자]   — DcaAccumulationEngine, DailyExecutionService, SessionManager 구현
       ├── [서브 에이전트: Data 개발자]   — DTO, DAO, DBManager, PostgreSQL 튜닝
       ├── [서브 에이전트: API 개발자]    — Controllers 구축, React 연동, Polly/알림 시스템 구현
       ├── [서브 에이전트: KIS 연동]      — KisBrokerClient 연동 고도화, TokenManager
-      └── [서브 에이전트: 퀀트 분석]    — QuantIndicator/QuantFilter(현재 매매 결정 단일 근거), FxRateAdvisor, BacktestEngine. AI 분석·적응형 임계값(Phase 5)은 휴면 코드 유지보수
+      └── [서브 에이전트: 적립/분석]     — DcaAccumulationEngine 배분 로직, 목표비중 설계, 백테스트 검증
 ```
+
+> Phase 6에서 판단 레이어를 제거했습니다. 구 "퀀트 분석" 역할(QuantIndicator/AI MarketAnalyzer/적응형 임계값)은
+> 적립 배분 로직·목표비중 설계·백테스트 검증으로 범위가 바뀌었습니다.
 
 ## 리드 에이전트의 책임
 
-1. **설계 일관성 보장**: Web API와 Background Service 구조(`architecture.md`)를 위반하지 않도록 검토
+1. **설계 일관성 보장**: Web API 구조(`architecture.md`)와 DCA 적립 원칙(판단 레이어 재도입 금지)을 위반하지 않도록 검토
 2. **보안/안정성 감시**: API 키 노출 금지, 외부 API 호출 시 예외/Rate Limit 처리(Polly 등) 여부 점검
 3. **컨텍스트 전달**: 서브 에이전트에게 작업 지시 시 관련 규칙 파일 명시
-4. **Phase 관리**: 현재 Phase(현재 Phase 6-b 완료) 우선순위에 맞게 작업 분배
+4. **Phase 관리**: 현재 Phase(Phase 6 — DCA 적립) 우선순위에 맞게 작업 분배
 5. **문서 동기화**: 프로젝트 구조 변경 시 `project_overview.md` 업데이트 및 Implementation Plan 작성
 
 ## 서브 에이전트에게 작업 위임 시 필수 포함 사항

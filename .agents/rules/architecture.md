@@ -5,28 +5,25 @@ trigger: always_on
 # 아키텍처 규칙
 
 ## 프로젝트 개요
-- 해외 ETF 자동 투자 시스템 (ASP.NET Core Web API, .NET 8.0, C#)
-- 퀀트 지표 기반 감정 배제 매매
-- 24시간 동작하는 Headless 백그라운드 서비스
+- 해외 ETF 자동 적립(DCA) 투자 시스템 (ASP.NET Core Web API, .NET 8.0, C#)
+- **타이밍/퀀트/AI 판단 없는 기계적 적립** — 목표비중을 향해 정수 단위로 매수 (Phase 6 전환)
+- 외부 크론잡이 적립 사이클을 호출하는 Headless 서비스
 - 증권사: 한국투자증권 (KIS) REST API
 
 ## 레이어 구조 및 의존성 방향
 ```
-API (Controllers/) & 일일 실행 진입점 (DailyExecutionService)
+API (Controllers/)  ← 외부 크론잡이 dca-run 호출 / 사용자 제어·조회
   ↓ (단방향)
-Core (Core/, Core/Quant/, Core/Advisors/)
+Core (Core/)
   ↓ (단방향)
 Data (Data/, Data/DTO/, Data/DAO/)
   ← Utils (Utils/) — 모든 레이어에서 접근 가능
 ```
 
-> 참고: 앱 내부에 상시 백그라운드 루프(IHostedService)는 없다. 24시간 자동 매매는 외부 스케줄러(크론)가
-> `POST /api/order/daily-run`을 호출 → `OrderController`가 Scoped `DailyExecutionService`를 구동하는 방식이다.
-
 ### 의존성 규칙
-- **API/실행서비스 → Core**: 허용 (컨트롤러·DailyExecutionService에서 Core 엔진 호출)
+- **API → Core**: 허용 (컨트롤러에서 Core 엔진 호출)
 - **Core → Data**: 허용 (엔진에서 DAO/DTO 사용)
-- **Core → API**: 금지 (Core는 컨트롤러나 실행 서비스를 알지 못함)
+- **Core → API**: 금지 (Core는 컨트롤러를 알지 못함)
 - **Data → Core**: 금지 (Data는 Core를 알지 못함)
 - **Utils**: 모든 레이어에서 접근 가능한 유틸리티
 
@@ -36,47 +33,29 @@ Data (Data/, Data/DTO/, Data/DAO/)
   - 새 증권사 추가 시 반드시 이 인터페이스를 구현
 - `SessionManager` — 브로커 인스턴스 생명주기 관리
   - `IS_PAPER_TRADING` 설정값에 따라 SimBroker 또는 KisBroker 분기
-  - (휴면) `AI_PROVIDER`에 따른 `AiMarketAnalyzer`/`GeminiMarketAnalyzer` 분기 코드는 보존되어 있으나 현재 매매 결정 경로에서 사용하지 않음
-- `QuantFilter` — **현재 매매 결정의 단일 근거**. 전략 유형별 AND 조건(RSI·MACD·볼린저·Position)으로 매수/매도/보류 판정
-- `FxRateAdvisor`(`IContextAdvisor`) — 환율(USD/KRW) 분포상 위치를 보고 매매 유불리를 설명. **매매를 막지 않는 설명·경고 전용**(veto 없음), 단일 종목 분석 응답과 일일 운용 리포트에 첨부
-- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (Resend HTTP API — Render의 SMTP 포트 차단 대응)
-- `DailyExecutionService` — 매매 스케줄 실행 진입점 (Scoped, `IServiceScopeFactory` 패턴 필요)
-- (휴면) `IMarketAnalyzer`/`AiMarketAnalyzer`/`GeminiMarketAnalyzer` — AI 시장 분석 추상화·구현. 코드는 보존되나 결정 경로 미사용
-- (휴면) `AdaptiveThresholdEngine` — 종목별 적응형 매수·매도 임계값 (Phase 5). 결정 경로 미사용
-- (휴면) `PerformanceFeedbackEngine` — TB_MARKET_SNAPSHOT 기반 실측 적중률·가중치 A/B 산출 (Phase 5-d, 읽기 전용 분석)
+- `DcaAccumulationEngine` — 적립식 매수 엔진. `PlanPurchases`(순수함수, 외부 I/O 없음 — 목표비중을 향한 정수 매수 계획 산출)와 `AccumulateAsync`(현재가·보유·환율 조회 → 계획 → 주문 → 기록) 분리
+- `DcaSettings` — 목표비중·예산의 단일 읽기/쓰기 지점 (DB `TB_APP_CONFIG`: `DCA_TARGETS` JSON / `DCA_BUDGET_KRW` 우선 → `appsettings.json > Dca` 폴백)
+- `DailyExecutionService` — 적립 사이클 실행 진입점 (`RunDcaCycleAsync`, Scoped, `IServiceScopeFactory` 패턴)
+- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (MailKit, Naver SMTP)
 
 ## 아키텍처 흐름
 ```
 ASP.NET Core Host (Program.cs)
-      ├── [REST API 호출] → Controllers (수동 제어, 상태 조회)
-      └── [외부 크론 → POST /api/order/daily-run → Scoped 실행] → DailyExecutionService (일일 매매 사이클 진입점)
+      ├── [REST API 호출] → Controllers (수동 주문, 적립 설정, 상태 조회)
+      └── [POST /api/order/dca-run] → DailyExecutionService.RunDcaCycleAsync (외부 크론잡 호출)
                                        ↓
-                                  SmartOrderEngine
-                                       ├── 현재가/가격범위/OHLCV 조회 (IBrokerClient)
-                                       ├── QuantIndicator (RSI, MACD, BB 계산)
-                                       ├── QuantFilter (전략 유형별 AND 조건) → 매수/매도/보류 결정
-                                       ├── FxRateAdvisor (환율 유불리 설명·경고 — veto 없음, 결과에 첨부)
-                                       ├── 주문 실행 → TradeHistoryDAO (거래 기록 저장)
-                                       └── 메일 발송 → NotificationService (성공/오류 알림 + 환율 코멘트)
-   (휴면) IMarketAnalyzer(차트AI+펀더멘털AI) · CalculateConsensusScore(합의 확률) 경로는 주석으로 비활성화·보존
+                                  DcaAccumulationEngine.AccumulateAsync
+                                       ├── 환율/보유수량/현재가 조회 (IBrokerClient)
+                                       ├── PlanPurchases (목표비중 향한 정수 매수 계획 — 순수함수)
+                                       ├── 매수 주문 실행 → TradeHistoryDAO (거래 기록 저장)
+                                       └── 메일 발송 → NotificationService (적립 보고서)
 ```
 
-## 매매 결정: 퀀트 단독 (현재)
-- 매수/매도/보류는 `QuantFilter`의 전략 유형별 AND 조건만으로 결정합니다 (RSI·MACD·볼린저·Position).
-- 분석/실행 중 Gemini 등 **AI 호출은 일어나지 않습니다**.
-- 환율(FX)은 `FxRateAdvisor`가 매매 방향에 맞춰 유불리를 설명/경고만 합니다 — **매매를 막지 않습니다(veto 없음)**.
-  - 매수: 환율 低 → 유리(INFO) / 환율 高 → 환차손 경고(WARNING) + 환헤지 대안 제시
-  - 매도: 환율 高 → 원화 환산 유리(INFO) / 환율 低 → 불리 경고(WARNING)
-  - 표시 위치: `GET /api/order/analyze/{ticker}` 응답의 `advisoryNotes`, 일일 운용 리포트 이메일
-
-## (휴면) AI 합의 시스템 — Phase 4-e~6 개발 이력
-> 아래 합의 스코어링은 **현재 매매에 사용되지 않으며, 코드에서 주석으로 비활성화(보존)** 되어 있습니다.
-> 향후 재활성화를 위해 설명만 남깁니다.
-- `CalculateConsensusScore()`: 퀀트(40%) + 차트AI(30%) + 펀더멘털AI(30%) 가중치 × 확신도 합산
-- 임계값(`BUY_THRESHOLD`, `SELL_THRESHOLD`) 초과 시에만 매매 실행 (기본값 0.65)
-- 가중치/임계값은 `appsettings.json > Consensus` 섹션에서 설정
-- `ConsensusScoreDto` — 확률 분해 결과 보관 (BuyProbability, 에이전트별 기여도)
-- `TB_MARKET_SNAPSHOT`의 AI 컬럼(BuyProbability, ChartAiScore 등)은 **유지하되 더 이상 기록하지 않음(0/빈값)**
+## 적립(DCA) 배분 원칙 (Phase 6)
+- `DcaSettings.Load()`로 목표비중·예산을 읽어(`DcaController`에서 편집), `PlanPurchases`가
+  "현재 목표비중 대비 가장 부족한 종목"을 1주씩 정수로 매수, 더 못 살 때까지 반복
+- 소수점 매수를 하지 않으므로 1주 단가가 비싼 종목은 잔돈이 모일 때까지 자연 스킵, 잔돈은 다음 사이클로 이월
+- **타이밍 판단·신호·임계값·합의 스코어링 없음** — 백테스트로 가치 없음이 확인되어 제거됨
 
 ## 새 기능 추가 순서
 1. DTO → DAO → Core 로직 → API Controller 또는 BackgroundService 순서로 구현
@@ -93,11 +72,10 @@ ASP.NET Core Host (Program.cs)
 
 | 메서드 | 용도 |
 |--------|------|
-| `Logger.Info()` | 일반 정보 — `[SmartOrder] 분석 시작` |
+| `Logger.Info()` | 일반 정보 — `[DCA] 적립식 매수 시작` |
 | `Logger.Warn()` | 경고 (비정상이지만 계속 진행, API 재시도 발생 등) |
 | `Logger.Error()` | 에러 (처리 실패, 이메일 알림 연동 대상) |
 | `Logger.Fatal()` | 치명적 오류 — `Program.cs` 미들웨어 또는 Host 종료 시 |
-| `Logger.LogQuant()` | 퀀트 판단 근거 기록 (백테스트/분석용) |
 
 - 로그 메시지 형식: `[모듈명] 메시지` (예: `[KisBrokerClient] 429 응답, 2초 후 재시도`)
 - 빈 catch 블록 절대 금지 — 반드시 `Logger.Error()` 포함

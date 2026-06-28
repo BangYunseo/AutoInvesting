@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태: Phase 8 완료 🚀 (퀀트 단독 매매 전환)
+## 현재 상태: Phase 6 완료 — DCA 적립 코어 전환 ✅
 
 - **Phase 1** (기반): ✅ 완료
 - **Phase 2** (엔진 코어 + 배분 UI): ✅ 완료
@@ -14,222 +14,97 @@
 - **Phase 3** (KIS 실거래 연동): ✅ 완료
 - **Phase A** (프로젝트 정비/안정화): ✅ 완료
 - **Phase B/C** (운영 안정성 및 확장): ✅ 완료
-- **Phase 4-a** (AI Mock + CombineSignals 아키텍처): ✅ 완료
-- **Phase 4-b** (Gemini 실물 연동 + 퀀트 조건 현실화): ✅ 완료
-- **Phase 4-c** (투자 철학 주입 및 예외처리 고도화): ✅ 완료
-- **Phase 4-d** (Anthropic 벤치마킹 멀티 에이전트 / 재무 프롬프트 확장): ✅ **완료**
-- **Phase 4-e** (확률 기반 합의 스코어링 / 가중치 임계값 / 신호 투명성 강화): ✅ **완료**
-- **Phase 5-a** (종목별 적응형 임계값 시스템): ✅ **완료**
-- **Phase 5-b** (AI 성과 측정 + 토큰 비용 모니터링): ✅ **완료**
-- **Phase 5-c** (모니터링 대시보드 UI — 성과/비용 조회 화면): ✅ **완료**
-- **Phase 5-d** (성과 기반 피드백 루프: 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증): ✅ **완료**
-- **Phase 6-a** (SimBroker 학습데이터 생성 + SIM/REAL 출처 분리): ✅ **완료**
-- **Phase 6-b** (실데이터 운영 전환 · AI 호출 최적화 · UX 개선): ✅ **완료**
-- **Phase 7** (보안: 시크릿 키 암호화 저장 + 관리자 로그인 게이트): ✅ **완료**
-- **Phase 8** (퀀트 단독 전환 + 환율 매매판정 반영, AI 결정 경로 비활성화): ✅ **완료**
+- **Phase 4-a~e** (AI 시장분석 엔진 / 확률 기반 합의 스코어링): ✅ 완료 → ⚠️ **Phase 6에서 제거**
+- **Phase 5-a~d** (적응형 임계값 / AI 성과·토큰 모니터링 / 성과 피드백 루프): ✅ 완료 → ⚠️ **Phase 6에서 제거**
+- **Phase 6** (판단 레이어 제거, DCA 적립 코어 전환): ✅ **완료**
+
+> ⚠️ **Phase 4~5의 판단(타이밍) 기능은 Phase 6에서 전부 제거되었습니다.** 아래 Phase 4~5 변경 이력은
+> **역사적 기록(과거에 그렇게 구현되었음)**으로 보존된 것이며, 현재 코드베이스에는 해당 클래스·엔드포인트·화면이
+> **존재하지 않습니다.** 현재 동작은 본 문서 최상단의 "Phase 6 상세 변경 이력"을 기준으로 보세요.
 
 ---
 
-## Phase 8 — 퀀트 단독 전환 + 환율 매매판정 반영, AI 결정 경로 비활성화(주석 보존)
+## Phase 6 상세 변경 이력 — 판단 레이어 제거 & DCA 적립 코어 전환
 
-### 핵심: "퀀트 + 다중 AI 합의" → "퀀트 단독 매매 + 환율(FX) 설명·경고 컨텍스트"
+### 핵심: "퀀트/AI로 타이밍을 판단" → "정해진 목표비중대로 정수 매수만 하는 적립(DCA)"
 
-매매 결정에서 AI를 완전히 제거하고, `SmartOrderEngine`이 **퀀트 신호(`QuantFilter`: RSI·MACD·볼린저·Position)만으로**
-매수/매도/보류를 결정하도록 전환했습니다. 기존 AI 결정 경로는 삭제하지 않고 **주석으로 비활성화(휴면)** 하여 보존합니다.
+정직한 백테스트(2012~현재) 결과 **퀀트/AI 타이밍 판단이 단순 적립식(DCA)에 2.7~4배 열세**였고,
+완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 불과(타이밍은 잘해야 본전)함이 검증되었습니다.
+이에 따라 **판단 레이어 전체를 제거**하고, 정해진 목표비중을 향해 정수 단위로 매수만 하는
+**DCA 적립 코어**로 전환했습니다. 시스템의 가치는 "판단"이 아니라 **"자동화"**에 있습니다.
 
 ```
-변경 전 (Phase 4-e~6):
-  SmartOrderEngine → [퀀트] + [차트AI] + [펀더멘털AI] → CalculateConsensusScore(확률 합산) → 매수/매도
+변경 전 (Phase 5):
+  DailyExecutionService.RunDailyCycleAsync
+    → SmartOrderEngine → 퀀트(QuantIndicator/QuantFilter) + AI(차트/펀더멘털) + 합의 스코어링
+    → BuyProbability ≥ 임계값일 때만 매수
 
-변경 후 (Phase 8):
-  SmartOrderEngine → [퀀트(QuantFilter)] → 매수/매도/보류 결정
-                          └── FxRateAdvisor(환율 유불리 설명·경고, veto 없음) → 결과/리포트에 첨부
-  (차트AI+펀더멘털AI 분석, 적응형 임계값, 합의 스코어링 경로는 주석 비활성화·보존 → 분석/실행 중 Gemini 호출 없음)
+변경 후 (Phase 6):
+  DailyExecutionService.RunDcaCycleAsync
+    → DcaSettings.Load (목표비중·예산)
+    → DcaAccumulationEngine.AccumulateAsync → 목표 대비 가장 부족한 종목을 1주씩 정수 매수
+    → TradeHistoryDAO 기록 + 이메일 보고서  (판단·타이밍 없음)
 ```
 
-### 주요 변경 내용
-
-- **AI 완전 제거(매매 경로)**: `SmartOrderEngine`의 (a) 다중 AI 에이전트 분석(차트AI+펀더멘털AI), (b) 적응형 임계값,
-  (c) 확률 기반 합의 스코어링(`CalculateConsensusScore`)을 **코드에서 주석으로 비활성화(보존)**. 분석/실행 중 AI 호출이 더 이상 일어나지 않음.
-- **환율(FX) 어드바이저 매매 컨텍스트 참여**: `Core/Advisors/FxRateAdvisor`가 매수 시 환율 低=유리(INFO)·高=환차손 경고(WARNING, 환헤지 대안 제시),
-  매도 시 환율 高=원화 환산 유리(INFO)·低=불리 경고(WARNING)를 제공. **매매를 막지 않는 설명·경고 전용**(veto 없음).
-  단일 종목 분석 응답(`advisoryNotes`)과 일일 운용 리포트 이메일에 표시.
-- **TB_MARKET_SNAPSHOT**: AI 컬럼(`BuyProbability`, `ChartAiScore` 등)은 **유지하되 더 이상 기록하지 않음(0/빈값)**. 컬럼·기존 누적 데이터는 보존.
-
-### 휴면(보존) 상태 파일 — 삭제하지 않음
-
-`IMarketAnalyzer`, `AiMarketAnalyzer`, `GeminiMarketAnalyzer`, `ConsensusScoreDto`, `AdaptiveThresholdEngine`,
-`PerformanceFeedbackEngine`, `MonitoringController` 등은 **존재하지만 매매 결정 경로에서는 사용되지 않습니다(휴면)**.
-향후 재활성화 가능하도록 구조를 보존합니다.
-
-### 안전 제약 (준수)
-
-- `TB_MARKET_SNAPSHOT` 등 누적 테이블 수정·삭제 없음 (AI 컬럼은 스키마 유지, 기록만 중단)
-- AI 관련 코드/파일 삭제 없음 — 주석 비활성화로 보존
-- Phase 4~6의 AI 개발 이력은 본 CHANGELOG에 그대로 보존
-
----
-
-## 운영(배포·스케줄링) 변경 이력
-
-### 일일 매매 트리거: cron-job.org → GitHub Actions (KST 23:40)
-- 일일 사이클(`POST /api/order/daily-run`) 호출을 **GitHub Actions 워크플로우** `.github/workflows/daily-run.yml`로 일원화 (매일 KST 23:40 = UTC `40 14 * * *`). 미장 개장(여름 22:30/겨울 23:30 KST) 이후라 "장시작전" 거부를 피한다.
-- 워크플로우가 `GET /api/health`를 10초 간격으로 폴링해 Render 인스턴스를 깨운 뒤 호출 → Render 무료 티어의 콜드 스타트를 흡수한다.
-- 인증: GitHub Secret `CRON_API_KEY`(= 서버 `API_ACCESS_KEY`)를 `x-api-key` 헤더로 전달. `workflow_dispatch`로 수동 테스트 실행 가능.
-- 배경: 기존 cron-job.org는 콜드 스타트 시 Render가 주는 `503 + Retry-After`를 재시도 없이 "실패"로 처리하고, 연속 실패한 잡을 자동 비활성화한다. 그 결과 깨우기 크론이 멈춰 매일 운용 리포트 메일이 누락되었다.
-
----
-
-## Phase 7 — 시크릿 암호화 + 로그인 게이트
-
-> 목적: KIS/AI 키를 평문(로컬 파일·DB)에서 **암호화 저장**으로 전환하고, UI 접근에 **비밀번호 로그인**을 도입한다.
-> 1인 운영 + 24시간 자동매매 유지(B모델). 마스터 키만 서버 밖(`MASTER_KEY`)에 둔다.
-
-### 신규 파일
-| 파일 | 용도 |
-|------|------|
-| `Utils/CryptoUtil.cs` | AES-256-GCM 시크릿 암복호화, PBKDF2 비밀번호 해시, HMAC 세션 토큰 |
-| `Utils/PublicEndpointAttribute.cs` | 전역 인증 면제 마커 (로그인/설정/상태) |
-| `Controllers/AuthController.cs` | `/api/auth/status·setup·login` — 7일 만료 세션 토큰 발급 |
-| `Frontend/src/pages/Login.jsx` | 로그인 / 최초 비밀번호 설정 화면 |
-
-### 수정 파일
-| 파일 | 변경 요약 |
-|------|----------|
-| `Data/AppConfigManager.cs` | 민감 키 Set 시 암호화, Get 시 `enc:v1:` 복호화 (접두사 방식 → 마이그레이션 불요) |
-| `Utils/ApiKeyAuthAttribute.cs` | Bearer 세션 토큰 **OR** x-api-key 허용, PublicEndpoint 면제 |
-| `Controllers/ConfigController.cs` | 시크릿 값 대신 `*_SET` 설정여부만 노출, 빈 입력 미변경 |
-| `Program.cs` | `CryptoUtil.Initialize` 추가 |
-| `Frontend/src/main.jsx` | 인터셉터를 Bearer 토큰으로 전환, 401 → `/login` |
-| `Frontend/src/App.jsx` | `/login` 라우트 + `RequireAuth` 가드 + 로그아웃 |
-| `Frontend/src/pages/Settings.jsx` | KIS/Gemini 키·계좌·서버 입력 카드(설정됨/미설정 배지) |
-
-### 환경 변수
-| KEY | 설명 |
-|-----|------|
-| `MASTER_KEY` | base64 32바이트. 시크릿 암복호화 + 토큰 서명. 미설정 시 평문 저장(경고) |
-| `AUTH_TOKEN_SECRET` | (선택) 토큰 서명 전용 키. 없으면 `MASTER_KEY`에서 파생 |
-
-### 동작 분기
-- 사람(브라우저): 로그인 → 세션 토큰 → `Authorization: Bearer`
-- 크론/머신: 기존 `x-api-key` 그대로 (자동매매 `POST /api/order/daily-run` 무중단)
-
----
-
-## Phase 6-b 상세 변경 이력 — 실데이터 운영 전환 · AI 호출 최적화 · UX 개선
-
-### 핵심: "로컬 목업에 머물던 운영을 Render 실데이터로 정상화 + 무료 티어 한도(429) 대응 + 분석 UX 개선"
-
-배경: Render 배포본의 AI가 (1) 폐기된 Gemini 모델(`gemini-1.5-flash`, v1beta 404)과
-(2) 무료 티어 쿼터 초과(429)로 사실상 동작하지 못해 전 종목이 관망(HOLD) 처리되고 있었다.
-또한 분석 판단 기준의 가시성과 분석 대기 중 UX가 부족했다.
-
-> 환경 구분: 로컬/회사 PC는 `appsettings.local.json` 부재 시 SimBroker+mock으로 동작하고,
-> Render는 환경변수로 KIS 모의투자 실시세 + 실 Gemini로 동작한다.
-> (SimBroker는 현재가가 가격범위 정중앙으로 고정되어 Position이 항상 0.5 → MEAN_REVERSION 진입조건 미충족)
-
-### 1. 실 Gemini 연동 정상화 — 폐기 모델 대응 (`fix`, ff5c75d)
-- `gemini-1.5-flash` 폐기(404) → 모델명을 `GEMINI_MODEL` 설정값으로 분리, 기본값 `gemini-2.0-flash`
-- 모델이 폐기돼도 코드 수정 없이 환경변수/설정만 교체하면 되도록 개선
-- 사용 가능 모델 확인: Gemini ListModels(`GET /v1beta/models`)
-
-### 2. 무료 티어 429 대응 — AI 호출 최적화 (`perf`, 69bb371)
-- **호출 통합(A)**: 종목당 Gemini 호출 2회(차트+펀더 병렬) → **1회 통합**. 한 응답에 chart/fundamental 두 의견을 담아 파싱 → 호출량 50% 절감
-- **호출 간격(B)**: 종목 순회에 `AI_THROTTLE_MS`(기본 4초) 간격 추가. 실 Gemini일 때만 적용(Mock/Sim 미적용)
-- 토큰 사용 기록은 단일 호출이므로 `COMBINED_AI`로 1건 기록(기존 CHART_AI/FUND_AI 과거 데이터는 보존)
-
-### 3. AI 모델 선택 UI (`feat`, b9cec0a)
-- `GET /api/config/gemini-models` — 현재 키로 사용 가능한 gemini 계열(generateContent 지원) 모델 목록 프록시 조회
-- `ConfigController`에 `SessionManager` 주입 → 설정 저장 후 `Reset()` 호출로 다음 분석부터 즉시 반영
-- 설정 화면에 "AI 분석 모델" 드롭다운 카드 추가(Gemini 모드일 때 활성, DB 저장 → 환경변수 미설정 시 적용)
-
-### 4. 적응형 임계값 진단 API (`feat`, 00c8455)
-- `GET /api/strategy/adaptive-status` — 활성 전략 종목별 누적 스냅샷 표본 수 + 현재 적용 임계값(기본값/적응값 구분)을 한 번에 조회
-- `AdaptiveThresholdEngine.GetStatus()` 추가(기존 판정 로직은 불변, 읽기 전용 진단)
-
-### 5. UX 개선 (`design`, 5d05bff / dcfd59d)
-- 퀀트 분석/스마트 주문 실행 시 **예상시간 진행바 + 경과 시간** 표시(`ProgressLoader`)
-- "시스템 가동 중" 표시를 네비게이션 흐름에서 분리해 화면 우측 상단 고정
-
-### 6-b 신규 파일 (2건)
-| 파일 | 설명 |
-|------|------|
-| `Data/DTO/AdaptiveThresholdStatusDto.cs` | 적응형 임계값 진단 결과 DTO |
-| `Frontend/src/components/ProgressLoader.jsx` | 예상시간 기반 진행바 + 경과초 로딩 컴포넌트 |
-
-### 6-b 수정 파일
-| 파일 | 변경 |
-|------|------|
-| `Core/GeminiMarketAnalyzer.cs` | 모델명 설정화 + 차트/펀더 단일 호출 통합 파싱 |
-| `Core/SmartOrderEngine.cs` | 종목 간 호출 간격(`AI_THROTTLE_MS`) |
-| `Core/Quant/AdaptiveThresholdEngine.cs` | `GetStatus()` 진단 메서드 |
-| `Utils/PromptBuilder.cs` | 통합 프롬프트 `BuildCombinedSystemPrompt`/`BuildCombinedUserPrompt` |
-| `Data/AppConfigManager.cs` | `GEMINI_MODEL → Ai:Model` 매핑 |
-| `Controllers/ConfigController.cs` | SessionManager 주입+Reset, GET 확장, `gemini-models` 엔드포인트 |
-| `Controllers/StrategyController.cs` | `adaptive-status` 엔드포인트 |
-| `appsettings.json` | `Ai:Model` 기본값(gemini-2.0-flash) |
-| `Frontend/src/pages/Settings.jsx` | AI 모델 드롭다운 카드 |
-| `Frontend/src/pages/Order.jsx` | 진행바 연동 |
-| `Frontend/src/App.jsx` + `index.css` | 가동 상태 표시 고정 + 진행바 스타일 |
-
-### 신규 설정 키
-| 키 | 기본값 | 용도 |
-|----|--------|------|
-| `GEMINI_MODEL` | `gemini-2.0-flash` | 사용할 Gemini 모델명 (UI/환경변수로 변경) |
-| `AI_THROTTLE_MS` | `4000` | 종목 간 AI 호출 간격(ms, 실 Gemini일 때만) |
-
-### 관련 커밋
-- `dcfd59d` design: 시스템 가동 상태 표시를 우측 상단 고정
-- `00c8455` feat: 적응형 임계값 작동 현황 진단 API 추가
-- `ff5c75d` fix: 폐기된 Gemini 1.5-flash 모델을 설정값 기반으로 교체
-- `69bb371` perf: Gemini 차트+펀더 단일 호출 통합 및 종목 간 호출 간격 추가
-- `b9cec0a` feat: 설정 화면에서 AI 분석 모델 선택 기능 추가
-- `5d05bff` design: 퀀트 분석 진행 상태 표시(진행바+경과시간) 추가
-
----
-
-## Phase 6-a 상세 변경 이력 — SimBroker 학습데이터 생성 & 데이터 출처 분리
-
-### 핵심: "느리게 쌓이고, 모의·실데이터가 섞이던 스냅샷" → "SIM/REAL 격리 + 학습데이터 대량 합성"
-
-`SmartOrderEngine.ExecuteSmartOrdersAsync`는 브로커 종류와 무관하게 `SaveMarketSnapshot`을 호출하여,
-**SimBroker 모드로 돌릴 때 시뮬레이션 스냅샷이 보호 테이블 `TB_MARKET_SNAPSHOT`에 실데이터와 섞여** 저장되고
-피드백 엔진·적응형 임계값이 이를 함께 읽는 문제가 있었습니다.
-또한 피드백 분석에 필요한 누적 스냅샷이 실거래로는 매우 느리게 모였습니다.
-Phase 6-a에서 (1) `DATA_SOURCE` 컬럼으로 SIM/REAL을 격리하고, (2) SimBroker 기반 학습데이터 대량 생성기를 추가했습니다.
-
-```
-[격리]   SmartOrderEngine ──(broker is SimBrokerClient?)──► DATA_SOURCE = 'SIM' / 'REAL'
-         피드백·적응형 분석 쿼리 ──► DATA_SOURCE='REAL'(과거 NULL 포함)만 조회 → SIM 미오염
-[생성]   SimTrainingDataGenerator ─(SimBroker + Mock AI, 비용 0)─► AnalyzeAndSaveSnapshotAsync(가상 일자 분산)
-                                  └─► /api/sim/generate-training-data, /api/sim/verify-training-data
-```
-
-#### 안전 제약 (준수)
-- `TB_MARKET_SNAPSHOT` 수정·삭제 없음 — 스키마 변경은 `ALTER TABLE ADD COLUMN` 1건(DATA_SOURCE)만
-- 과거 NULL 데이터는 REAL로 간주(`DATA_SOURCE='REAL' OR IS NULL`), 신규 SIM은 항상 'SIM' 태깅 → 신규 오염 원천 차단
-- 생성기는 Mock `AiMarketAnalyzer` 직접 생성 → Gemini 토큰 비용 0, 실 브로커 미접촉
-
-### 6-a 신규 파일 (2건)
+### 6-1. 신규 파일 (3건)
 
 | 파일 | 설명 |
 |------|------|
-| `Core/Quant/SimTrainingDataGenerator.cs` | SimBroker + Mock AI로 종목별 가상 일자 시계열 스냅샷을 대량 합성(DATA_SOURCE='SIM') |
-| `Controllers/SimController.cs` | `POST /api/sim/generate-training-data`(생성), `GET /api/sim/verify-training-data`(SIM 적중률/가중치 A/B 검증) |
+| `Core/DcaAccumulationEngine.cs` | 적립식 매수 엔진. `PlanPurchases`(순수 함수 — 목표비중을 향해 정수 단위 매수 계획 계산, 잔돈 이월) + `AccumulateAsync`(현재가/보유/환율 조회 → 계획 → 주문 → `TradeHistoryDAO` 기록). 판단/타이밍 없음 |
+| `Core/DcaSettings.cs` | 목표비중·예산의 단일 읽기/쓰기 지점. 우선순위 DB(`TB_APP_CONFIG`: `DCA_TARGETS` JSON, `DCA_BUDGET_KRW`) → `appsettings.json` `Dca` 섹션 폴백 |
+| `Controllers/DcaController.cs` | `GET/PUT /api/dca/config` — 목표비중·예산 조회·저장 (저장값은 DB 기록, 다음 사이클 반영) |
 
-### 6-a 수정 파일 (5건)
+### 6-2. 수정 파일 (3건)
 
 | 파일 | 변경 내용 |
 |------|----------|
-| `Data/DBManager.cs` | Phase 6-a 마이그레이션 — `ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN DATA_SOURCE TEXT DEFAULT 'REAL'` |
-| `Data/sql/create_tables.sql` | `TB_MARKET_SNAPSHOT`에 `DATA_SOURCE` 컬럼 추가 (신규 환경 일관성) |
-| `Data/DTO/MarketSnapshotDto.cs` | `DataSource` 필드 추가 |
-| `Data/DAO/MarketSnapshotDAO.cs` | Insert/MapSnapshot에 DATA_SOURCE 반영, `GetRecentAll`·`GetHistoricalProbabilities`·`GetHistoricalSellProbabilities`에 `dataSource` 필터 추가 |
-| `Core/SmartOrderEngine.cs` | `_dataSource` 태깅(SimBroker→SIM), `AnalyzeAndSaveSnapshotAsync`(주문 없이 분석+저장, 가상 일자 주입) 추가 |
+| `Core/DailyExecutionService.cs` | `RunDcaCycleAsync`만 유지 — 로그인 → `DcaSettings.Load` → `AccumulateAsync` → 이메일 보고서. (구 `RunDailyCycleAsync`/AI 평가/일일 보고서 제거) |
+| `Controllers/OrderController.cs` | `POST /api/order/dca-run`(적립 사이클, 202 즉시 반환) + `POST /api/order/manual`(판단 없는 수동 매수/매도)만 남김. (구 `execute`/`analyze`/`daily-run` 제거) |
+| `appsettings.json` | `Trading`/`Smtp`/`Kis`/`Security`/`Dca` 섹션만 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { Enabled, MonthlyBudgetKrw, Targets:{SPLG:0.4,QQQM:0.3,SCHD:0.2,GLD:0.1} }` |
+
+### 6-3. 제거된 파일·개념
+
+판단(타이밍) 레이어 전체가 코드베이스에서 삭제되었습니다.
+
+| 분류 | 제거 대상 |
+|------|----------|
+| Core 엔진/분석 | `SmartOrderEngine`, `Core/Quant/*` 전부(`QuantIndicator`, `QuantFilter`, `AdaptiveThresholdEngine`, `PerformanceFeedbackEngine`, `BacktestEngine`, `RebalancingEngine`, `SellStrategyManager`), `Core/Advisors/*` 전부, `AiMarketAnalyzer`, `GeminiMarketAnalyzer`, `IMarketAnalyzer`, `IMcpDataProvider`, `AllocationEngine`, `Utils/PromptBuilder` |
+| Data DAO/DTO | `AiPerformanceDAO`, `MarketSnapshotDAO`, `SellPlanDAO`, `TokenUsageDAO`, `StrategyDAO` 및 관련 DTO(`ConsensusScoreDto`, `IndicatorDto`, `AdvisoryNoteDto`, `AgentAccuracyDto`, `AiPerformanceDto`, `BacktestResultDto`, `MarketSnapshotDto`, `SellPlanDto`, `TokenUsageDto`/`SummaryDto`, `WeightSchemeResultDto`, `StrategyDto`) |
+| Controllers | `BacktestController`, `MonitoringController`, `QuantController`, `SellPlanController`, `StrategyController` |
+| 프론트 페이지 | `Backtest`, `Monitoring`, `SellPlanManager`, `Strategy` |
+| 개념 | AI 투자위원회/3자 합의, `CalculateConsensusScore`, 가중치 임계값(Consensus), 적응형 임계값, 성과 피드백 루프, 토큰 비용 모니터링, 차트AI/펀더멘털AI, 환헤지 어드바이저(FxAdvisor), 리밸런싱 |
+
+### 6-4. 유지된 것 (자동화 인프라)
+
+`IBrokerClient`/`KisBrokerClient`/`SimBrokerClient`, `SessionManager`(이제 브로커 생명주기만 — AI analyzer 분기 제거),
+`TradeHistoryDAO`, `NotificationService`(MailKit 이메일), `ExchangeRateService`, `DBManager`/`AppConfigManager`,
+`ConfigController`, `PortfolioController`, `HistoryController`, `TestController`(buy/send-test-email만). 외부 크론잡이 `dca-run`을 호출하는 구조.
+
+### 6-5. 프론트엔드 재구성
+
+| 페이지 | 경로 | 설명 |
+|--------|------|------|
+| Dashboard | `/` | 현황 조회 (유지) |
+| DcaConfig | `/dca-config` | 적립 설정(목표비중·예산) 편집 (신규) |
+| Order | `/order` | 적립 실행 + 수동 주문 (재작성) |
+| History | `/history` | 거래 내역 (유지) |
+| Settings | `/settings` | 환경 설정 (유지) |
+
+네비게이션: **대시보드 / 적립 설정 / 주문·적립 / 거래 내역 / 설정**
+
+### 6-6. 참고 — 레거시 데이터 보존
+
+`TB_MARKET_SNAPSHOT` 테이블과 `DBManager`의 관련 마이그레이션 코드는 **과거 데이터 보존을 위해 DB 스키마에는
+남아 있으나, `MarketSnapshotDAO` 제거에 따라 현재는 어디서도 기록·조회하지 않습니다.** 기존 문서의
+"AI 학습용 누적 데이터" 설명은 모두 **"과거(레거시) 데이터, 현재 미사용"**으로 해석하면 됩니다.
 
 ---
 
-## Phase 5-d 상세 변경 이력 — 성과 기반 피드백 루프 & 합의 가중치 A/B 검증
+> 📌 **이하 Phase 5-d ~ Phase 4-a 및 그 이전의 변경 이력은 역사적 기록입니다.** 여기서 설명하는
+> 퀀트/AI 판단 관련 클래스·엔드포인트·화면은 **Phase 6에서 모두 제거되어 현재 코드베이스에 존재하지
+> 않습니다.** 과거 어떤 시도를 했고 왜 접었는지를 이해하기 위한 보존용 기록으로만 참고하세요.
+
+## Phase 5-d 상세 변경 이력 — 성과 기반 피드백 루프 & 합의 가중치 A/B 검증 (⚠️ Phase 6에서 제거됨)
 
 ### 핵심: "수집·시각화에서 멈춰 있던 성과 데이터" → "의사결정에 되먹임하는 학습 루프"
 
@@ -292,14 +167,11 @@ DailyExecutionSvc ─┴─► TB_AI_PERFORMANCE  ─► /api/monitoring/perform
                                            ─► /api/monitoring/summary
 ```
 
-#### 비용 추정 공식 (Phase 5-c 당시 Gemini 1.5 Flash 공식 단가, 128k 이하 컨텍스트 기준)
+#### 비용 추정 공식 (Gemini 1.5 Flash 공식 단가, 128k 이하 컨텍스트 기준)
 
 ```
 추정 비용(USD) = 프롬프트 토큰 / 1M × $0.075 + 완성 토큰 / 1M × $0.30
 ```
-
-> ⚠️ 현재 단가(Phase 6-b 이후): 기본 모델이 `gemini-2.0-flash`로 전환되어
-> `MonitoringController`의 비용 단가도 **입력 $0.10 / 출력 $0.40 (per 1M)** 로 갱신됨.
 
 ### 5-c 신규 파일 (3건)
 

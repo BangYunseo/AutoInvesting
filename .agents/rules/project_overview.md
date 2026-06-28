@@ -8,15 +8,12 @@ trigger: always_on
  
 ## 목적
  
-설정한 시각에 자동으로 해외 ETF를 매수·매도하는 Headless 백그라운드 서비스입니다.
-퀀트 엔진(RSI, MACD, 볼린저밴드, Position)으로 다중 기술적 지표를 분석하고,
-모든 조건을 만족할 때만 주문을 실행하여 **감정을 배제한 데이터 기반 투자**를 실현합니다.
-
-> **현재 동작(퀀트 단독)**: 매수/매도/보류 판정은 **퀀트 신호(`QuantFilter`)만으로** 결정합니다.
-> 과거 Phase 4~6에서 개발한 AI 결정 경로 — (a) 다중 AI 에이전트(차트AI+펀더멘털AI) 분석,
-> (b) 종목별 적응형 임계값, (c) 확률 기반 합의 스코어링(consensus) — 은 **코드에 주석으로 비활성화(보존)** 되어
-> 매매 결정에 사용되지 않습니다(휴면). 분석/실행 중 Gemini 등 AI 호출은 더 이상 일어나지 않습니다.
-> 환율(FX) 어드바이저는 매매를 막지 않는 **설명·경고 전용 컨텍스트**로만 참여합니다(아래 참조).
+정해진 주기에 자동으로 해외 ETF를 **적립식(DCA)으로 매수**하는 Headless 서비스입니다.
+정직한 백테스트(2012~현재) 결과 "퀀트/AI 타이밍 판단"이 단순 적립을 2.7~4배 밑돌고
+완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 그쳐(타이밍은 잘해야 본전), **타이밍 판단 레이어를
+전면 제거**했습니다(Phase 6). 가치는 *판단*이 아니라 *자동화*에 있다는 결론에 따라,
+설정한 **목표비중**을 향해 예산만큼 **정수 단위로 매수**하고 잔돈은 다음 사이클로 이월합니다.
+**감정·예측을 배제한 기계적 적립 투자**를 실현합니다.
  
 ## 기술 스택
  
@@ -25,7 +22,7 @@ trigger: always_on
 | 언어 | C# |
 | 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
 | 통신/내결함성 | HttpClient, Polly (Phase B/C 적용) |
-| 알림/이메일 | Resend HTTP API — Render의 아웃바운드 SMTP 포트 차단 대응 (NotificationService) |
+| 알림/이메일 | MailKit, MimeKit (Phase B/C 적용) |
 | DB | PostgreSQL (`Npgsql`) — 로컬: localhost, 배포: `DATABASE_URL` 환경변수(Render.com URI) |
 | 증권사 API | 한국투자증권 KIS Developers REST API |
 | 빌드 | MSBuild / Visual Studio 2022 |
@@ -40,45 +37,42 @@ AutoInvesting/
 │   ├── IBrokerClient.cs                # 증권사 API 추상화
 │   ├── KisBrokerClient.cs              # KIS 실거래 연동 모듈 (Polly 적용)
 │   ├── SimBrokerClient.cs              # 가상 모의투자 환경
-│   ├── IMarketAnalyzer.cs              # AI 시장 분석 추상화 (휴면 — 결정 경로 미사용)
-│   ├── AiMarketAnalyzer.cs             # Mock 분석기 (휴면 — 결정 경로 미사용)
-│   ├── GeminiMarketAnalyzer.cs         # Gemini 실연동 (휴면 — 현재 AI 호출 안 함)
-│   ├── SmartOrderEngine.cs             # 퀀트 신호(QuantFilter)만으로 매수/매도/보류 판정 + 주문 실행 (AI 결정 경로는 주석 비활성화)
-│   ├── DailyExecutionService.cs        # 일일 매매 사이클 진입점 (Scoped) — 외부 크론(GitHub Actions)이 POST /api/order/daily-run 호출 시 실행
-│   ├── SessionManager.cs               # 모의/실전 브로커 생명주기 관리 (AI 엔진 분기는 휴면)
-│   ├── Advisors/                       # 컨텍스트 어드바이저 — FxRateAdvisor(환율) 등. 매매 veto 없이 설명·경고 전용
-│   └── Quant/                          # 퀀트 분석 모듈 (현재 매매 결정의 단일 근거)
-│       ├── QuantIndicator.cs           # 지표 생성(RSI, BB, MACD)
-│       ├── QuantFilter.cs              # 전략 조건 판단 로직 (매수/매도/보류 결정)
-│       ├── AdaptiveThresholdEngine.cs  # 종목별 적응형 매수/매도 임계값 (Phase 5, 휴면 — 결정 경로 미사용)
-│       ├── PerformanceFeedbackEngine.cs# 성과 기반 피드백·가중치 A/B (Phase 5-d, 읽기 전용·휴면)
-│       ├── BacktestEngine.cs / RebalancingEngine.cs / SellStrategyManager.cs
-│       └── SimTrainingDataGenerator.cs # SIM 학습데이터 합성 (Phase 6-a)
+│   ├── SessionManager.cs               # 모의/실전 브로커 생명주기 관리
+│   ├── DcaAccumulationEngine.cs        # 적립식 매수 엔진 (판단 없음 / PlanPurchases 순수함수)
+│   ├── DcaSettings.cs                  # 목표비중·예산 읽기/쓰기 (DB 우선 → appsettings 폴백)
+│   └── DailyExecutionService.cs        # 적립 사이클 진입점 (RunDcaCycleAsync)
 │
 ├── Controllers/                        # 외부 제어용 REST API 엔드포인트
-│   ├── OrderController.cs
+│   ├── OrderController.cs              # dca-run(적립 사이클), manual(수동 주문)
+│   ├── DcaController.cs               # /api/dca/config 목표비중·예산 조회·저장
 │   ├── ConfigController.cs
-│   └── StrategyController.cs
+│   ├── PortfolioController.cs
+│   ├── HistoryController.cs
+│   └── TestController.cs              # buy / send-test-email (점검용)
 │
 ├── Data/                               # 데이터 액세스 (DTO/DAO)
 │   ├── DBManager.cs                    # PostgreSQL 연결 (Npgsql, DATABASE_URL 지원)
-│   ├── AppConfigManager.cs             # 설정값 관리
-│   ├── DTO/                            # Data Transfer Objects
-│   └── DAO/                            # Data Access Objects (MarketSnapshotDAO 등)
+│   ├── AppConfigManager.cs             # 설정값 관리 (TB_APP_CONFIG: DCA_TARGETS 등)
+│   ├── DTO/                            # Data Transfer Objects (TradeHistoryDto 등)
+│   └── DAO/                            # Data Access Objects (TradeHistoryDAO 등)
 │
 ├── Utils/                              # 범용 유틸리티
 │   ├── Logger.cs                       # Serilog/File 로깅 래퍼
 │   ├── ExchangeRateService.cs          # 환율 API (Frankfurter)
 │   └── NotificationService.cs          # SMTP 이메일 발송 관리 (Phase B/C)
 │
-├── appsettings.json                    # 환경 설정 및 DB/SMTP 정보 등
+├── Frontend/                           # React SPA (대시보드/적립설정/주문·적립/거래내역/설정)
+├── appsettings.json                    # 환경 설정 — Trading/Smtp/Kis/Security/Dca 섹션
 ├── README.md
 └── Documents/
-    ├── DEVELOPMENT.md              # 개발 진척도 및 변경 이력 (CHANGELOG)
-    ├── ONBOARDING_GUIDE.md         # 신규 개발자 온보딩 가이드
-    ├── CODE_READING_GUIDE.md       # 소스 코드 리딩 순서 내비게이션
-    └── API_REFERENCE.md / API_REFERENCE_TABLE.md  # API 명세(상세) / 일람표(요약)
+    ├── DEVELOPMENT.md              # 개발 진척도 및 변경 이력
+    └── THEME_GUIDE.md              # ⚠️ 레거시 — WinForms 제거로 무효. 참조 금지
 ```
+
+> Phase 6에서 판단 레이어(SmartOrderEngine, Core/Quant/*, Core/Advisors/*, AI MarketAnalyzer,
+> AllocationEngine, RebalancingEngine, 관련 DAO/DTO/Controller·프론트 페이지)는 모두 제거되었습니다.
+> `TB_MARKET_SNAPSHOT` 테이블과 DBManager의 관련 마이그레이션은 과거 데이터 보존 목적으로
+> 스키마에만 남아 있으며 더 이상 기록되지 않습니다(레거시).
  
 ## 핵심 인터페이스: IBrokerClient
  
@@ -105,12 +99,8 @@ AutoInvesting/
 | **5-b** | **AI 성과 측정 + 토큰 비용 모니터링 데이터 적재** | ✅ **완료** |
 | **5-c** | **모니터링 대시보드 UI (성과/비용 조회)** | ✅ **완료** |
 | **5-d** | **성과 기반 피드백 루프: 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증** | ✅ **완료** |
-| **6-a** | **SimBroker 학습데이터 대량 생성 + DATA_SOURCE(SIM/REAL) 출처 분리** | ✅ **완료** |
-| **6-b** | **실데이터 운영 전환(Gemini 모델 설정화) + 무료 한도 429 대응(호출 통합·throttle) + AI 모델 선택 UI + 분석 진행바 UX** | ✅ **완료** |
-| **7** | **보안: 시크릿 키 암호화 저장(AES-256-GCM, MASTER_KEY) + 관리자 로그인 게이트(세션 토큰) — 크론은 x-api-key 유지** | ✅ **완료** |
-| **8** | **퀀트 단독 전환: AI 결정 경로(다중 에이전트·적응형 임계값·합의 스코어링) 비활성화(주석 보존) + 환율(FX) 어드바이저를 설명·경고 전용으로 매매 컨텍스트에 반영** | ✅ **완료** |
+| **6** | **백테스트 검증으로 판단 레이어 가치 부재 확인 → 판단 레이어 전면 제거, DCA 적립 코어로 전환 (목표비중 정수 매수 + DCA 설정 편집기)** | ✅ **완료** |
 
-> **현재 동작 요약**: Phase 4~6의 AI 기능은 **개발 이력으로 보존**하되, 현재 매매 결정은 **퀀트 단독**입니다.
-> AI 관련 코드(IMarketAnalyzer, AiMarketAnalyzer, GeminiMarketAnalyzer, ConsensusScoreDto, AdaptiveThresholdEngine,
-> PerformanceFeedbackEngine, MonitoringController 등)는 **삭제하지 않고 휴면 상태로 존재**합니다.
-> `TB_MARKET_SNAPSHOT`의 AI 컬럼(BuyProbability, ChartAiScore 등)은 **유지하되 더 이상 기록하지 않습니다(0/빈값)**.
+> ⚠️ Phase 4~5(AI 위원회·합의 스코어링·적응형 임계값·성과 피드백·토큰 모니터링)는 Phase 6에서
+> **백테스트 결과 가치가 검증되지 않아 코드째 제거**되었습니다. 위 표는 이력 보존용이며, 현재
+> 동작 아키텍처는 Phase 6(DCA)입니다.

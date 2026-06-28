@@ -34,30 +34,24 @@ trigger: always_on
 - 백그라운드 서비스 루프 내부 예외 발생 시 서비스 전체가 종료되지 않도록 `try-catch`로 감싸고 다음 주기로 넘어가게 처리합니다.
 
 
-## 매매 결정 규칙 (현재 — 퀀트 단독)
+## DCA 적립 원칙 (Phase 6 — 판단 레이어 금지)
+ 
+### 타이밍 판단 재도입 금지 (MUST)
+- 정직한 백테스트 결과 타이밍/퀀트/AI 판단이 단순 적립을 2.7~4배 밑돌고, 완벽한 타이밍조차
+  평균 대비 연 +0.3~0.9%에 그침이 확인되어 판단 레이어 전체를 제거함.
+- **신호/임계값/합의 스코어링/AI 분석/적응형 임계값/리밸런싱 로직을 다시 추가하지 말 것.**
+  새 기능은 "정해진 목표비중대로 정수 매수"라는 기계적 적립 원칙을 깨지 않아야 함.
 
-### 퀀트 단독 결정
-- 매수/매도/보류는 `QuantFilter`(전략 유형별 AND 조건)만으로 결정한다. **AI 호출 없음.**
-- 환율(FX)은 `FxRateAdvisor`로 **설명·경고만** 한다 — 매매를 막지 않는다(veto 없음).
-- `QuantFilter`, `QuantIndicator`의 기존 로직 변경 시 반드시 `BacktestEngine`으로 회귀 확인.
+### 배분 로직 분리 (MUST)
+- 매수 계획 계산은 외부 I/O 없는 순수 함수(`DcaAccumulationEngine.PlanPurchases`)로 유지해
+  단위 검증이 가능하게 한다. 주문·기록 등 부수효과는 `AccumulateAsync`에 둔다.
+- 목표비중·예산은 `DcaSettings`(DB 우선 → appsettings 폴백)를 통해서만 읽고 쓴다.
 
-### AI 코드 휴면 처리 규칙 (보존)
-- Phase 4~6에서 개발한 AI 결정 경로(`IMarketAnalyzer`/`AiMarketAnalyzer`/`GeminiMarketAnalyzer`,
-  `CalculateConsensusScore`, `AdaptiveThresholdEngine`, `PerformanceFeedbackEngine`, `MonitoringController` 등)는
-  **삭제하지 않고 주석으로 비활성화(보존)** 한다. 향후 재활성화 가능하도록 구조를 깨지 않는다.
-- AI 컬럼(`BuyProbability`, `ChartAiScore` 등)은 **스키마 유지하되 더 이상 기록하지 않는다(0/빈값)**.
-
-### (참고) 과거 AI 엔진 도입 시 설계 규칙 — 재활성화 시 준수
-- `IMarketAnalyzer` 인터페이스에만 의존하고, AI 판단은 별도 레이어로 합산 (기존 퀀트 로직 직접 수정 금지)
-- AI 엔진 인스턴스 생명주기는 `SessionManager`에서 관리 (브로커 분기 패턴과 동일)
-- AI confidence가 낮거나 없으면 **퀀트 조건만으로 동작하는 fallback 유지**
-
-### TB_MARKET_SNAPSHOT 데이터 보호 (현행 유지 — MUST)
-- `TB_MARKET_SNAPSHOT`은 누적 데이터 — **임의 수정 및 삭제 절대 금지** (AI 컬럼 포함)
-- Phase 2.5부터 축적된 데이터 연속성 유지가 중요
-- 스키마 변경이 필요한 경우 기존 컬럼 유지 + 신규 컬럼 추가(ALTER TABLE)만 허용
+### 누적 데이터 보호
+- `TB_MARKET_SNAPSHOT` 등 과거 누적 테이블은 레거시 데이터로 더 이상 기록하지 않으나,
+  **임의 삭제·수정 금지**(과거 분석/회귀 검증용). 스키마 변경 시 ALTER TABLE만 허용.
 ---
  
 ## 테스트 규칙
-- 신규 알고리즘이나 기능 추가 시, `appsettings.json`의 설정값을 변경하여 모의투자(`SimBrokerClient`) 모드로 먼저 로직을 검증합니다.
-- 퀀트 판단 로직은 `BacktestEngine`을 통해 기존 데이터셋으로 의도된 매매가 일어나는지 확인합니다.
+- 신규 로직 추가 시, `appsettings.json`의 `IS_PAPER_TRADING`을 켜 모의투자(`SimBrokerClient`) 모드로 먼저 검증한다.
+- 배분 로직(`PlanPurchases`)은 순수 함수이므로 입력/기대출력 시나리오로 단위 검증한다(예: 동일비중 신규, 비싼 종목 스킵, 기존 보유 반영 리밸런싱, 예산 0).

@@ -1,8 +1,8 @@
 # AutoInvesting — Claude Code 작업 지침 (CLAUDE.md)
 
-> 해외 ETF 자동투자 시스템 · ASP.NET Core Web API (.NET 8.0, C#) + React SPA
-> 24시간 동작 Headless 백그라운드 서비스 · 증권사: 한국투자증권(KIS)
-> 현재 **Phase 8** 완료(퀀트 단독 매매 전환). 매매 결정은 퀀트 단독이며, Phase 4~6의 AI 결정 경로는 주석 비활성화(휴면)되어 보존됩니다.
+> 해외 ETF 자동 **적립(DCA)** 투자 시스템 · ASP.NET Core Web API (.NET 8.0, C#) + React SPA
+> 외부 크론잡이 적립 사이클을 호출하는 Headless 서비스 · 증권사: 한국투자증권(KIS)
+> 현재 **Phase 6 (DCA 적립)** — 백테스트로 가치 없음이 확인된 판단 레이어(퀀트/AI)를 제거하고 기계적 적립으로 전환 완료.
 
 ---
 
@@ -41,7 +41,8 @@
 | 🚫 빈 catch 블록 | `catch { }` 금지 → 최소 `Logger.Error()` + 필요시 알림 |
 | 🚫 IBrokerClient 우회 | 증권사 API 직접 호출 금지 → 인터페이스를 통해서만 |
 | 🚫 레이어 역방향 의존 | Core → Controllers, Data → Core 참조 금지 |
-| 🚫 누적 데이터 훼손 | `TB_MARKET_SNAPSHOT`(AI 학습용) 임의 수정·삭제 금지 (`recommended_rules.md`) |
+| 🚫 누적 데이터 훼손 | `TB_MARKET_SNAPSHOT`(레거시 누적 데이터) 임의 수정·삭제 금지 (`recommended_rules.md`) |
+| 🚫 판단 레이어 재도입 | 신호/임계값/합의 스코어링/AI 분석/적응형 임계값/리밸런싱 재추가 금지 — 백테스트로 가치 없음 확인됨 (`recommended_rules.md`) |
 
 ---
 
@@ -52,7 +53,8 @@
 | 빌드 | `dotnet build` |
 | 실행 | `dotnet run` (ASP.NET Core 호스트) |
 | 신규 로직 검증 | `appsettings.json`의 `IS_PAPER_TRADING="1"`로 **SimBroker 모드 우선 검증** |
-| 퀀트 판단 검증 | `BacktestEngine`으로 과거 데이터셋 회귀 확인 |
+| 배분 로직 검증 | `DcaAccumulationEngine.PlanPurchases`(순수 함수)를 입력/기대출력 시나리오로 단위 검증 |
+| 적립 사이클 트리거 | `POST /api/order/dca-run` (헤더 `x-api-key`, 202 즉시 반환 후 백그라운드 처리) |
 | 프론트엔드 | `Frontend/` → `npm install` / `npm run dev` |
 
 ---
@@ -72,8 +74,8 @@
 
 | 에이전트 | 담당 |
 |---------|------|
-| `core-developer` | SmartOrderEngine, DailyExecutionService, 세션 관리 |
+| `core-developer` | DcaAccumulationEngine, DailyExecutionService, 세션 관리 |
 | `data-developer` | DTO/DAO/DBManager, PostgreSQL(Npgsql) |
 | `api-developer` | Controllers, React 연동, Polly/알림 |
 | `kis-integration` | KisBrokerClient, TokenManager, KIS 연동 |
-| `quant-analyst` | QuantIndicator/QuantFilter(현재 매매 결정 단일 근거), FxRateAdvisor, BacktestEngine. AI 분석·적응형 임계값(Phase 5)은 휴면 코드 유지보수 |
+| `quant-analyst` | DcaAccumulationEngine 배분 로직, 목표비중 설계, 백테스트 검증 |
