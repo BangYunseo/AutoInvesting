@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
-import Strategy from './pages/Strategy';
+import DcaConfig from './pages/DcaConfig';
 import History from './pages/History';
 import Order from './pages/Order';
 import Settings from './pages/Settings';
@@ -21,9 +21,9 @@ function App() {
               <span className="nav-link__icon">📊</span>
               대시보드
             </NavLink>
-            <NavLink to="/strategy" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <NavLink to="/dca-config" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <span className="nav-link__icon">🎯</span>
-              전략 관리
+              적립 설정
             </NavLink>
             <NavLink to="/order" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <span className="nav-link__icon">⚡</span>
@@ -49,7 +49,7 @@ function App() {
         <main className="app-main">
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/strategy" element={<Strategy />} />
+            <Route path="/dca-config" element={<DcaConfig />} />
             <Route path="/history" element={<History />} />
             <Route path="/order" element={<Order />} />
             <Route path="/settings" element={<Settings />} />

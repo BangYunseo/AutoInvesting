@@ -48,27 +48,16 @@ namespace AutoInvest.Core
                     }
                 }
 
-                // ── 목표비중 로드 (appsettings.json > Dca:Targets) ──
-                var targetMap = AppConfigManager.GetMap("Dca:Targets");
-                var targets = new Dictionary<string, decimal>();
-                foreach (var kv in targetMap)
-                {
-                    if (decimal.TryParse(kv.Value, out decimal w) && w > 0)
-                        targets[kv.Key] = w;
-                }
+                // ── 목표비중·예산 로드 (DB 우선 → appsettings 폴백) ──
+                var (targets, budget) = DcaSettings.Load();
 
                 if (targets.Count == 0)
                 {
-                    statusNote = "Dca:Targets(목표비중) 설정이 비어 있어 오늘은 매수를 건너뛰었습니다.";
+                    statusNote = "목표비중(DCA Targets) 설정이 비어 있어 오늘은 매수를 건너뛰었습니다.";
                     Logger.Warn("[DcaCycle] 목표비중 없음 — 매수 스킵");
                 }
                 else
                 {
-                    // ── 예산 로드 (없으면 100만원 기본) ──
-                    var dcaCfg = AppConfigManager.GetMap("Dca");
-                    decimal budget = dcaCfg.TryGetValue("MonthlyBudgetKrw", out var b) && decimal.TryParse(b, out var bv)
-                        ? bv : 1_000_000m;
-
                     var engine = new DcaAccumulationEngine(client);
                     filled = await engine.AccumulateAsync(targets, budget);
                     Logger.Info($"[DcaCycle] ✔ 적립식 매수 완료 — {filled.Count}주 체결");
