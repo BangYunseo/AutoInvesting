@@ -79,4 +79,4 @@
 | `data-developer` | DTO/DAO/DBManager, PostgreSQL(Npgsql) |
 | `api-developer` | Controllers, React 연동, Polly/알림 |
 | `kis-integration` | KisBrokerClient, TokenManager, KIS 연동 |
-| `quant-analyst` | DcaAccumulationEngine 배분 로직, 목표비중 설계, 백테스트 검증 |
+| `quant-analyst` | DcaAccumulationEngine 배분 로직, 매수 수량 설계, 백테스트 검증 |

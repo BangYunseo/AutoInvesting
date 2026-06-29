@@ -1,6 +1,6 @@
 ---
 name: quant-analyst
-description: 적립 배분·분석(DcaAccumulationEngine.PlanPurchases 배분 로직, 목표비중 설계, 백테스트 검증) 구현·수정 시 사용. 정수 매수 계획, 목표비중 산정, 과거 데이터 회귀 검증 작업에 활용.
+description: 적립 배분·분석(DcaAccumulationEngine.PlanPurchases 배분 로직, 종목별 매수 수량 설계, 백테스트 검증) 구현·수정 시 사용. 고정 수량 매수 계획, 매수 수량 산정, 과거 데이터 회귀 검증 작업에 활용.
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
@@ -10,9 +10,9 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 > 이 역할은 이제 **타이밍 판단이 아니라 적립 배분 로직과 검증**을 담당합니다.
 
 ## 담당 범위
-- `Core/DcaAccumulationEngine.cs` — `PlanPurchases`(목표비중을 향한 정수 매수 배분, 순수함수) 로직 개선·검증
-- `Core/DcaSettings.cs` — 목표비중·예산 산정/검증
-- 목표비중 바스켓 설계 및 과거 데이터 기반 적립 시뮬레이션/백테스트 검증
+- `Core/DcaAccumulationEngine.cs` — `PlanPurchases`(종목별 고정 수량 매수 계획 + 총 매수금액, 순수함수) 로직 개선·검증
+- `Core/DcaSettings.cs` — 종목별 매수 수량·예산 산정/검증
+- 매수 수량 바스켓 설계 및 과거 데이터 기반 적립 시뮬레이션/백테스트 검증
 
 ## 작업 시작 시 로딩 순서 (MUST)
 1. `.agents/rules/project_overview.md` — 현재 Phase
@@ -22,13 +22,13 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 ## 핵심 규칙
 - **판단/타이밍 로직 금지** — 신호·임계값·합의 스코어링·AI 분석·적응형 임계값·리밸런싱을 재도입하지 말 것
 - 배분 계산은 외부 I/O 없는 순수 함수(`PlanPurchases`)로 유지 — 입력/기대출력 시나리오로 단위 검증
-- 목표비중은 상대값으로 적용(합계 1 권장), 정수 매수·잔돈 이월 원칙 유지
+- 비중(%)은 수량×현재가로 환산되는 표시용 값일 뿐, 사람이 정하는 입력이 아님 — 사람은 종목별 고정 수량을 지정
 
 ## 데이터 보호 (절대 금지)
 - `TB_MARKET_SNAPSHOT` 등 레거시 누적 데이터 임의 수정·삭제 금지 (과거 분석/회귀 검증용)
 
 ## 검증
-- 배분 로직 변경은 `PlanPurchases` 단위 시나리오(동일비중 신규 / 비싼 종목 스킵 / 기존 보유 반영 / 예산 0)로 확인
+- 배분 로직 변경은 `PlanPurchases` 단위 시나리오(지정 수량 그대로 매수 / 현재가 없는 종목 제외 / 총 매수금액 합산 / 수량 0 제외)로 확인
 - 신규 로직은 `IS_PAPER_TRADING="1"`(SimBroker)로 먼저 검증
 
 > 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다(`harness-sync.md`).

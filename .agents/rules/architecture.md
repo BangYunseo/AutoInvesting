@@ -6,7 +6,7 @@ trigger: always_on
 
 ## 프로젝트 개요
 - 해외 ETF 자동 적립(DCA) 투자 시스템 (ASP.NET Core Web API, .NET 8.0, C#)
-- **타이밍/퀀트/AI 판단 없는 기계적 적립** — 목표비중을 향해 정수 단위로 매수 (Phase 6 전환)
+- **타이밍/퀀트/AI 판단 없는 기계적 적립** — 지정한 종목별 고정 수량을 매 사이클 그대로 매수 (Phase 6 전환)
 - 외부 크론잡이 적립 사이클을 호출하는 Headless 서비스
 - 증권사: 한국투자증권 (KIS) REST API
 
@@ -33,8 +33,8 @@ Data (Data/, Data/DTO/, Data/DAO/)
   - 새 증권사 추가 시 반드시 이 인터페이스를 구현
 - `SessionManager` — 브로커 인스턴스 생명주기 관리
   - `IS_PAPER_TRADING` 설정값에 따라 SimBroker 또는 KisBroker 분기
-- `DcaAccumulationEngine` — 적립식 매수 엔진. `PlanPurchases`(순수함수, 외부 I/O 없음 — 목표비중을 향한 정수 매수 계획 산출)와 `AccumulateAsync`(현재가·보유·환율 조회 → 계획 → 주문 → 기록) 분리
-- `DcaSettings` — 목표비중·예산의 단일 읽기/쓰기 지점 (DB `TB_APP_CONFIG`: `DCA_TARGETS` JSON / `DCA_BUDGET_KRW` 우선 → `appsettings.json > Dca` 폴백)
+- `DcaAccumulationEngine` — 적립식 매수 엔진. `PlanPurchases`(순수함수, 외부 I/O 없음 — 종목별 고정 수량 매수 계획 + 총 매수금액 산출)와 `AccumulateAsync`(현재가·환율 조회 → 계획 → 주문 → 기록) 분리
+- `DcaSettings` — 종목별 매수 수량·예산의 단일 읽기/쓰기 지점 (DB `TB_APP_CONFIG`: `DCA_QTYS` JSON / `DCA_BUDGET_KRW` 우선 → `appsettings.json > Dca` 폴백)
 - `DailyExecutionService` — 적립 사이클 실행 진입점 (`RunDcaCycleAsync`, Scoped, `IServiceScopeFactory` 패턴)
 - `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (MailKit, Naver SMTP)
 
@@ -45,16 +45,17 @@ ASP.NET Core Host (Program.cs)
       └── [POST /api/order/dca-run] → DailyExecutionService.RunDcaCycleAsync (외부 크론잡 호출)
                                        ↓
                                   DcaAccumulationEngine.AccumulateAsync
-                                       ├── 환율/보유수량/현재가 조회 (IBrokerClient)
-                                       ├── PlanPurchases (목표비중 향한 정수 매수 계획 — 순수함수)
+                                       ├── 환율/현재가 조회 (IBrokerClient)
+                                       ├── PlanPurchases (종목별 고정 수량 매수 계획 — 순수함수)
                                        ├── 매수 주문 실행 → TradeHistoryDAO (거래 기록 저장)
                                        └── 메일 발송 → NotificationService (적립 보고서)
 ```
 
 ## 적립(DCA) 배분 원칙 (Phase 6)
-- `DcaSettings.Load()`로 목표비중·예산을 읽어(`DcaController`에서 편집), `PlanPurchases`가
-  "현재 목표비중 대비 가장 부족한 종목"을 1주씩 정수로 매수, 더 못 살 때까지 반복
-- 소수점 매수를 하지 않으므로 1주 단가가 비싼 종목은 잔돈이 모일 때까지 자연 스킵, 잔돈은 다음 사이클로 이월
+- `DcaSettings.Load()`로 종목별 매수 수량·예산을 읽어(`DcaController`에서 편집), `PlanPurchases`가
+  현재가가 확인된 종목을 **지정 수량 그대로** 매수 계획에 담고 총 매수금액을 산출
+- 비중(%)·매수금액은 사람이 정하지 않는다 — 수량×현재가로 환산해 화면에서 보여주는 표시용 값
+- 예산은 **초과 경고용 상한**일 뿐 수량을 줄이지 않는다(초과 시 경고 로그·메일만)
 - **타이밍 판단·신호·임계값·합의 스코어링 없음** — 백테스트로 가치 없음이 확인되어 제거됨
 
 ## 새 기능 추가 순서

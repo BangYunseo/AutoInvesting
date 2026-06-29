@@ -18,11 +18,11 @@ trigger: always_on
       ├── [서브 에이전트: Data 개발자]   — DTO, DAO, DBManager, PostgreSQL 튜닝
       ├── [서브 에이전트: API 개발자]    — Controllers 구축, React 연동, Polly/알림 시스템 구현
       ├── [서브 에이전트: KIS 연동]      — KisBrokerClient 연동 고도화, TokenManager
-      └── [서브 에이전트: 적립/분석]     — DcaAccumulationEngine 배분 로직, 목표비중 설계, 백테스트 검증
+      └── [서브 에이전트: 적립/분석]     — DcaAccumulationEngine 배분 로직, 매수 수량·배분 설계, 백테스트 검증
 ```
 
 > Phase 6에서 판단 레이어를 제거했습니다. 구 "퀀트 분석" 역할(QuantIndicator/AI MarketAnalyzer/적응형 임계값)은
-> 적립 배분 로직·목표비중 설계·백테스트 검증으로 범위가 바뀌었습니다.
+> 적립 배분 로직·매수 수량 설계·백테스트 검증으로 범위가 바뀌었습니다.
 
 ## 리드 에이전트의 책임
 

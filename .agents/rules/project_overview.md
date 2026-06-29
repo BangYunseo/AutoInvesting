@@ -12,8 +12,8 @@ trigger: always_on
 정직한 백테스트(2012~현재) 결과 "퀀트/AI 타이밍 판단"이 단순 적립을 2.7~4배 밑돌고
 완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 그쳐(타이밍은 잘해야 본전), **타이밍 판단 레이어를
 전면 제거**했습니다(Phase 6). 가치는 *판단*이 아니라 *자동화*에 있다는 결론에 따라,
-설정한 **목표비중**을 향해 예산만큼 **정수 단위로 매수**하고 잔돈은 다음 사이클로 이월합니다.
-**감정·예측을 배제한 기계적 적립 투자**를 실현합니다.
+사람이 지정한 **종목별 고정 수량(주)**을 매 사이클 그대로 매수합니다(비중·금액은 수량×현재가로
+환산해 표시만 하고, 예산은 초과 경고용 상한). **감정·예측을 배제한 기계적 적립 투자**를 실현합니다.
  
 ## 기술 스택
  
@@ -39,12 +39,13 @@ AutoInvesting/
 │   ├── SimBrokerClient.cs              # 가상 모의투자 환경
 │   ├── SessionManager.cs               # 모의/실전 브로커 생명주기 관리
 │   ├── DcaAccumulationEngine.cs        # 적립식 매수 엔진 (판단 없음 / PlanPurchases 순수함수)
-│   ├── DcaSettings.cs                  # 목표비중·예산 읽기/쓰기 (DB 우선 → appsettings 폴백)
+│   ├── DcaSettings.cs                  # 종목별 매수 수량·예산 읽기/쓰기 (DB 우선 → appsettings 폴백)
 │   └── DailyExecutionService.cs        # 적립 사이클 진입점 (RunDcaCycleAsync)
 │
 ├── Controllers/                        # 외부 제어용 REST API 엔드포인트
 │   ├── OrderController.cs              # dca-run(적립 사이클), manual(수동 주문)
-│   ├── DcaController.cs               # /api/dca/config 목표비중·예산 조회·저장
+│   ├── DcaController.cs               # /api/dca/config 매수 수량·예산 조회·저장
+│   ├── PriceController.cs             # /api/price/{ticker} 현재가 조회 겸 티커 검증
 │   ├── ConfigController.cs
 │   ├── PortfolioController.cs
 │   ├── HistoryController.cs
@@ -99,7 +100,7 @@ AutoInvesting/
 | **5-b** | **AI 성과 측정 + 토큰 비용 모니터링 데이터 적재** | ✅ **완료** |
 | **5-c** | **모니터링 대시보드 UI (성과/비용 조회)** | ✅ **완료** |
 | **5-d** | **성과 기반 피드백 루프: 에이전트별 실측 적중률 + 매도 적응형 임계값 + 합의 가중치 A/B 검증** | ✅ **완료** |
-| **6** | **백테스트 검증으로 판단 레이어 가치 부재 확인 → 판단 레이어 전면 제거, DCA 적립 코어로 전환 (목표비중 정수 매수 + DCA 설정 편집기)** | ✅ **완료** |
+| **6** | **백테스트 검증으로 판단 레이어 가치 부재 확인 → 판단 레이어 전면 제거, DCA 적립 코어로 전환 (종목별 고정 수량 매수 + 티커 검증·실시간 가격 기반 DCA 설정 편집기)** | ✅ **완료** |
 
 > ⚠️ Phase 4~5(AI 위원회·합의 스코어링·적응형 임계값·성과 피드백·토큰 모니터링)는 Phase 6에서
 > **백테스트 결과 가치가 검증되지 않아 코드째 제거**되었습니다. 위 표는 이력 보존용이며, 현재
