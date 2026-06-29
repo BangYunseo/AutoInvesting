@@ -89,30 +89,38 @@ namespace AutoInvest.Core
             });
         }
 
+        /// <summary>KIS 현재가 API의 EXCD(거래소) 후보 — 미국 주요 거래소 순회용.</summary>
+        private static readonly string[] UsPriceExchanges = { "NAS", "NYS", "AMS" };
+
         public async Task<decimal> GetCurrentPriceAsync(string ticker)
         {
             await _tokenManager.EnsureValidTokenAsync();
-            await Task.Delay(400); // Rate limit 방지 (신규 키 초당 3건 제한)
-            
-            // 해외주식 현재가 조회: HHDFS00000300
-            string path = $"/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD=NAS&SYMB={ticker}";
-            var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS00000300"));
 
-            response.EnsureSuccessStatusCode();
-
-            var responseString = await response.Content.ReadAsStringAsync();
-            var json = JsonSerializer.Deserialize<JsonElement>(responseString);
-            
-            if (json.TryGetProperty("output", out var output) && output.TryGetProperty("last", out var lastStr))
+            // KIS 현재가 API는 거래소 코드(EXCD)가 필요하다. 종목이 어느 거래소에 있는지
+            // 모르므로 NAS(나스닥)→NYS(뉴욕)→AMS(아멕스/NYSE Arca) 순으로 조회해 가격이
+            // 잡히는 거래소를 찾는다. (예: GLD는 NAS에 없고 AMS에서 조회됨)
+            foreach (var excd in UsPriceExchanges)
             {
-                if (decimal.TryParse(lastStr.GetString(), out decimal price))
+                await Task.Delay(400); // Rate limit 방지 (신규 키 초당 3건 제한)
+
+                // 해외주식 현재가 조회: HHDFS00000300
+                string path = $"/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD={excd}&SYMB={ticker}";
+                var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS00000300"));
+                response.EnsureSuccessStatusCode();
+
+                var responseString = await response.Content.ReadAsStringAsync();
+                var json = JsonSerializer.Deserialize<JsonElement>(responseString);
+
+                if (json.TryGetProperty("output", out var output) &&
+                    output.TryGetProperty("last", out var lastStr) &&
+                    decimal.TryParse(lastStr.GetString(), out decimal price) && price > 0)
                 {
-                    Logger.Info($"[KisBroker] 현재가 조회: {ticker} = ${price}");
+                    Logger.Info($"[KisBroker] 현재가 조회: {ticker} = ${price} (EXCD={excd})");
                     return price;
                 }
             }
-            
-            Logger.Warn($"[KisBroker] {ticker} 현재가 조회 실패. 기본값 반환.");
+
+            Logger.Warn($"[KisBroker] {ticker} 현재가 조회 실패 (NAS/NYS/AMS 모두 미조회). 0 반환.");
             return 0m;
         }
 
