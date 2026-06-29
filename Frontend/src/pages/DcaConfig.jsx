@@ -55,8 +55,12 @@ const DcaConfig = () => {
       const q = data.quantities || {};
       const initRows = Object.keys(q).map(k => ({ ticker: k, qty: String(q[k]), status: 'idle', price: 0, error: null }));
       setRows(initRows);
-      // 저장된 종목들의 현재가를 즉시 조회
-      initRows.forEach((r, i) => validateRow(i, r.ticker));
+      // 저장된 종목들의 현재가를 순차 조회 (동시 호출 시 KIS 토큰 발급 경합/Rate limit 방지)
+      (async () => {
+        for (let i = 0; i < initRows.length; i++) {
+          await validateRow(i, initRows[i].ticker);
+        }
+      })();
     } catch (err) {
       setError(err.message);
     } finally {

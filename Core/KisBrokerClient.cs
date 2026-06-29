@@ -101,22 +101,34 @@ namespace AutoInvest.Core
             // 잡히는 거래소를 찾는다. (예: GLD는 NAS에 없고 AMS에서 조회됨)
             foreach (var excd in UsPriceExchanges)
             {
-                await Task.Delay(400); // Rate limit 방지 (신규 키 초당 3건 제한)
-
-                // 해외주식 현재가 조회: HHDFS00000300
-                string path = $"/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD={excd}&SYMB={ticker}";
-                var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS00000300"));
-                response.EnsureSuccessStatusCode();
-
-                var responseString = await response.Content.ReadAsStringAsync();
-                var json = JsonSerializer.Deserialize<JsonElement>(responseString);
-
-                if (json.TryGetProperty("output", out var output) &&
-                    output.TryGetProperty("last", out var lastStr) &&
-                    decimal.TryParse(lastStr.GetString(), out decimal price) && price > 0)
+                // 한 거래소 조회가 실패해도 전체를 중단(500)하지 않고 다음 거래소를 시도한다.
+                try
                 {
-                    Logger.Info($"[KisBroker] 현재가 조회: {ticker} = ${price} (EXCD={excd})");
-                    return price;
+                    await Task.Delay(400); // Rate limit 방지 (신규 키 초당 3건 제한)
+
+                    // 해외주식 현재가 조회: HHDFS00000300
+                    string path = $"/uapi/overseas-price/v1/quotations/price?AUTH=&EXCD={excd}&SYMB={ticker}";
+                    var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS00000300"));
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        Logger.Warn($"[KisBroker] {ticker} {excd} 현재가 HTTP {(int)response.StatusCode} — 다음 거래소 시도");
+                        continue;
+                    }
+
+                    var responseString = await response.Content.ReadAsStringAsync();
+                    var json = JsonSerializer.Deserialize<JsonElement>(responseString);
+
+                    if (json.TryGetProperty("output", out var output) &&
+                        output.TryGetProperty("last", out var lastStr) &&
+                        decimal.TryParse(lastStr.GetString(), out decimal price) && price > 0)
+                    {
+                        Logger.Info($"[KisBroker] 현재가 조회: {ticker} = ${price} (EXCD={excd})");
+                        return price;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"[KisBroker] {ticker} {excd} 현재가 조회 중 예외({ex.Message}) — 다음 거래소 시도");
                 }
             }
 
