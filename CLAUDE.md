@@ -28,6 +28,7 @@
 @.agents/rules/kis-api-guide.md
 @.agents/rules/recommended_rules.md
 @.agents/rules/persona.md
+@.agents/rules/worklog.md
 
 ---
 
