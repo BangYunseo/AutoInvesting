@@ -7,7 +7,11 @@ name: Daily Trading Run
 # 깨어난 것이 확인되면 /api/order/dca-run 을 호출한다 (콜드 스타트 100% 흡수).
 on:
   schedule:
-    - cron: '40 14 * * *'   # KST 23:40 (UTC 14:40)
+    - cron: '40 14 * * *'   # KST 23:40 (UTC 14:40) — 현재 매일 실행
+    # ⚠️ [실거래 전환 시 필수] 지금은 모의투자 계좌라 매일 적립해도 무방하다.
+    #    실거래 계좌로 바꾸면 월 예산(MonthlyBudgetKrw)을 매일 전액 소진 → ~30배 과매수.
+    #    전환 시: cron 을 '40 14 1 * *'(매월 1일)로 바꾸고 엔진에 "이번 달 이미 적립 시 스킵" 가드 추가.
+    #    상세: Documents/DEVELOPMENT.md 의 '실거래 전환 시 필수 변경' 참조.
   workflow_dispatch:          # 수동 실행(테스트)용 버튼
 
 jobs:
