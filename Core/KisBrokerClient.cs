@@ -191,16 +191,16 @@ namespace AutoInvest.Core
             await _tokenManager.EnsureValidTokenAsync();
             await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
-            // KIS API는 모의투자 환경에서 해외주식 예수금 조회(VTTS3014R)를 미지원하며, 
+            // KIS API는 모의투자 환경에서 해외주식 예수금 조회(VTTS3014R)를 미지원하며,
             // 잔고 조회(VTTS3012R)에서도 예수금 필드를 반환하지 않습니다.
-            // 따라서 모의투자 시 가상의 자본(1억 달러)을 반환하여 주문이 정상 진행되도록 우회합니다.
+            // 가상 잔고로 우회하지 않고, 모의투자 시에는 항상 예수금 $0을 반환합니다.
             if (_isPaperTrading)
             {
-                Logger.Info("[KisBroker] KIS 모의투자는 해외주식 예수금 조회를 미지원하므로 가상 잔고 $100,000,000 반환");
-                return 100_000_000m;
+                Logger.Info("[KisBroker] KIS 모의투자는 해외주식 예수금 조회를 미지원하므로 예수금 $0 반환");
+                return 0m;
             }
 
-            string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
+            string trId = "TTTS3012R";
             string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NASD&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
 
             var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
