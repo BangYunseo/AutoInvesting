@@ -167,7 +167,7 @@ const DcaConfig = () => {
     if (r.status === 'invalid') return <span style={{ color: 'var(--loss-red)' }}>✕ {r.error || '확인 불가'}</span>;
     if (r.status === 'valid') {
       const amount = rowAmount(r);
-      const weight = totalCost > 0 ? (amount / totalCost) * 100 : 0;
+      const weight = budgetNum > 0 ? (amount / budgetNum) * 100 : 0; // 예산 대비 비중
       return (
         <span style={{ color: 'var(--text-secondary)' }}>
           <span style={{ color: 'var(--profit-green)' }}>✓ ${r.price.toFixed(2)}</span>
@@ -292,8 +292,8 @@ const DcaConfig = () => {
           총 매수금액: <strong>{won(totalCost)}</strong> / 예산 {won(budgetNum)}
           {overBudget && ` · ⚠ 예산 초과 (${won(totalCost - budgetNum)})`}
         </div>
-        <div style={{ color: 'var(--text-secondary)' }}>
-          비중 합계: <strong>{totalCost > 0 ? '100.0' : '0.0'}%</strong>
+        <div style={{ color: overBudget ? 'var(--loss-red)' : 'var(--text-secondary)' }}>
+          비중 합계 (예산 대비): <strong>{(budgetNum > 0 ? (totalCost / budgetNum) * 100 : 0).toFixed(1)}%</strong>
         </div>
       </div>
 
