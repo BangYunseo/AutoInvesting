@@ -38,11 +38,6 @@ function App() {
               설정
             </NavLink>
           </div>
-
-          <div className="app-nav__status">
-            <span className="status-dot" />
-            시스템 가동 중
-          </div>
         </nav>
 
         {/* ── 메인 콘텐츠 ── */}
