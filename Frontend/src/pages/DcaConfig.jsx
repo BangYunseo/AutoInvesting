@@ -2,28 +2,46 @@ import { useEffect, useState } from 'react';
 
 /**
  * 적립 설정 페이지.
- * DcaController(/api/dca/config)와 연동하여 목표비중과 월 예산을 편집합니다.
- * 화면에서는 비중을 100% 기준(예: 40%)으로 다루고, 저장 시 분수(0.4)로 변환합니다.
- * 백엔드는 비중을 합계 1 기준 분수로 사용하므로 변환을 거칩니다.
- * 저장값은 DB에 기록되어 다음 적립 사이클부터 반영됩니다.
+ * DcaController(/api/dca/config)와 연동하여 종목별 "고정 매수 수량"과 월 예산을 편집합니다.
+ *
+ * - 사람이 정하는 값: 종목(티커)과 매 사이클 매수 수량(주). 수량은 +/− 로 직접 조절.
+ * - 자동 계산(읽기 전용): 매수금액(수량×현재가) · 비중(%) · 총 매수금액 · 비중 합계.
+ * - 티커는 /api/price/{ticker}로 실시간 검증 — 현재가가 확인된 종목만 저장됩니다.
+ * - 예산은 초과 경고용 상한일 뿐, 수량을 줄이지 않습니다.
  */
 const DcaConfig = () => {
   const [budget, setBudget] = useState('');
-  const [rows, setRows] = useState([]); // [{ ticker, weight }] — weight는 % 단위
+  // rows: [{ ticker, qty, status: 'idle'|'checking'|'valid'|'invalid', price(USD), error }]
+  const [rows, setRows] = useState([]);
+  const [exchangeRate, setExchangeRate] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  // ── 비중 포맷 (소수점 노이즈 제거) ──
-  const fmtPct = (n) => String(Math.round(n * 100) / 100);
+  const won = (n) => '₩' + Math.round(n || 0).toLocaleString('ko-KR');
 
-  // ── ETF 개수만큼 100%를 정수로 균등 분배 (나머지는 앞 종목에 +1) ──
-  const distributeEven = (count) => {
-    if (count <= 0) return [];
-    const base = Math.floor(100 / count);
-    const remainder = 100 - base * count;
-    return Array.from({ length: count }, (_, i) => String(base + (i < remainder ? 1 : 0)));
+  // ── 티커 검증 + 현재가 조회 ──
+  const validateRow = async (idx, tickerRaw) => {
+    const ticker = (tickerRaw ?? '').trim().toUpperCase();
+    if (!ticker) {
+      setRows(prev => prev.map((r, i) => (i === idx ? { ...r, status: 'idle', price: 0, error: null } : r)));
+      return;
+    }
+    setRows(prev => prev.map((r, i) => (i === idx ? { ...r, ticker, status: 'checking', error: null } : r)));
+    try {
+      const res = await fetch(`/api/price/${encodeURIComponent(ticker)}`);
+      if (res.status === 404) {
+        setRows(prev => prev.map((r, i) => (i === idx ? { ...r, status: 'invalid', price: 0, error: '존재하지 않는 티커' } : r)));
+        return;
+      }
+      if (!res.ok) throw new Error(`가격 조회 실패 (${res.status})`);
+      const data = await res.json();
+      if (data.exchangeRate > 0) setExchangeRate(data.exchangeRate);
+      setRows(prev => prev.map((r, i) => (i === idx ? { ...r, ticker, status: 'valid', price: data.priceUsd, error: null } : r)));
+    } catch (err) {
+      setRows(prev => prev.map((r, i) => (i === idx ? { ...r, status: 'invalid', price: 0, error: err.message } : r)));
+    }
   };
 
   const loadConfig = async () => {
@@ -34,9 +52,11 @@ const DcaConfig = () => {
       if (!res.ok) throw new Error(`설정 조회 실패 (${res.status})`);
       const data = await res.json();
       setBudget(String(data.budgetKrw ?? ''));
-      const t = data.targets || {};
-      // 저장된 분수(0.4)를 화면용 %(40)로 변환
-      setRows(Object.keys(t).map(k => ({ ticker: k, weight: fmtPct(Number(t[k]) * 100) })));
+      const q = data.quantities || {};
+      const initRows = Object.keys(q).map(k => ({ ticker: k, qty: String(q[k]), status: 'idle', price: 0, error: null }));
+      setRows(initRows);
+      // 저장된 종목들의 현재가를 즉시 조회
+      initRows.forEach((r, i) => validateRow(i, r.ticker));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,72 +66,67 @@ const DcaConfig = () => {
 
   useEffect(() => { loadConfig(); }, []);
 
-  const budgetNum = Number(budget) || 0;
-  const totalWeight = rows.reduce((sum, r) => sum + (Number(r.weight) || 0), 0); // % 합계
+  // ── 행 조작 ──
+  const setTicker = (idx, val) => {
+    const t = val.toUpperCase();
+    // 티커가 바뀌면 재검증 필요 → 상태 초기화
+    setRows(rows.map((r, i) => (i === idx ? { ...r, ticker: t, status: 'idle', price: 0, error: null } : r)));
+  };
 
-  const updateRow = (idx, field, value) => {
-    // 비중은 합계 100%를 넘을 수 없도록 입력 단계에서 제한 (초과 시에만 클램프)
-    if (field === 'weight') {
-      const otherSum = rows.reduce((s, r, i) => (i === idx ? s : s + (Number(r.weight) || 0)), 0);
-      const maxAllowed = Math.max(0, 100 - otherSum);
-      let v = value;
-      if (value !== '') {
-        const num = Number(value);
-        if (!Number.isNaN(num) && num > maxAllowed) v = fmtPct(maxAllowed);
-        else if (!Number.isNaN(num) && num < 0) v = '0';
-      }
-      setRows(rows.map((r, i) => (i === idx ? { ...r, weight: v } : r)));
+  const setQty = (idx, val) => {
+    if (val === '') {
+      setRows(rows.map((r, i) => (i === idx ? { ...r, qty: '' } : r)));
       return;
     }
-    setRows(rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+    let n = parseInt(val, 10);
+    if (Number.isNaN(n)) return;
+    if (n < 1) n = 1;
+    setRows(rows.map((r, i) => (i === idx ? { ...r, qty: String(n) } : r)));
   };
 
-  const addRow = () => setRows([...rows, { ticker: '', weight: '' }]);
+  const stepQty = (idx, delta) => {
+    setRows(rows.map((r, i) => {
+      if (i !== idx) return r;
+      const cur = parseInt(r.qty, 10) || 0;
+      return { ...r, qty: String(Math.max(1, cur + delta)) };
+    }));
+  };
+
+  const addRow = () => setRows([...rows, { ticker: '', qty: '1', status: 'idle', price: 0, error: null }]);
   const removeRow = (idx) => setRows(rows.filter((_, i) => i !== idx));
 
-  // ── ETF 개수 입력 → 행 개수 조정 + 100% 균등 분배 ──
-  const setEtfCount = (raw) => {
-    const count = Math.max(0, Math.min(20, parseInt(raw, 10) || 0));
-    const weights = distributeEven(count);
-    setRows(prev => Array.from({ length: count }, (_, i) => ({
-      ticker: prev[i]?.ticker ?? '',
-      weight: weights[i],
-    })));
-  };
-
-  // ── 현재 종목들에 100% 균등 재분배 (개수 유지) ──
-  const equalizeWeights = () => {
-    const weights = distributeEven(rows.length);
-    setRows(rows.map((r, i) => ({ ...r, weight: weights[i] })));
-  };
+  // ── 계산 (읽기 전용) ──
+  const budgetNum = Number(budget) || 0;
+  const rowAmount = (r) => (r.status === 'valid' && r.price > 0 ? (parseInt(r.qty, 10) || 0) * r.price * exchangeRate : 0);
+  const totalCost = rows.reduce((s, r) => s + rowAmount(r), 0);
+  const overBudget = budgetNum > 0 && totalCost > budgetNum;
 
   const handleSave = async () => {
     setError(null);
     setNotice(null);
 
-    const targets = {};
+    const quantities = {};
     for (const r of rows) {
       const ticker = r.ticker.trim().toUpperCase();
-      const pct = Number(r.weight);
+      const qty = parseInt(r.qty, 10);
       if (!ticker) continue;
-      if (!(pct > 0)) {
-        setError(`'${ticker || '(빈 종목)'}'의 비중은 0보다 커야 합니다.`);
+      if (r.status !== 'valid') {
+        setError(`'${ticker}'은(는) 아직 검증되지 않았습니다. 엔터(또는 🔍)로 현재가를 확인한 종목만 저장됩니다.`);
         return;
       }
-      if (targets[ticker]) {
+      if (!(qty > 0)) {
+        setError(`'${ticker}'의 수량은 1 이상이어야 합니다.`);
+        return;
+      }
+      if (quantities[ticker]) {
         setError(`중복된 종목이 있습니다: ${ticker}`);
         return;
       }
-      // 화면 %(40) → 저장 분수(0.4)
-      targets[ticker] = pct / 100;
+      quantities[ticker] = qty;
     }
 
-    if (Object.keys(targets).length === 0) {
-      setError('목표비중을 최소 1개 이상 입력하세요.');
-      return;
-    }
-    if (totalWeight > 100.001) {
-      setError(`비중 합계가 100%를 초과했습니다 (${fmtPct(totalWeight)}%). 100% 이하로 맞춰주세요.`);
+    if (Object.keys(quantities).length === 0) {
+      setError('수량을 지정한 유효 종목이 최소 1개 필요합니다.');
       return;
     }
     if (!(budgetNum > 0)) {
@@ -124,7 +139,7 @@ const DcaConfig = () => {
       const res = await fetch('/api/dca/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ budgetKrw: budgetNum, targets }),
+        body: JSON.stringify({ budgetKrw: budgetNum, quantities }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `저장 실패 (${res.status})`);
@@ -146,17 +161,32 @@ const DcaConfig = () => {
     );
   }
 
-  const totalIs100 = Math.abs(totalWeight - 100) < 0.01;
+  // 행 하단 상태/금액 텍스트
+  const statusLine = (r) => {
+    if (r.status === 'checking') return <span style={{ color: 'var(--text-muted)' }}>검증 중…</span>;
+    if (r.status === 'invalid') return <span style={{ color: 'var(--loss-red)' }}>✕ {r.error || '확인 불가'}</span>;
+    if (r.status === 'valid') {
+      const amount = rowAmount(r);
+      const weight = totalCost > 0 ? (amount / totalCost) * 100 : 0;
+      return (
+        <span style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--profit-green)' }}>✓ ${r.price.toFixed(2)}</span>
+          {' · '}매수금액 {won(amount)}
+          {' · '}비중 {weight.toFixed(1)}%
+        </span>
+      );
+    }
+    return <span style={{ color: 'var(--text-muted)' }}>엔터(또는 🔍)로 현재가를 확인하세요</span>;
+  };
 
   return (
     <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 720, margin: '0 auto' }}>
       <h2>적립 설정</h2>
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: 24, wordBreak: 'keep-all' }}>
-        매 사이클에 투입할 <strong>월 예산</strong>과 종목별 <strong>목표비중(%)</strong>을 설정합니다.
-        타이밍 판단 없이, 설정한 비중을 향해 예산만큼 정수 단위로 매수합니다.
-        <strong>ETF 개수</strong>를 입력하면 100%를 균등 분배하며, 각 종목이 예산에서
-        차지하는 비중과 금액을 자동으로 보여줍니다. 비중 합계는 <strong>100%를 넘을 수 없으며</strong>,
-        투자 규모를 키우려면 비중이 아니라 <strong>월 예산</strong>을 조정하세요.
+        매 사이클에 매수할 <strong>종목과 수량(주)</strong>을 직접 지정합니다.
+        타이밍 판단 없이, 설정한 수량을 그대로 매수합니다.
+        <strong>비중(%)·매수금액</strong>은 수량 × 현재가로 자동 계산되어 표시만 됩니다(조절 불가).
+        티커는 현재가가 확인된 종목만 저장되며, <strong>월 예산</strong>은 초과 시 경고용 상한입니다.
       </p>
 
       {error && (
@@ -183,79 +213,63 @@ const DcaConfig = () => {
         />
       </div>
 
-      {/* ETF 개수 */}
-      <div className="form-group">
-        <label>ETF 개수 (입력 시 100% 균등 분배)</label>
-        <input
-          type="number"
-          min="0"
-          max="20"
-          step="1"
-          value={rows.length}
-          onChange={e => setEtfCount(e.target.value)}
-          placeholder="예: 3"
-        />
-      </div>
-
-      {/* 목표비중 목록 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <label style={{ fontWeight: 600, fontSize: '0.9rem' }}>목표비중 (%)</label>
-        {rows.length > 0 && (
-          <button className="btn btn--outline" onClick={equalizeWeights} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-            균등 분배
-          </button>
-        )}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-        {rows.map((row, idx) => {
-          const pct = Number(row.weight) || 0;
-          // 예산 기준 실제 비중·금액 (입력 합계로 정규화)
-          const sharePct = totalWeight > 0 ? (pct / totalWeight) * 100 : 0;
-          const amountKrw = totalWeight > 0 ? Math.round(budgetNum * (pct / totalWeight)) : 0;
-          return (
-            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      {/* ETF 설정 */}
+      <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: '0.9rem' }}>ETF 설정</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
+        {rows.map((row, idx) => (
+          <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* 티커 */}
+              <input
+                type="text"
+                className="input-field"
+                value={row.ticker}
+                onChange={e => setTicker(idx, e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') validateRow(idx, row.ticker); }}
+                onBlur={() => { if (row.ticker && row.status === 'idle') validateRow(idx, row.ticker); }}
+                placeholder="티커 (예: QQQM)"
+                style={{ flex: 2 }}
+              />
+              {/* 검증/새로고침 */}
+              <button
+                className="btn btn--outline"
+                onClick={() => validateRow(idx, row.ticker)}
+                style={{ padding: '8px 12px' }}
+                title="현재가 확인"
+              >
+                🔍
+              </button>
+              {/* 수량 스테퍼 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button className="btn btn--outline" onClick={() => stepQty(idx, -1)} style={{ padding: '8px 12px' }} title="감소">−</button>
                 <input
-                  type="text"
+                  type="number"
                   className="input-field"
-                  value={row.ticker}
-                  onChange={e => updateRow(idx, 'ticker', e.target.value.toUpperCase())}
-                  placeholder="종목 (예: QQQM)"
-                  style={{ flex: 2 }}
+                  min="1"
+                  step="1"
+                  value={row.qty}
+                  onChange={e => setQty(idx, e.target.value)}
+                  style={{ width: 64, textAlign: 'center' }}
                 />
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <input
-                    type="number"
-                    className="input-field"
-                    min="0"
-                    step="1"
-                    value={row.weight}
-                    onChange={e => updateRow(idx, 'weight', e.target.value)}
-                    placeholder="예: 40"
-                    style={{ width: '100%' }}
-                  />
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>%</span>
-                </div>
-                <button
-                  className="btn btn--outline"
-                  onClick={() => removeRow(idx)}
-                  style={{ padding: '8px 12px' }}
-                  title="삭제"
-                >
-                  ✕
-                </button>
+                <button className="btn btn--outline" onClick={() => stepQty(idx, 1)} style={{ padding: '8px 12px' }} title="증가">+</button>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>주</span>
               </div>
-              {/* 예산 기준 실제 비중·금액 */}
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', paddingLeft: 2 }}>
-                {pct > 0 && totalWeight > 0
-                  ? `실제 비중 ${sharePct.toFixed(1)}%${budgetNum > 0 ? ` · 약 ₩${amountKrw.toLocaleString('ko-KR')}` : ''}`
-                  : '비중을 입력하세요'}
-              </div>
+              {/* 삭제 */}
+              <button
+                className="btn btn--outline"
+                onClick={() => removeRow(idx)}
+                style={{ padding: '8px 12px' }}
+                title="삭제"
+              >
+                ✕
+              </button>
             </div>
-          );
-        })}
+            {/* 상태 · 현재가 · 매수금액 · 비중 */}
+            <div style={{ fontSize: '0.78rem', paddingLeft: 2 }}>{statusLine(row)}</div>
+          </div>
+        ))}
         {rows.length === 0 && (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>등록된 종목이 없습니다. 위에 ETF 개수를 입력하거나 아래에서 추가하세요.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>등록된 종목이 없습니다. 아래에서 추가하세요.</p>
         )}
       </div>
 
@@ -265,15 +279,22 @@ const DcaConfig = () => {
 
       {/* 합계 안내 */}
       <div style={{
-        padding: '10px 14px',
+        padding: '12px 14px',
         background: 'rgba(255,255,255,0.03)',
         borderRadius: 'var(--radius-sm)',
         fontSize: '0.85rem',
         marginBottom: 20,
-        color: totalIs100 ? 'var(--profit-green)' : 'var(--text-secondary)'
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
       }}>
-        비중 합계: <strong>{fmtPct(totalWeight)}%</strong> / 100%
-        {!totalIs100 && ` · 남은 배분 가능: ${fmtPct(Math.max(0, 100 - totalWeight))}%`}
+        <div style={{ color: overBudget ? 'var(--loss-red)' : 'var(--text-secondary)' }}>
+          총 매수금액: <strong>{won(totalCost)}</strong> / 예산 {won(budgetNum)}
+          {overBudget && ` · ⚠ 예산 초과 (${won(totalCost - budgetNum)})`}
+        </div>
+        <div style={{ color: 'var(--text-secondary)' }}>
+          비중 합계: <strong>{totalCost > 0 ? '100.0' : '0.0'}%</strong>
+        </div>
       </div>
 
       <button

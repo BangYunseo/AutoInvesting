@@ -26,7 +26,7 @@ namespace AutoInvest.Core
 
         /// <summary>
         /// 적립식(DCA) 자동 매수 사이클을 실행합니다 (판단 없는 단순 자동화).
-        /// 퀀트/AI 판단을 하지 않고, Dca:Targets 목표비중을 향해 정수 단위로 매수합니다.
+        /// 퀀트/AI 판단을 하지 않고, 설정한 종목별 고정 수량(Dca:Quantities)을 그대로 매수합니다.
         /// </summary>
         public async Task<string> RunDcaCycleAsync()
         {
@@ -48,18 +48,18 @@ namespace AutoInvest.Core
                     }
                 }
 
-                // ── 목표비중·예산 로드 (DB 우선 → appsettings 폴백) ──
-                var (targets, budget) = DcaSettings.Load();
+                // ── 종목별 매수 수량·예산 로드 (DB 우선 → appsettings 폴백) ──
+                var (quantities, budget) = DcaSettings.Load();
 
-                if (targets.Count == 0)
+                if (quantities.Count == 0)
                 {
-                    statusNote = "목표비중(DCA Targets) 설정이 비어 있어 오늘은 매수를 건너뛰었습니다.";
-                    Logger.Warn("[DcaCycle] 목표비중 없음 — 매수 스킵");
+                    statusNote = "적립 수량(DCA Quantities) 설정이 비어 있어 오늘은 매수를 건너뛰었습니다.";
+                    Logger.Warn("[DcaCycle] 매수 수량 없음 — 매수 스킵");
                 }
                 else
                 {
                     var engine = new DcaAccumulationEngine(client);
-                    filled = await engine.AccumulateAsync(targets, budget);
+                    filled = await engine.AccumulateAsync(quantities, budget);
                     Logger.Info($"[DcaCycle] ✔ 적립식 매수 완료 — {filled.Count}주 체결");
                 }
             }
