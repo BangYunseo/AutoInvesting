@@ -4,28 +4,26 @@
 
 ## 📌 프로젝트 개요
 
-사람이 지정한 종목별 고정 수량대로 해외 ETF를 자동으로 적립 매수하는 Headless 백그라운드 서비스입니다.
-정직한 백테스트(2012~현재) 결과 **퀀트/AI 타이밍 판단이 단순 적립식(DCA)에 2.7~4배 열세**였고,
-완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 불과(타이밍은 잘해야 본전)함이 검증되었습니다.
-이에 따라 **판단(타이밍) 레이어를 전부 제거**하고, 설정한 **종목별 고정 수량을 매 사이클 그대로 매수하는
-DCA 적립 코어**로 전환했습니다. 이 시스템의 가치는 "판단"이 아니라 **"자동화"**에 있습니다.
+- **해외 ETF 자동 적립 매수 프로그램**
+- 여러 매수 템플릿(종목별 고정 수량 + 예산)을 정의하고 월별로 배정해, 현재 월 템플릿대로 자동 적립 매수하는 Headless 백그라운드 서비스
+- "판단"이 아니라 **"자동화"** 프로그램
 
 ### 핵심 목적
 
-| # | 목적 | 설명 |
-|---|------|------|
-| 1 | **자동 적립** | 사용자가 직접 주문하지 않아도, 정해진 주기에 설정 수량대로 자동 매수 |
-| 2 | **판단 배제** | "지금 살까 말까" 같은 타이밍 판단을 제거하고 규칙(고정 수량) 기반 매수 |
-| 3 | **고정 수량 매수** | 종목별로 지정한 정수 주수를 매 사이클 그대로 매수 (비중·금액은 표시용 자동 계산) |
+| #   | 목적               | 설명                                                                             |
+| --- | ------------------ | -------------------------------------------------------------------------------- |
+| 1   | **자동 적립**      | 사용자가 직접 주문하지 않아도, 정해진 주기에 설정 수량대로 자동 매수             |
+| 2   | **판단 배제**      | "지금 살까 말까" 같은 타이밍 판단을 제거하고 규칙(고정 수량) 기반 매수           |
+| 3   | **템플릿·월배정** | 여러 매수 템플릿을 정의하고 월별로 배정 — 현재 월 템플릿의 종목별 고정 수량을 매 사이클 그대로 매수 (비중·금액은 표시용 자동 계산) |
 
 ### 증권사 API
 
-| 항목 | 내용 |
-|------|------|
-| 증권사 | **한국투자증권 (KIS)** |
-| API 형태 | REST API (HTTPS) |
-| 인증 | OAuth 2.0 (APP KEY / APP SECRET → Access Token) |
-| 대상 시장 | 미국 해외주식 (NYSE, NASDAQ) |
+| 항목      | 내용                                            |
+| --------- | ----------------------------------------------- |
+| 증권사    | **한국투자증권 (KIS)**                          |
+| API 형태  | REST API (HTTPS)                                |
+| 인증      | OAuth 2.0 (APP KEY / APP SECRET → Access Token) |
+| 대상 시장 | 미국 해외주식 (NYSE, NASDAQ)                    |
 
 > **참고**: KIS Developers 포털 — https://apiportal.koreainvestment.com/
 
@@ -46,7 +44,7 @@ AutoInvesting/
 │   ├── KisTokenManager.cs              # KIS OAuth 토큰 발급 + 만료 전 자동 갱신
 │   ├── SessionManager.cs               # IBrokerClient(브로커) 생명주기 관리
 │   ├── DcaAccumulationEngine.cs        # 적립식 매수 엔진 (판단/타이밍 없음, 정수 매수)
-│   ├── DcaSettings.cs                  # 종목별 매수 수량·예산의 단일 읽기/쓰기 지점 (DB → appsettings 폴백)
+│   ├── DcaSettings.cs                  # 매수 템플릿·월배정·예산의 단일 읽기/쓰기 지점 (DB → appsettings 폴백)
 │   └── DailyExecutionService.cs        # 적립 사이클 실행 진입점 (RunDcaCycleAsync)
 │
 ├── Data/                               # 데이터 액세스 계층
@@ -55,6 +53,7 @@ AutoInvesting/
 │   ├── sql/
 │   │   └── create_tables.sql           # DDL + 초기 마스터 데이터
 │   ├── DTO/                            # Data Transfer Objects
+│   │   ├── DcaTemplate.cs              # 매수 템플릿 DTO (Id, Name, BudgetKrw, Quantities)
 │   │   ├── AssetDto.cs                 # 자산 마스터
 │   │   ├── TradeHistoryDto.cs          # 거래 내역
 │   │   ├── HoldingDto.cs               # 보유 종목 (잔고)
@@ -68,7 +67,7 @@ AutoInvesting/
 │   ├── ConfigController.cs             # 환경 설정 API
 │   ├── HistoryController.cs            # 거래 내역 및 로그 API
 │   ├── PortfolioController.cs          # 잔고 조회 API
-│   ├── DcaController.cs                # 적립 설정(매수 수량·예산) 조회·저장 API
+│   ├── DcaController.cs                # 적립 설정(매수 템플릿·월배정) 조회·저장 API
 │   ├── OrderController.cs              # 적립 사이클 실행 + 수동 주문 API
 │   └── TestController.cs               # 개발/테스트 전용 API (buy / send-test-email)
 │
@@ -98,67 +97,80 @@ AutoInvesting/
 
 ## 🖥️ 아키텍처: Headless ASP.NET Core Web API
 
-기존 WinForms 기반에서 **ASP.NET Core Web API** 기반의 Headless 서버로 구조가 개편되었고,
-Phase 6에서 판단 레이어를 제거하여 **순수 적립(DCA) 자동화 서버**가 되었습니다.
-UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시간 무인으로 동작합니다.
+- **ASP.NET Core Web API** 기반의 Headless 서버 구조
+- **순수 적립(DCA) 자동화 서버**
+- Linux 서버 / Docker 환경에서 24시간 무인 동작
 
-- **적립 실행 진입점**: `DailyExecutionService.RunDcaCycleAsync()`가 로그인 → 종목별 수량/예산 로드
-  (`DcaSettings.Load`) → `DcaAccumulationEngine.AccumulateAsync()` 실행 → 이메일 보고서 발송을 수행
-- **외부 크론잡 트리거**: 매수 주기(예: 매월 첫 거래일)에 외부 크론잡이 `POST /api/order/dca-run`을
-  호출하여 적립 사이클을 시작 (즉시 202 반환 후 백그라운드 처리)
-- **REST API 컨트롤러**: React 웹 대시보드 및 외부 클라이언트에서 적립 설정 편집, 잔고/내역 조회, 수동 주문 제공
-- **배포**: 단일 Docker 컨테이너 — ASP.NET Core가 React SPA 빌드 결과를 정적 파일로 서빙 (SPA 라우팅 지원)
+### 적립 실행 진입점
+
+- `DailyExecutionService.RunDcaCycleAsync()`가 로그인 → 매수 템플릿·월배정 로드
+- (`DcaSettings.Load` → 현재 월 템플릿 선택) → `DcaAccumulationEngine.AccumulateAsync()` 실행 → 이메일 보고서 발송을 수행
+
+### 외부 크론잡 트리거
+
+- 매수 주기(예: 매월 첫 거래일)에 외부 크론잡이 `POST /api/order/dca-run`을 호출하여 적립 사이클을 시작 (즉시 202 반환 후 백그라운드 처리)
+
+### REST API 컨트롤러
+
+- React 웹 대시보드 및 외부 클라이언트에서 적립 설정 편집, 잔고/내역 조회, 수동 주문 제공
+
+### 배포
+
+- 단일 Docker 컨테이너 — ASP.NET Core가 React SPA 빌드 결과를 정적 파일로 서빙 (SPA 라우팅 지원)
 
 ---
 
 ## 💱 환율 API
 
-| 항목 | 내용 |
-|------|------|
-| API | **Frankfurter API** (ECB 데이터) |
-| URL | `https://api.frankfurter.app/latest?from=USD&to=KRW` |
-| API 키 | 불필요 (완전 무료) |
+| 항목     | 내용                                                       |
+| -------- | ---------------------------------------------------------- |
+| API      | **Frankfurter API** (ECB 데이터)                           |
+| URL      | `https://api.frankfurter.app/latest?from=USD&to=KRW`       |
+| API 키   | 불필요 (무료)                                              |
 | Fallback | ExchangeRate-API (`https://open.er-api.com/v6/latest/USD`) |
-| 캐싱 | 1시간 |
-| 사용처 | 적립 매수 시 USD→KRW 환산, 대시보드 환율 카드 |
+| 캐싱     | 1시간                                                      |
+| 사용처   | 적립 매수 시 USD→KRW 환산, 대시보드 환율 카드              |
 
 ---
 
 ## 📊 적립(DCA) 매수 방식
 
-타이밍 판단을 하지 않고, **사람이 지정한 종목별 고정 수량**을 매 사이클 그대로 매수합니다.
+- **여러 매수 템플릿**을 정의하고 **월별로 배정**해, 현재 월 템플릿의 **종목별 고정 수량**을 매 사이클 그대로 매수
 
-| 항목 | 설명 |
-|------|------|
-| **매수 수량** | 종목별 매 사이클 매수 주수 (예: `QQQM 2주 / SPLG 3주 / SCHD 5주`) — 적립 설정 페이지에서 +/− 로 직접 지정 |
-| **비중·금액(표시용)** | 비중(%)·매수금액은 수량 × 현재가로 자동 계산되어 **표시만** 됨 (사람이 조절 불가) |
-| **티커 검증** | `GET /api/price/{ticker}`로 현재가가 확인된 종목만 등록·저장 (우측에 실시간 가격 표시) |
-| **예산** | 월 예산은 **초과 경고용 상한** — 총 매수금액이 예산을 넘으면 경고만(수량은 그대로 매수) |
-| **순수 함수** | 매수 계획(`PlanPurchases`)은 외부 I/O 없는 순수 함수로 분리되어 단위 검증 가능 |
+| 항목                  | 설명                                                                                                      |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| **매수 템플릿**       | 종목별 고정 수량 + 예산을 묶은 단위 (`DcaTemplate`: Id, Name, BudgetKrw, Quantities) — 여러 개 정의 가능 |
+| **월별 배정**         | 1~12월 각각에 템플릿을 배정(`DCA_MONTH_MAP`) — 배정 없으면 첫 템플릿 사용, 템플릿 없는 달은 매수 스킵    |
+| **매수 수량**         | 현재 월 템플릿의 종목별 매수 주수 (예: `QQQM 2주 / SPLG 3주 / SCHD 5주`) — 적립 설정 페이지에서 직접 지정 |
+| **비중·금액(표시용)** | 비중(%)·매수금액은 수량 × 현재가로 자동 계산되어 **표시만** 됨 (사람이 조절 불가)                         |
+| **티커 검증**         | `GET /api/price/{ticker}`로 현재가가 확인된 종목만 등록·저장 (우측에 실시간 가격 표시)                    |
+| **예산**              | 템플릿별 예산은 **초과 경고용 상한** — 총 매수금액이 예산을 넘으면 경고만(수량은 그대로 매수)             |
+| **순수 함수**         | 매수 계획(`PlanPurchases`)은 외부 I/O 없는 순수 함수로 분리되어 단위 검증 가능                            |
 
 ---
 
 ## ⚙️ 기술 스택
 
-| 분류 | 기술 |
-|------|------|
-| 언어 (백엔드) | C# |
-| 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
-| 프론트엔드 | React (Vite, JSX, Glassmorphism 디자인) |
-| DB | PostgreSQL (Npgsql) |
-| 로깅 | Serilog |
-| 내결함성 | Polly (KIS API Retry + 지수 백오프) |
-| 이메일 알림 | MailKit (Naver SMTP) |
-| 증권사 API | 한국투자증권 (KIS) REST API |
-| 환율 API | Frankfurter API (무료, 키 불필요) |
-| 배포 | Docker (단일 컨테이너, React 정적 서빙 통합) |
-| 빌드 | MSBuild / Visual Studio 2022 |
+| 분류          | 기술                                         |
+| ------------- | -------------------------------------------- |
+| 언어 (백엔드) | C#                                           |
+| 프레임워크    | ASP.NET Core Web API (.NET 8.0)              |
+| 프론트엔드    | React (Vite, JSX, Glassmorphism 디자인)      |
+| DB            | PostgreSQL (Npgsql)                          |
+| 로깅          | Serilog                                      |
+| 내결함성      | Polly (KIS API Retry + 지수 백오프)          |
+| 이메일 알림   | MailKit (Naver SMTP)                         |
+| 증권사 API    | 한국투자증권 (KIS) REST API                  |
+| 환율 API      | Frankfurter API (무료, 키 불필요)            |
+| 배포          | Docker (단일 컨테이너, React 정적 서빙 통합) |
+| 빌드          | MSBuild / Visual Studio 2022                 |
 
 ---
 
 ## 🚀 개발 로드맵
 
 ### Phase 1 — 기반 (✅ 완료)
+
 - [x] 프로젝트 생성 및 PostgreSQL 연동
 - [x] DB 스키마 및 초기 마스터 데이터
 - [x] DTO / DAO 레이어
@@ -166,31 +178,37 @@ UI 스레드 종속성을 제거하여 Linux 서버 / Docker 환경에서 24시�
 - [x] 설정 폼 / 거래 내역 폼
 
 ### Phase 2 ~ 2.6 — 엔진 코어 + 퀀트 모듈 + 구조 리팩토링 (✅ 완료)
+
 - [x] `IBrokerClient` / `SimBrokerClient` / `SmartOrderEngine` / `SessionManager`
 - [x] 퀀트 엔진(`QuantIndicator`, `QuantFilter`, `BacktestEngine`, `RebalancingEngine`)
 - [x] Weight → Qty(수량 정수) 전환, 무료 환율 API(Frankfurter) 연동
 - [x] 멀티 Form → 단일 창 Panel(SPA) UI 전환, 레거시 Form 제거
 
 ### Phase 3 — KIS 실거래 연동 (✅ 완료)
+
 - [x] `KisBrokerClient` — KIS REST API 실제 구현
 - [x] OAuth 토큰 발급 + 자동 갱신 (`KisTokenManager`)
 - [x] 실시간 시세/잔고 조회 및 주문 실행
 
 ### Phase A / B / C — Web API 전환 · 운영 안정성 · React 연동 (✅ 완료)
+
 - [x] WinForms 레거시 완전 제거, Headless Web API로 전환
 - [x] KIS API 내결함성(Polly 지수 백오프) 적용, MailKit 체결/예외 알림
 - [x] React-Router 기반 SPA 프론트엔드 + Glassmorphism 디자인 시스템
 
 ### Phase 4 ~ 5 — AI 시장분석 / 적응형 임계값 / 성과 피드백 (✅ 완료 → Phase 6에서 제거)
+
 - [x] Gemini 이중 에이전트(차트+펀더멘털) 합의, 확률 기반 합의 스코어링
 - [x] 종목별 적응형 임계값, AI 성과·토큰 비용 모니터링, 성과 피드백 루프
 - [x] **검증 결과 타이밍 판단의 실효성이 없음이 드러나 Phase 6에서 전부 제거됨**
 
 ### Phase 6 — 판단 레이어 제거, DCA 적립 코어 전환 (✅ 완료)
+
 - [x] 퀀트/AI 판단 레이어(`SmartOrderEngine`, `Core/Quant/*`, `Core/Advisors/*`, AI 분석기) 전체 제거
 - [x] `DcaAccumulationEngine` — 종목별 고정 수량 적립 매수 엔진 (순수함수 `PlanPurchases` + `AccumulateAsync`)
-- [x] `DcaSettings` — 종목별 매수 수량·예산 단일 관리 (DB `TB_APP_CONFIG` → appsettings `Dca` 폴백)
-- [x] `DcaController` — `GET/PUT /api/dca/config` 적립 설정 조회·저장
+- [x] `DcaSettings` — 매수 템플릿(`DCA_TEMPLATES`)·월별 배정(`DCA_MONTH_MAP`)·예산 단일 관리 (DB `TB_APP_CONFIG` → 레거시 키/appsettings `Dca` 폴백, 자동 이관)
+- [x] `DcaController` — `GET/PUT /api/dca/config` 매수 템플릿·월별 배정 조회·저장
+- [x] `DcaTemplate` DTO — 매수 템플릿 (Id, Name, BudgetKrw, Quantities)
 - [x] `DailyExecutionService` → `RunDcaCycleAsync`만 유지 (구 AI 평가/일일 보고서 제거)
 - [x] `OrderController` → `POST /api/order/dca-run`(적립 사이클) + `POST /api/order/manual`(수동 주문)
 - [x] 프론트 재구성 — 네비: 대시보드 / 적립 설정 / 주문·적립 / 거래 내역 / 설정
