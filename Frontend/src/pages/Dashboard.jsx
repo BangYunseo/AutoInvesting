@@ -73,7 +73,8 @@ const Dashboard = () => {
     (sum, h) => sum + h.avgPrice * h.qty,
     0
   );
-  const totalAssetsUsd = stockEvalUsd + cashBalance;
+  // 총 자산은 보유 종목 평가액만 기준으로 집계합니다(예수금 제외).
+  const totalAssetsUsd = stockEvalUsd;
   const totalAssetsKrw = totalAssetsUsd * exchangeRate;
   const totalProfitUsd = stockEvalUsd - totalCostUsd;
   const totalProfitRate =
