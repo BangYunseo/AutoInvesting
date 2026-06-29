@@ -49,6 +49,11 @@ namespace AutoInvest
 
                 // ── 의존성 주입 ──
                 builder.Services.AddSingleton(DBManager.Instance);
+
+                // ── 로그 DB 영구 적재 연결 (DBManager 초기화 완료 후) ──
+                // Logger는 Data를 참조하지 않으므로 여기서 SystemLogDAO.Insert를 훅으로 주입한다.
+                AutoInvest.Utils.Logger.DbSink = AutoInvest.Data.DAO.SystemLogDAO.Insert;
+                AutoInvest.Data.DAO.SystemLogDAO.PruneOlderThan(90); // 오래된 로그 정리(무한 증가 방지)
                 builder.Services.AddSingleton<AutoInvest.Core.SessionManager>();
                 builder.Services.AddScoped<AutoInvest.Core.DailyExecutionService>();
 

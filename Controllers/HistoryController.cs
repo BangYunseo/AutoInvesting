@@ -36,7 +36,7 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
-        /// 시스템 로그를 조회합니다.
+        /// 시스템 로그를 조회합니다. (PostgreSQL TB_SYSTEM_LOG — 재시작에도 보존)
         /// </summary>
         /// <param name="date">조회 날짜 (yyyy-MM-dd, 기본 오늘)</param>
         /// <param name="lines">최대 줄 수 (기본 200)</param>
@@ -46,38 +46,22 @@ namespace AutoInvest.Controllers
             try
             {
                 string targetDate = date ?? DateTime.Now.ToString("yyyy-MM-dd");
-                string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-                string logFile = Path.Combine(logDir, $"{targetDate}.log");
+                var logLines = SystemLogDAO.GetByDate(targetDate, lines);
 
-                if (!System.IO.File.Exists(logFile))
+                if (logLines.Count == 0)
                 {
-                    // 사용 가능한 로그 파일 목록 반환
-                    var available = new List<string>();
-                    if (Directory.Exists(logDir))
-                    {
-                        available = Directory.GetFiles(logDir, "*.log")
-                            .Select(f => Path.GetFileNameWithoutExtension(f))
-                            .OrderByDescending(f => f)
-                            .ToList();
-                    }
-
+                    // 해당 날짜 로그가 없으면 사용 가능한 날짜 목록 반환
                     return Ok(new
                     {
-                        message = $"{targetDate} 날짜의 로그 파일이 없습니다.",
-                        availableDates = available
+                        message = $"{targetDate} 날짜의 로그가 없습니다.",
+                        availableDates = SystemLogDAO.GetAvailableDates()
                     });
                 }
-
-                var logLines = System.IO.File.ReadAllLines(logFile)
-                    .Reverse()
-                    .Take(lines)
-                    .Reverse()
-                    .ToArray();
 
                 return Ok(new
                 {
                     date = targetDate,
-                    totalLines = logLines.Length,
+                    totalLines = logLines.Count,
                     logs = logLines
                 });
             }
