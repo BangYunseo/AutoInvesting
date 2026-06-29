@@ -3,6 +3,7 @@ using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace AutoInvest.Core
@@ -21,6 +22,9 @@ namespace AutoInvest.Core
         private string _accessToken = string.Empty;
         private DateTime _tokenExpiration = DateTime.MinValue;
 
+        /// <summary>토큰 동시 발급 방지 락 — KIS 토큰 발급은 분당 1회 제한이라 경합 시 실패한다.</summary>
+        private readonly SemaphoreSlim _refreshLock = new SemaphoreSlim(1, 1);
+
         public KisTokenManager(HttpClient httpClient, string baseUrl, string appKey, string appSecret)
         {
             _httpClient = httpClient;
@@ -34,11 +38,28 @@ namespace AutoInvest.Core
         /// </summary>
         public async Task EnsureValidTokenAsync()
         {
-            // 만료 10분 전이면 재발급
-            if (string.IsNullOrEmpty(_accessToken) || DateTime.Now >= _tokenExpiration.AddMinutes(-10))
+            if (!IsExpiringSoon()) return;
+
+            // 동시 요청이 각자 토큰을 발급하면 KIS의 "분당 1회" 제한에 걸려 실패한다.
+            // 락으로 직렬화하고, 락 획득 후 재확인해 한 번만 발급하고 나머지는 공유한다.
+            await _refreshLock.WaitAsync();
+            try
             {
-                await RefreshTokenAsync();
+                if (IsExpiringSoon())
+                {
+                    await RefreshTokenAsync();
+                }
             }
+            finally
+            {
+                _refreshLock.Release();
+            }
+        }
+
+        /// <summary>토큰이 없거나 만료 10분 전이면 재발급이 필요하다.</summary>
+        private bool IsExpiringSoon()
+        {
+            return string.IsNullOrEmpty(_accessToken) || DateTime.Now >= _tokenExpiration.AddMinutes(-10);
         }
 
         /// <summary>
