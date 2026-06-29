@@ -649,7 +649,8 @@ a:hover {
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.input-field {
   width: 100%;
   padding: 10px 14px;
   background: var(--bg-input);
@@ -663,7 +664,8 @@ a:hover {
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.input-field:focus {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 2px var(--accent-blue-glow);
 }

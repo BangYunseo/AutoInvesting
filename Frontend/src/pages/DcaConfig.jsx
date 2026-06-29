@@ -89,11 +89,16 @@ const DcaConfig = () => {
   };
 
   if (loading) {
-    return <div className="card fade-in"><p>설정을 불러오는 중...</p></div>;
+    return (
+      <div className="loading-container fade-in">
+        <div className="loading-spinner" />
+        <span className="loading-text">설정을 불러오는 중...</span>
+      </div>
+    );
   }
 
   return (
-    <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 720 }}>
+    <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 720, margin: '0 auto' }}>
       <h2>적립 설정</h2>
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: 24, wordBreak: 'keep-all' }}>
         매 사이클에 투입할 <strong>월 예산</strong>과 종목별 <strong>목표비중</strong>을 설정합니다.
@@ -132,13 +137,15 @@ const DcaConfig = () => {
           <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
               type="text"
+              className="input-field"
               value={row.ticker}
               onChange={e => updateRow(idx, 'ticker', e.target.value.toUpperCase())}
-              placeholder="종목 (예: SPLG)"
+              placeholder="종목 (예: QQQM)"
               style={{ flex: 2 }}
             />
             <input
               type="number"
+              className="input-field"
               min="0"
               step="0.05"
               value={row.weight}
