@@ -62,7 +62,14 @@ const Dashboard = () => {
 
   if (!data) return null;
 
-  const { holdings, cashBalance, exchangeRate } = data;
+  const { holdings, cashBalance, exchangeRate, accountMode, accountMasked } = data;
+
+  // ── 계좌 모드 배지 표기 (실거래 전환 가시화) ──
+  const accountBadge = {
+    LIVE: { label: '실거래 계좌', color: 'var(--loss-red)', bg: 'var(--loss-red-bg)', icon: '🔴' },
+    PAPER: { label: '모의투자 (KIS)', color: 'var(--warn-amber)', bg: 'rgba(245, 158, 11, 0.1)', icon: '🟡' },
+    SIM: { label: '시뮬레이션', color: 'var(--text-muted)', bg: 'rgba(148, 163, 184, 0.12)', icon: '⚪' },
+  }[accountMode] ?? { label: accountMode ?? '알 수 없음', color: 'var(--text-muted)', bg: 'rgba(148, 163, 184, 0.12)', icon: '⚪' };
 
   // ── 집계 계산 ──
   const stockEvalUsd = holdings.reduce(
@@ -83,6 +90,45 @@ const Dashboard = () => {
 
   return (
     <div>
+      {/* ── 계좌 모드 배지 (실거래/모의/시뮬 구분) ── */}
+      <div
+        className="fade-in"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 10,
+          padding: '10px 16px',
+          marginBottom: 16,
+          background: accountBadge.bg,
+          border: `1px solid ${accountBadge.color}`,
+          borderRadius: 'var(--radius-sm)',
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 600, color: accountBadge.color }}>
+          {accountBadge.icon} {accountBadge.label}
+          {accountMasked && (
+            <span style={{ marginLeft: 6, fontWeight: 400, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              계좌 {accountMasked}
+            </span>
+          )}
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {accountMode === 'LIVE' && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--loss-red)' }}>⚠️ 실제 자금이 거래됩니다</span>
+          )}
+          {lastUpdated && (
+            <span className="section-header__sub">
+              {lastUpdated.toLocaleTimeString('ko-KR')} 기준
+            </span>
+          )}
+          <button className="btn btn--outline" onClick={fetchSummary} disabled={loading} style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
+            {loading ? '갱신 중...' : '🔄'}
+          </button>
+        </span>
+      </div>
+
       {/* ── 요약 카드 그리드 ── */}
       <div className="summary-grid">
         {/* 총 자산 */}
