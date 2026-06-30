@@ -102,6 +102,26 @@ const Order = () => {
     ? (newTickerState.status === 'valid' ? newTickerState.price : 0)
     : (selectedHolding?.currentPrice ?? 0);
 
+  // ── 매도 시 보유수량 초과 입력 자동 보정 (유형/종목 변경 시) ──
+  useEffect(() => {
+    if (orderType === 'SELL' && maxSellQty > 0 && Number(qty) > maxSellQty) {
+      setQty(maxSellQty);
+    }
+    // qty는 의도적으로 의존성에서 제외(입력 중 무한 보정 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderType, maxSellQty]);
+
+  // 수량 입력 핸들러: 매도는 보유수량을 상한으로 즉시 클램프
+  const handleQtyChange = (e) => {
+    const raw = e.target.value;
+    if (orderType === 'SELL' && maxSellQty > 0 && Number(raw) > maxSellQty) {
+      setQty(maxSellQty);
+    } else {
+      setQty(raw);
+    }
+    setOrderError(null);
+  };
+
   const handleManualOrder = async () => {
     // ── 입력 검증 ──
     if (orderType === 'SELL') {
@@ -354,7 +374,7 @@ const Order = () => {
               min="1"
               max={orderType === 'SELL' ? maxSellQty || undefined : undefined}
               value={qty}
-              onChange={e => { setQty(e.target.value); setOrderError(null); }}
+              onChange={handleQtyChange}
             />
           </div>
           <div className="form-group" style={{ flex: 1 }}>
