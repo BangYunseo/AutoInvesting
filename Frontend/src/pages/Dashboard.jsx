@@ -3,42 +3,65 @@ import HoldingsTable from '../components/HoldingsTable';
 
 /**
  * 포트폴리오 대시보드 메인 화면.
- * /api/portfolio/summary에서 보유 종목, 예수금, 환율 정보를 가져와서
- * 총 자산, 주식 평가금액, 예수금, 환율을 요약 카드로 표시합니다.
+ * 상단 요약(총자산·주식평가금액·예수금·환율 + 계좌 모드 배지)과
+ * 하단 보유 종목 테이블을 각각 독립적으로 조회·새로고침합니다.
+ *  - 상단: /api/portfolio/summary (예수금·환율·계좌 모드 + 카드 집계용 보유종목)
+ *  - 하단: /api/portfolio/holdings (보유 종목 테이블)
  */
 const Dashboard = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  // ── 상단 요약 ──
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(null);
+  const [summaryUpdated, setSummaryUpdated] = useState(null);
+
+  // ── 하단 보유 종목 ──
+  const [holdings, setHoldings] = useState(null);
+  const [holdingsLoading, setHoldingsLoading] = useState(true);
+  const [holdingsError, setHoldingsError] = useState(null);
+  const [holdingsUpdated, setHoldingsUpdated] = useState(null);
 
   const fetchSummary = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setSummaryLoading(true);
+      setSummaryError(null);
       const res = await fetch('/api/portfolio/summary');
-
-      if (!res.ok) {
-        throw new Error(`서버 오류 (${res.status})`);
-      }
-
+      if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
       const json = await res.json();
-      setData(json);
-      setLastUpdated(new Date());
+      setSummary(json);
+      setSummaryUpdated(new Date());
     } catch (err) {
       console.error('포트폴리오 요약 조회 실패:', err);
-      setError(err.message);
+      setSummaryError(err.message);
     } finally {
-      setLoading(false);
+      setSummaryLoading(false);
+    }
+  }, []);
+
+  const fetchHoldings = useCallback(async () => {
+    try {
+      setHoldingsLoading(true);
+      setHoldingsError(null);
+      const res = await fetch('/api/portfolio/holdings');
+      if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
+      const json = await res.json();
+      setHoldings(Array.isArray(json) ? json : []);
+      setHoldingsUpdated(new Date());
+    } catch (err) {
+      console.error('보유 종목 조회 실패:', err);
+      setHoldingsError(err.message);
+    } finally {
+      setHoldingsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchSummary();
-  }, [fetchSummary]);
+    fetchHoldings();
+  }, [fetchSummary, fetchHoldings]);
 
-  // ── 로딩 상태 ──
-  if (loading && !data) {
+  // ── 상단 요약 첫 로딩 (페이지 단위) ──
+  if (summaryLoading && !summary) {
     return (
       <div className="loading-container fade-in">
         <div className="loading-spinner" />
@@ -47,12 +70,11 @@ const Dashboard = () => {
     );
   }
 
-  // ── 에러 상태 ──
-  if (error && !data) {
+  if (summaryError && !summary) {
     return (
       <div className="error-container fade-in">
         <div className="error-icon">⚠️</div>
-        <p className="error-text">{error}</p>
+        <p className="error-text">{summaryError}</p>
         <button className="btn btn--primary" onClick={fetchSummary}>
           다시 시도
         </button>
@@ -60,9 +82,11 @@ const Dashboard = () => {
     );
   }
 
-  if (!data) return null;
+  if (!summary) return null;
 
-  const { holdings, cashBalance, exchangeRate, accountMode, accountMasked } = data;
+  const { cashBalance, exchangeRate, accountMode, accountMasked } = summary;
+  // 카드 집계는 요약 응답의 보유종목 스냅샷을 사용(테이블과 독립 새로고침).
+  const summaryHoldings = Array.isArray(summary.holdings) ? summary.holdings : [];
 
   // ── 계좌 모드 배지 표기 (실거래 전환 가시화) ──
   const accountBadge = {
@@ -71,17 +95,10 @@ const Dashboard = () => {
     SIM: { label: '시뮬레이션', color: 'var(--text-muted)', bg: 'rgba(148, 163, 184, 0.12)', icon: '⚪' },
   }[accountMode] ?? { label: accountMode ?? '알 수 없음', color: 'var(--text-muted)', bg: 'rgba(148, 163, 184, 0.12)', icon: '⚪' };
 
-  // ── 집계 계산 ──
-  const stockEvalUsd = holdings.reduce(
-    (sum, h) => sum + h.currentPrice * h.qty,
-    0
-  );
-  const totalCostUsd = holdings.reduce(
-    (sum, h) => sum + h.avgPrice * h.qty,
-    0
-  );
-  // 총 자산은 보유 종목 평가액만 기준으로 집계합니다(예수금 제외).
-  const totalAssetsUsd = stockEvalUsd;
+  // ── 상단 카드 집계 계산 ──
+  const stockEvalUsd = summaryHoldings.reduce((sum, h) => sum + h.currentPrice * h.qty, 0);
+  const totalCostUsd = summaryHoldings.reduce((sum, h) => sum + h.avgPrice * h.qty, 0);
+  const totalAssetsUsd = stockEvalUsd; // 총 자산 = 보유 종목 평가액(예수금 제외)
   const totalAssetsKrw = totalAssetsUsd * exchangeRate;
   const totalProfitUsd = stockEvalUsd - totalCostUsd;
   const totalProfitRate =
@@ -118,18 +135,28 @@ const Dashboard = () => {
           {accountMode === 'LIVE' && (
             <span style={{ fontSize: '0.8rem', color: 'var(--loss-red)' }}>⚠️ 실제 자금이 거래됩니다</span>
           )}
-          {lastUpdated && (
+          {summaryUpdated && (
             <span className="section-header__sub">
-              {lastUpdated.toLocaleTimeString('ko-KR')} 기준
+              {summaryUpdated.toLocaleTimeString('ko-KR')} 기준
             </span>
           )}
-          <button className="btn btn--outline" onClick={fetchSummary} disabled={loading} style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
-            {loading ? '갱신 중...' : '🔄'}
-          </button>
         </span>
       </div>
 
       {/* ── 요약 카드 그리드 ── */}
+      <div className="section-header" style={{ marginBottom: 12 }}>
+        <h2 style={{ fontSize: '1.05rem' }}>자산 요약</h2>
+        <button className="btn btn--outline" onClick={fetchSummary} disabled={summaryLoading} style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
+          {summaryLoading ? '갱신 중...' : '🔄 요약 새로고침'}
+        </button>
+      </div>
+
+      {summaryError && (
+        <div style={{ marginBottom: 12, padding: '8px 14px', background: 'var(--loss-red-bg)', color: 'var(--loss-red)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem' }}>
+          ❌ 요약 갱신 실패: {summaryError}
+        </div>
+      )}
+
       <div className="summary-grid">
         {/* 총 자산 */}
         <div className="summary-card fade-in fade-in-delay-1">
@@ -196,17 +223,27 @@ const Dashboard = () => {
         <div className="section-header">
           <h2>보유 종목</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {lastUpdated && (
+            {holdingsUpdated && (
               <span className="section-header__sub">
-                마지막 업데이트: {lastUpdated.toLocaleTimeString('ko-KR')}
+                마지막 업데이트: {holdingsUpdated.toLocaleTimeString('ko-KR')}
               </span>
             )}
-            <button className="btn btn--outline" onClick={fetchSummary} disabled={loading}>
-              {loading ? '갱신 중...' : '🔄 새로고침'}
+            <button className="btn btn--outline" onClick={fetchHoldings} disabled={holdingsLoading}>
+              {holdingsLoading ? '갱신 중...' : '🔄 새로고침'}
             </button>
           </div>
         </div>
-        <HoldingsTable holdings={holdings} exchangeRate={exchangeRate} />
+
+        {holdingsError ? (
+          <div style={{ padding: '12px 14px', background: 'var(--loss-red-bg)', color: 'var(--loss-red)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
+            ❌ 보유 종목 조회 실패: {holdingsError}{' '}
+            <button className="btn btn--outline" onClick={fetchHoldings} style={{ marginLeft: 8, padding: '2px 10px', fontSize: '0.8rem' }}>다시 시도</button>
+          </div>
+        ) : holdings === null ? (
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', padding: '8px 0' }}>보유 종목을 불러오는 중...</div>
+        ) : (
+          <HoldingsTable holdings={holdings} exchangeRate={exchangeRate} />
+        )}
       </div>
     </div>
   );
