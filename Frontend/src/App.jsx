@@ -27,7 +27,7 @@ function App() {
             </NavLink>
             <NavLink to="/order" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <span className="nav-link__icon">⚡</span>
-              주문/적립
+              주문 설정
             </NavLink>
             <NavLink to="/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <span className="nav-link__icon">📜</span>
