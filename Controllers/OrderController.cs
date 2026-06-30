@@ -91,6 +91,23 @@ namespace AutoInvest.Controllers
                     }
                 }
 
+                // ── 매도 안전가드: 실제 보유 종목·수량 범위 내에서만 허용 ──
+                // (프론트 우회·실수와 무관하게 서버에서 오발주를 차단)
+                if (orderType == "SELL")
+                {
+                    var holdings = await client.GetHoldingsAsync();
+                    var held = holdings.FirstOrDefault(h =>
+                        string.Equals(h.Ticker, ticker, StringComparison.OrdinalIgnoreCase));
+                    if (held == null || held.Qty <= 0)
+                    {
+                        return BadRequest(new { error = $"보유하지 않은 종목('{ticker}')은 매도할 수 없습니다." });
+                    }
+                    if (req.Qty > held.Qty)
+                    {
+                        return BadRequest(new { error = $"보유 수량({held.Qty}주)을 초과해 매도할 수 없습니다." });
+                    }
+                }
+
                 // 가격 미지정 시 현재가 사용
                 decimal price = req.Price ?? await client.GetCurrentPriceAsync(ticker);
                 if (price <= 0)
