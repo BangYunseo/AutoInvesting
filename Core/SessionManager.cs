@@ -1,3 +1,4 @@
+using System;
 using AutoInvest.Data;
 using AutoInvest.Utils;
 
@@ -53,6 +54,46 @@ namespace AutoInvest.Core
             }
 
             return _client;
+        }
+
+        /// <summary>
+        /// 현재 활성 계좌의 모드와 마스킹된 계좌번호를 반환합니다.
+        /// 대시보드의 모의/실거래 구분 표시에 사용합니다.
+        /// </summary>
+        /// <returns>(Mode: "SIM"|"PAPER"|"LIVE", MaskedAccount: 마스킹된 계좌번호 또는 안내문)</returns>
+        public (string Mode, string MaskedAccount) GetAccountInfo()
+        {
+            var kisAppKey = AppConfigManager.Get("KIS_APP_KEY", "");
+            if (string.IsNullOrEmpty(kisAppKey))
+            {
+                return ("SIM", "시뮬레이션 (로컬)");
+            }
+
+            var server = AppConfigManager.Get("KIS_SERVER", "vps"); // vps=모의, prod=실전
+            var accountNo = AppConfigManager.Get("KIS_ACCOUNT_NO", "");
+            var mode = server == "prod" ? "LIVE" : "PAPER";
+            return (mode, MaskAccount(accountNo));
+        }
+
+        /// <summary>
+        /// 계좌번호를 앞 4자리·끝 2자리만 남기고 마스킹합니다 (로그·응답 노출 방지).
+        /// </summary>
+        private static string MaskAccount(string account)
+        {
+            var digits = (account ?? "").Trim();
+            if (string.IsNullOrEmpty(digits))
+            {
+                return "(미설정)";
+            }
+            if (digits.Length <= 4)
+            {
+                return new string('*', digits.Length);
+            }
+
+            var head = digits.Substring(0, 4);
+            var tail = digits.Length >= 6 ? digits.Substring(digits.Length - 2) : "";
+            var maskedLen = Math.Max(0, digits.Length - head.Length - tail.Length);
+            return $"{head}{new string('*', maskedLen)}{tail}";
         }
 
         /// <summary>
