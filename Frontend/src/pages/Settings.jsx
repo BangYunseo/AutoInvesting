@@ -52,7 +52,6 @@ const SecretManagerModal = ({ open, onClose, configs, onSaved }) => {
   const [revealed, setRevealed] = useState({});       // { KEY: bool }
   const [revealedValues, setRevealedValues] = useState({}); // { KEY: 복호화 평문 }
   const [loadingKey, setLoadingKey] = useState(null);
-  const [server, setServer] = useState(configs['KIS_SERVER'] || 'vps');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -64,7 +63,6 @@ const SecretManagerModal = ({ open, onClose, configs, onSaved }) => {
       setRevealed({});
       setRevealedValues({});
       setLoadingKey(null);
-      setServer(configs['KIS_SERVER'] || 'vps');
       setMsg(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,8 +98,8 @@ const SecretManagerModal = ({ open, onClose, configs, onSaved }) => {
     try {
       setSaving(true);
       setMsg(null);
-      // 변경 입력이 있는 시크릿만 포함(빈 값은 서버가 미변경 처리) + KIS 서버
-      const payload = { KIS_SERVER: server };
+      // 변경 입력이 있는 시크릿만 포함(빈 값은 서버가 미변경 처리)
+      const payload = {};
       for (const { key } of SECRET_DEFS) {
         if (edits[key] && edits[key].trim() !== '') payload[key] = edits[key];
       }
@@ -189,14 +187,9 @@ const SecretManagerModal = ({ open, onClose, configs, onSaved }) => {
           );
         })}
 
-        {/* KIS 서버 (계좌 환경) */}
-        <div className="form-group" style={{ marginBottom: 20 }}>
-          <label>KIS 서버</label>
-          <select value={server} onChange={e => setServer(e.target.value)}>
-            <option value="vps">모의투자 (vps)</option>
-            <option value="prod">실전투자 (prod)</option>
-          </select>
-        </div>
+        <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0 0 20px' }}>
+          ℹ️ 모의/실전 전환은 설정 화면의 <strong>거래 모드</strong> 토글에서 변경하세요.
+        </p>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button className="btn btn--outline" onClick={onClose}>닫기</button>

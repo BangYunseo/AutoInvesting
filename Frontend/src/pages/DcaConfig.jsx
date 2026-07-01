@@ -196,10 +196,15 @@ const DcaConfig = () => {
   };
 
   if (loading) {
+    // 주문 설정과 동일하게 "카드가 떠오르는" 인트로를 유지하기 위해
+    // 별도 로딩 박스 대신, 같은 카드 안에서 스피너를 보여준다(교체 깜빡임 제거).
     return (
-      <div className="loading-container fade-in">
-        <div className="loading-spinner" />
-        <span className="loading-text">설정을 불러오는 중...</span>
+      <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 760, margin: '0 auto' }}>
+        <h2>적립 설정</h2>
+        <div className="loading-container" style={{ padding: '48px 20px' }}>
+          <div className="loading-spinner" />
+          <span className="loading-text">설정을 불러오는 중...</span>
+        </div>
       </div>
     );
   }

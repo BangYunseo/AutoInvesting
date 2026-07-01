@@ -1,3 +1,4 @@
+using System;
 using AutoInvest.Data;
 using AutoInvest.Utils;
 
@@ -20,39 +21,71 @@ namespace AutoInvest.Core
             if (_client != null)
                 return _client;
 
-            var isPaper = AppConfigManager.Get("IS_PAPER_TRADING", "1");
+            // 거래 모드(IS_PAPER_TRADING)를 모의/실전의 단일 기준으로 사용한다.
+            //   "0"  → 실전투자(prod), 그 외 → 모의투자(vps)
+            var isPaperTrading = AppConfigManager.Get("IS_PAPER_TRADING", "1") != "0";
             var kisAppKey = AppConfigManager.Get("KIS_APP_KEY", "");
 
-            if (isPaper == "1" && string.IsNullOrEmpty(kisAppKey))
+            // KIS 키가 없으면 모드와 무관하게 시뮬레이션으로 동작(실거래 불가).
+            if (string.IsNullOrEmpty(kisAppKey))
             {
                 Logger.Info("[Session] KIS API 키가 없어 시뮬레이션 모드(SimBrokerClient)로 시작합니다.");
                 _client = new SimBrokerClient();
                 return _client;
             }
 
-            if (!string.IsNullOrEmpty(kisAppKey))
-            {
-                var appSecret = AppConfigManager.Get("KIS_APP_SECRET", "");
-                var accountNo = AppConfigManager.Get("KIS_ACCOUNT_NO", "");
-                var accountProd = AppConfigManager.Get("KIS_ACCOUNT_PROD", "01");
-                var server = AppConfigManager.Get("KIS_SERVER", "vps"); // vps=모의, prod=실전
+            var appSecret = AppConfigManager.Get("KIS_APP_SECRET", "");
+            var accountNo = AppConfigManager.Get("KIS_ACCOUNT_NO", "");
+            var accountProd = AppConfigManager.Get("KIS_ACCOUNT_PROD", "01");
 
-                string baseUrl = server == "prod" 
-                    ? "https://openapi.koreainvestment.com:9443" 
-                    : "https://openapivts.koreainvestment.com:29443";
-                
-                bool isPaperTrading = (server == "vps");
+            string baseUrl = isPaperTrading
+                ? "https://openapivts.koreainvestment.com:29443"
+                : "https://openapi.koreainvestment.com:9443";
 
-                Logger.Info($"[Session] KIS API 클라이언트 생성 (서버: {server})");
-                _client = new KisBrokerClient(baseUrl, kisAppKey, appSecret, accountNo, accountProd, isPaperTrading);
-            }
-            else
-            {
-                Logger.Warn("[Session] API 설정이 없어 SimBrokerClient를 생성합니다.");
-                _client = new SimBrokerClient();
-            }
-
+            Logger.Info($"[Session] KIS API 클라이언트 생성 (모드: {(isPaperTrading ? "모의(vps)" : "실전(prod)")})");
+            _client = new KisBrokerClient(baseUrl, kisAppKey, appSecret, accountNo, accountProd, isPaperTrading);
             return _client;
+        }
+
+        /// <summary>
+        /// 현재 활성 계좌의 모드와 마스킹된 계좌번호를 반환합니다.
+        /// 대시보드의 모의/실거래 구분 표시에 사용합니다.
+        /// </summary>
+        /// <returns>(Mode: "SIM"|"PAPER"|"LIVE", MaskedAccount: 마스킹된 계좌번호 또는 안내문)</returns>
+        public (string Mode, string MaskedAccount) GetAccountInfo()
+        {
+            var kisAppKey = AppConfigManager.Get("KIS_APP_KEY", "");
+            if (string.IsNullOrEmpty(kisAppKey))
+            {
+                return ("SIM", "시뮬레이션 (로컬)");
+            }
+
+            // 거래 모드(IS_PAPER_TRADING) 단일 기준: "0"=실전(LIVE), 그 외=모의(PAPER)
+            var isPaperTrading = AppConfigManager.Get("IS_PAPER_TRADING", "1") != "0";
+            var accountNo = AppConfigManager.Get("KIS_ACCOUNT_NO", "");
+            var mode = isPaperTrading ? "PAPER" : "LIVE";
+            return (mode, MaskAccount(accountNo));
+        }
+
+        /// <summary>
+        /// 계좌번호를 앞 4자리·끝 2자리만 남기고 마스킹합니다 (로그·응답 노출 방지).
+        /// </summary>
+        private static string MaskAccount(string account)
+        {
+            var digits = (account ?? "").Trim();
+            if (string.IsNullOrEmpty(digits))
+            {
+                return "(미설정)";
+            }
+            if (digits.Length <= 4)
+            {
+                return new string('*', digits.Length);
+            }
+
+            var head = digits.Substring(0, 4);
+            var tail = digits.Length >= 6 ? digits.Substring(digits.Length - 2) : "";
+            var maskedLen = Math.Max(0, digits.Length - head.Length - tail.Length);
+            return $"{head}{new string('*', maskedLen)}{tail}";
         }
 
         /// <summary>

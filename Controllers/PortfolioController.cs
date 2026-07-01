@@ -44,7 +44,7 @@ namespace AutoInvest.Controllers
 
         /// <summary>
         /// 대시보드 요약 정보를 한 번에 조회합니다.
-        /// 보유 종목, 예수금(현금 잔고), 환율을 포함합니다.
+        /// 보유 종목, 예수금(현금 잔고), 환율, 계좌 모드(SIM/PAPER/LIVE)와 마스킹 계좌번호를 포함합니다.
         /// </summary>
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary()
@@ -60,12 +60,15 @@ namespace AutoInvest.Controllers
                 var holdings = await client.GetHoldingsAsync();
                 var cashBalance = await client.GetCashBalanceAsync();
                 var exchangeRate = await client.GetExchangeRateAsync();
+                var (accountMode, accountMasked) = _session.GetAccountInfo();
 
                 return Ok(new
                 {
                     holdings,
                     cashBalance,
-                    exchangeRate
+                    exchangeRate,
+                    accountMode,
+                    accountMasked
                 });
             }
             catch (Exception ex)
