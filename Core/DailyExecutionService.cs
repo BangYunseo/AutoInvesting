@@ -25,14 +25,38 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
+        /// 적립은 KST 월 1회만 실행합니다. 이미 적립한 월은 TB_APP_CONFIG의
+        /// DCA_LAST_RUN_MONTH("yyyy-MM")에 기록되며, 같은 달 재호출은 스킵됩니다.
+        /// 거래이력이 아니라 전용 마커를 쓰는 이유: 수동 단일 매수가 월 적립을 오판하지 않게 하기 위함.
+        /// </summary>
+        private const string LastRunMonthKey = "DCA_LAST_RUN_MONTH";
+
+        /// <summary>현재(KST=UTC+9) 월을 "yyyy-MM"으로 반환합니다.</summary>
+        private static string CurrentKstMonth() => DateTime.UtcNow.AddHours(9).ToString("yyyy-MM");
+
+        /// <summary>
         /// 적립식(DCA) 자동 매수 사이클을 실행합니다 (판단 없는 단순 자동화).
         /// 퀀트/AI 판단을 하지 않고, 설정한 종목별 고정 수량(Dca:Quantities)을 그대로 매수합니다.
+        ///
+        /// 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 매수하지 않고 스킵합니다.
+        /// 크론이 매일(월초부터) 호출해도 처음 성공하는 날 1회만 적립되고, 성공 후 그 달 남은
+        /// 호출은 모두 스킵되며, 실패(체결 0건)한 날은 마커가 남지 않아 다음 날 자동 재시도됩니다.
         /// </summary>
         public async Task<string> RunDcaCycleAsync()
         {
             Logger.Info("[DcaCycle] ▶ 적립식 자동 매수 사이클이 시작되었습니다.");
             var filled = new List<TradeHistoryDto>();
             string statusNote = "";
+
+            // ── 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 스킵 ──
+            string thisMonth = CurrentKstMonth();
+            string lastRunMonth = AppConfigManager.Get(LastRunMonthKey, "");
+            if (lastRunMonth == thisMonth)
+            {
+                statusNote = $"이번 달({thisMonth}) 적립이 이미 완료되어 매수를 건너뜁니다.";
+                Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 상태 — 매수 스킵");
+                return statusNote;
+            }
 
             try
             {
@@ -61,6 +85,19 @@ namespace AutoInvest.Core
                     var engine = new DcaAccumulationEngine(client);
                     filled = await engine.AccumulateAsync(quantities, budget);
                     Logger.Info($"[DcaCycle] ✔ 적립식 매수 완료 — {filled.Count}주 체결");
+
+                    // 체결이 1건이라도 있으면 이번 달 적립 완료로 표시 → 남은 날 재실행 스킵.
+                    // 체결 0건(전량 실패/장마감 등)이면 마커를 남기지 않아 다음 날 자동 재시도.
+                    if (filled.Count > 0)
+                    {
+                        AppConfigManager.Set(LastRunMonthKey, thisMonth);
+                        Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 표시 저장");
+                    }
+                    else
+                    {
+                        statusNote = "체결된 종목이 없어 이번 달 적립 완료로 표시하지 않았습니다 (다음 호출 시 재시도).";
+                        Logger.Warn("[DcaCycle] 체결 0건 — 적립 완료 미표시, 다음 날 재시도 예정");
+                    }
                 }
             }
             catch (Exception ex)
