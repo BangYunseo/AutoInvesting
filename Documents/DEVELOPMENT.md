@@ -24,18 +24,26 @@
 
 ---
 
-## ⚠️ 실거래 전환 시 필수 변경 (예정 작업)
+## ⚠️ 실거래 전환 (과매수 방지: 구현 완료 / 계좌 전환: 운영 작업)
 
-> 현재 Render는 **모의투자 계좌**에 연결되어 있어, 일일 크론(GitHub Actions, KST 23:40)이 **매일** 적립을 실행해도
-> 실제 금액이 아니므로 무방하다. **그러나 실거래 계좌로 전환하면 반드시 아래를 먼저 적용해야 한다.**
+> 과거 문제: 예산은 월 단위(기본 100만원)인데 `DcaAccumulationEngine.AccumulateAsync`는 호출될 때마다
+> 예산 전액을 새로 소진했다. 크론이 매일 돌면 **월 예산을 매일 소진 → 약 30배 과매수**가 된다.
 
-- **문제**: 예산은 월 단위(`DcaSettings`의 `MonthlyBudgetKrw`, 기본 100만원)인데, `DcaAccumulationEngine.AccumulateAsync`는
-  호출될 때마다 예산 전액을 새로 소진한다. "이번 달/오늘 이미 적립했는지"를 막는 가드가 없어, **매일 실행 시 월 예산을 매일 소진 → 약 30배 과매수**가 된다.
-- **실거래 전환 시 (MUST)**:
-  1. `.github/workflows/daily-run.yml`의 `cron`을 매일(`40 14 * * *`)에서 **매월 1일(`40 14 1 * *`)** 로 변경.
-     (1일이 휴장이면 그 달 적립이 한 번 스킵될 수 있음 — 필요 시 "첫 거래일" 로직으로 보완.)
-  2. `DcaAccumulationEngine`에 **"이번 달 이미 적립했으면 스킵"** 멱등 가드 추가 (TradeHistory 당월 BUY 조회 등).
-  3. `appsettings.json`/환경변수의 `IS_PAPER_TRADING`이 실거래로 바뀌었는지 확인.
+### ✅ 코드로 해결됨 — 월 1회 멱등 가드 (260701)
+- `DailyExecutionService.RunDcaCycleAsync`에 **당월 멱등 가드** 추가:
+  - `TB_APP_CONFIG`의 `DCA_LAST_RUN_MONTH`("yyyy-MM", KST 기준)와 현재 월을 비교해, 같으면 매수 스킵.
+  - **체결 1건 이상 성공 시에만** 마커를 저장 → 그 달 남은 호출은 모두 스킵.
+  - 체결 0건(휴장·예수금 부족·전량 실패)이면 마커를 남기지 않아 **다음 날 자동 재시도**.
+  - 거래이력이 아니라 전용 마커를 쓰는 이유: 수동 단일 매수가 월 적립을 오판하지 않게 하기 위함.
+  - 수동 실행(`POST /api/order/dca-run`)에도 동일 가드 적용(강제 우회 없음).
+- `.github/workflows/daily-run.yml` cron: `40 14 1-31 * *`(매일 KST 23:40).
+  - 크론은 매일 호출하지만 실제 매수는 가드가 "월 1회"만 허용 → **월초부터 시도해 처음 성공하는 날 1회만 적립**.
+  - "월초 최대한 빨리, 안 되면 될 때까지 매일 재시도" 정책.
+
+### 남은 운영 작업 (실계좌 전환 시 사용자 수행 — 코드 아님)
+- Render 환경변수에 **실전** `KIS_APP_KEY`/`KIS_APP_SECRET`/`KIS_ACCOUNT_NO`/`KIS_ACCOUNT_PROD` 설정(모의와 별도 발급).
+- `IS_PAPER_TRADING=0` 설정 → `SessionManager`가 실전 도메인·실전 tr_id로 자동 분기.
+- 전환 직후 크론을 끄고 `workflow_dispatch` 수동 1회로 소액 체결·잔고 확인 후 자동화 재개 권장.
 
 ---
 
