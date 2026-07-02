@@ -1,0 +1,24 @@
+name: gitleaks
+
+# 시크릿(키/토큰/자격증명)이 커밋·PR에 유입되는지 자동 스캔한다.
+# 개인/공개 저장소는 무료로 사용 가능(조직 저장소만 GITLEAKS_LICENSE 필요).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (전체 히스토리 스캔)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

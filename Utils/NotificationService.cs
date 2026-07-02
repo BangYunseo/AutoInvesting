@@ -37,8 +37,12 @@ namespace AutoInvest.Utils
             // API 키는 환경변수 우선 (시크릿)
             _apiKey = Coalesce(Environment.GetEnvironmentVariable("RESEND_API_KEY"), resendSection["ApiKey"]);
 
-            // 수신자(관리자) — Resend:AdminEmail 우선, 없으면 기존 Smtp:AdminEmail 재사용
-            _adminEmail = Coalesce(resendSection["AdminEmail"], smtpSection["AdminEmail"]);
+            // 수신자(관리자) — 환경변수 ADMIN_EMAIL 우선(개인정보를 소스에 두지 않음),
+            // 없으면 Resend:AdminEmail → 기존 Smtp:AdminEmail 순으로 폴백.
+            _adminEmail = Coalesce(
+                Environment.GetEnvironmentVariable("ADMIN_EMAIL"),
+                resendSection["AdminEmail"],
+                smtpSection["AdminEmail"]);
 
             // 발신자 이메일 — 자체 도메인을 Resend에 인증했다면 그 주소, 아니면 기본 테스트 도메인 사용
             _senderEmail = Coalesce(resendSection["SenderEmail"], DefaultSender);
