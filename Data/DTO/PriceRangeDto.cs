@@ -1,9 +1,8 @@
 namespace AutoInvest.Data.DTO
 {
     /// <summary>
-    /// N일 가격 범위 DTO.
-    /// SmartOrderEngine이 매매 판단 시 사용하는 가격 범위 정보입니다.
-    /// Position 값으로 현재가가 최근 N일 범위에서 어디에 위치하는지 나타냅니다.
+    /// N일 가격 범위 DTO (`IBrokerClient.GetPriceRangeAsync` 반환값).
+    /// Position 값으로 현재가가 최근 N일 범위에서 어디에 위치하는지 나타냅니다(표시·조회용).
     /// </summary>
     public class PriceRangeDto
     {

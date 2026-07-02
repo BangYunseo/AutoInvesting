@@ -9,10 +9,8 @@ namespace AutoInvest.Core
 {
     /// <summary>
     /// 시뮬레이션 브로커 클라이언트.
-    /// 한국투자증권(KIS) API 키 없이도 SmartOrderEngine, SchedulerModule 등
-    /// 전체 엔진 로직을 테스트할 수 있도록 가상 데이터를 반환합니다.
-    ///
-    /// TODO [Phase 4] AI 학습 데이터 생성 시, 시뮬레이션 결과를 학습 데이터로 저장하는 기능 추가
+    /// 한국투자증권(KIS) API 키 없이도 DcaAccumulationEngine, DailyExecutionService 등
+    /// 전체 적립 사이클 로직을 검증할 수 있도록 가상 데이터를 반환합니다.
     /// </summary>
     public class SimBrokerClient : IBrokerClient
     {

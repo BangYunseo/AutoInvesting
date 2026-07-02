@@ -53,8 +53,13 @@
 
 정직한 백테스트(2012~현재) 결과 **퀀트/AI 타이밍 판단이 단순 적립식(DCA)에 2.7~4배 열세**였고,
 완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 불과(타이밍은 잘해야 본전)함이 검증되었습니다.
-이에 따라 **판단 레이어 전체를 제거**하고, 정해진 목표비중을 향해 정수 단위로 매수만 하는
+이에 따라 **판단 레이어 전체를 제거**하고, 여러 **매수 템플릿**(종목별 고정 수량 + 예산)을
+정의해 **월별로 배정**하고, 현재 월에 배정된 템플릿의 종목별 고정 수량을 매 사이클 그대로 매수하는
 **DCA 적립 코어**로 전환했습니다. 시스템의 가치는 "판단"이 아니라 **"자동화"**에 있습니다.
+
+> 참고: 최초 전환은 "목표비중을 향해 정수 단위 매수(DCA_TARGETS)" 모델이었으나, 이후
+> "매수 템플릿 + 월별 배정(DCA_TEMPLATES/DCA_MONTH_MAP)" 모델로 발전했습니다. 아래 설명은
+> **현재 동작(템플릿 모델)** 기준입니다.
 
 ```
 변경 전 (Phase 5):
@@ -62,10 +67,11 @@
     → SmartOrderEngine → 퀀트(QuantIndicator/QuantFilter) + AI(차트/펀더멘털) + 합의 스코어링
     → BuyProbability ≥ 임계값일 때만 매수
 
-변경 후 (Phase 6):
+변경 후 (Phase 6, 현재):
   DailyExecutionService.RunDcaCycleAsync
-    → DcaSettings.Load (목표비중·예산)
-    → DcaAccumulationEngine.AccumulateAsync → 목표 대비 가장 부족한 종목을 1주씩 정수 매수
+    → 월 1회 멱등 가드(DCA_LAST_RUN_MONTH) 확인 — 당월 적립 완료 시 스킵
+    → DcaSettings.Load → SelectTemplate(현재 KST 월에 배정된 템플릿 선택)
+    → DcaAccumulationEngine.AccumulateAsync → 템플릿의 종목별 고정 수량을 그대로 매수
     → TradeHistoryDAO 기록 + 이메일 보고서  (판단·타이밍 없음)
 ```
 
@@ -73,17 +79,17 @@
 
 | 파일 | 설명 |
 |------|------|
-| `Core/DcaAccumulationEngine.cs` | 적립식 매수 엔진. `PlanPurchases`(순수 함수 — 목표비중을 향해 정수 단위 매수 계획 계산, 잔돈 이월) + `AccumulateAsync`(현재가/보유/환율 조회 → 계획 → 주문 → `TradeHistoryDAO` 기록). 판단/타이밍 없음 |
-| `Core/DcaSettings.cs` | 목표비중·예산의 단일 읽기/쓰기 지점. 우선순위 DB(`TB_APP_CONFIG`: `DCA_TARGETS` JSON, `DCA_BUDGET_KRW`) → `appsettings.json` `Dca` 섹션 폴백 |
-| `Controllers/DcaController.cs` | `GET/PUT /api/dca/config` — 목표비중·예산 조회·저장 (저장값은 DB 기록, 다음 사이클 반영) |
+| `Core/DcaAccumulationEngine.cs` | 적립식 매수 엔진. `PlanPurchases`(순수 함수 — 현재가가 있는 종목의 고정 수량 매수 계획 + 총 매수금액 산출) + `AccumulateAsync`(현재가/환율 조회 → 계획 → 주문 → `TradeHistoryDAO` 기록). 판단/타이밍 없음 |
+| `Core/DcaSettings.cs` | 매수 템플릿·월배정·예산의 단일 읽기/쓰기 지점. `SelectTemplate`(순수 함수 — 월→템플릿 선택)로 현재 월 템플릿을 고름. 우선순위 DB(`TB_APP_CONFIG`: `DCA_TEMPLATES`/`DCA_MONTH_MAP` JSON) → 레거시 `DCA_QTYS`/`DCA_BUDGET_KRW`/`appsettings.json` `Dca` 섹션 폴백(자동 '기본' 템플릿 이관) |
+| `Controllers/DcaController.cs` | `GET/PUT /api/dca/config` — 매수 템플릿·월배정 조회·저장 (GET: templates/monthMap/currentMonth/activeTemplateId, PUT: templates+monthMap). 저장값은 DB 기록, 다음 사이클 반영 |
 
 ### 6-2. 수정 파일 (3건)
 
 | 파일 | 변경 내용 |
 |------|----------|
-| `Core/DailyExecutionService.cs` | `RunDcaCycleAsync`만 유지 — 로그인 → `DcaSettings.Load` → `AccumulateAsync` → 이메일 보고서. (구 `RunDailyCycleAsync`/AI 평가/일일 보고서 제거) |
-| `Controllers/OrderController.cs` | `POST /api/order/dca-run`(적립 사이클, 202 즉시 반환) + `POST /api/order/manual`(판단 없는 수동 매수/매도)만 남김. (구 `execute`/`analyze`/`daily-run` 제거) |
-| `appsettings.json` | `Trading`/`Smtp`/`Kis`/`Security`/`Dca` 섹션만 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { Enabled, MonthlyBudgetKrw, Targets:{SPLG:0.4,QQQM:0.3,SCHD:0.2,GLD:0.1} }` |
+| `Core/DailyExecutionService.cs` | `RunDcaCycleAsync`만 유지 — 월 1회 멱등 가드(`DCA_LAST_RUN_MONTH`) → 로그인 → `DcaSettings.Load` → `AccumulateAsync` → 이메일 보고서. (구 `RunDailyCycleAsync`/AI 평가/일일 보고서 제거) |
+| `Controllers/OrderController.cs` | `POST /api/order/dca-run`(적립 사이클, 202 즉시 반환) + `POST /api/order/manual`(판단 없는 수동 매수/매도, SELL 시 보유수량 서버 가드)만 남김. (구 `execute`/`analyze`/`daily-run` 제거) |
+| `appsettings.json` | `Trading`/`Smtp`/`Resend`/`Kis`/`Security`/`Dca` 섹션만 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { Enabled, MonthlyBudgetKrw, Quantities:{SPLG:3,QQQM:2,SCHD:5,GLD:1} }` (레거시 폴백용 — 실동작은 DB의 `DCA_TEMPLATES`/`DCA_MONTH_MAP`) |
 
 ### 6-3. 제거된 파일·개념
 
@@ -108,7 +114,7 @@
 | 페이지 | 경로 | 설명 |
 |--------|------|------|
 | Dashboard | `/` | 현황 조회 (유지) |
-| DcaConfig | `/dca-config` | 적립 설정(목표비중·예산) 편집 (신규) |
+| DcaConfig | `/dca-config` | 적립 설정 — 매수 템플릿(추가/복제/삭제/종목 수량·티커검증·예산) + 월별 배정 그리드 편집 (신규) |
 | Order | `/order` | 적립 실행 + 수동 주문 (재작성) |
 | History | `/history` | 거래 내역 (유지) |
 | Settings | `/settings` | 환경 설정 (유지) |
@@ -120,6 +126,18 @@
 `TB_MARKET_SNAPSHOT` 테이블과 `DBManager`의 관련 마이그레이션 코드는 **과거 데이터 보존을 위해 DB 스키마에는
 남아 있으나, `MarketSnapshotDAO` 제거에 따라 현재는 어디서도 기록·조회하지 않습니다.** 기존 문서의
 "AI 학습용 누적 데이터" 설명은 모두 **"과거(레거시) 데이터, 현재 미사용"**으로 해석하면 됩니다.
+
+### 6-7. 이후 보강 (매수 템플릿 · 실거래 가드 · 단위 테스트)
+
+| 날짜 | 내용 |
+|------|------|
+| 260629 | 단일 목표비중 → **매수 템플릿 + 월별 배정** 모델로 발전(`DcaTemplate` DTO, `DCA_TEMPLATES`/`DCA_MONTH_MAP`, `DcaConfig.jsx` 재작성). 레거시 단일 설정은 '기본' 템플릿으로 자동 이관 |
+| 260630 | 수동주문 보유종목 연동(SELL 서버 가드·보유수량 상한), 대시보드 계좌 모드 배지·마스킹 계좌 표시, 요약/보유 새로고침 분리 |
+| 260701 | **실거래 전환 대비 월 1회 멱등 가드**(`DCA_LAST_RUN_MONTH`) + 크론 `40 14 1-31 * *`(매일 시도, 처음 성공하는 날 1회 적립) |
+| 260702 | **단위 테스트 프로젝트 신설**(`Tests/`, xUnit). `PlanPurchases`(7건)·`SelectTemplate`(5건) 순수 함수 검증. 이를 위해 `DcaSettings`의 월→템플릿 선택 로직을 `SelectTemplate` 순수 함수로 분리(동작 불변) |
+
+> 테스트 실행: `dotnet test Tests/AutoInvest.Tests.csproj` (net8.0, xUnit). 메인 웹 프로젝트는
+> `AutoInvest.csproj`에서 `Tests\**`를 컴파일 대상에서 제외해 분리되어 있습니다.
 
 ---
 
