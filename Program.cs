@@ -9,9 +9,8 @@ using System;
 namespace AutoInvest
 {
     /// <summary>
-    /// 자동 투자 시스템 진입점 (ASP.NET Core Web API).
-    /// Headless 백그라운드 서비스로 24시간 자동 매매를 수행하며,
-    /// REST API를 통해 외부에서 상태 조회 및 제어가 가능합니다.
+    /// 자동 투자 시스템 
+    /// 24시간 자동 매매
     /// </summary>
     public class Program
     {
