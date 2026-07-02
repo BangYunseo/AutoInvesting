@@ -5,6 +5,10 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoInvest", "AutoInvest.csproj", "{FAFA5C31-89D8-419A-A330-09C69E5EF677}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoInvest.Tests", "Tests\AutoInvest.Tests.csproj", "{524E52A0-2359-4E08-9717-AF75280A6124}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,8 +31,23 @@ Global
 		{FAFA5C31-89D8-419A-A330-09C69E5EF677}.Release|x64.Build.0 = Release|Any CPU
 		{FAFA5C31-89D8-419A-A330-09C69E5EF677}.Release|x86.ActiveCfg = Release|Any CPU
 		{FAFA5C31-89D8-419A-A330-09C69E5EF677}.Release|x86.Build.0 = Release|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Debug|x64.Build.0 = Debug|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Debug|x86.Build.0 = Debug|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Release|Any CPU.Build.0 = Release|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Release|x64.ActiveCfg = Release|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Release|x64.Build.0 = Release|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Release|x86.ActiveCfg = Release|Any CPU
+		{524E52A0-2359-4E08-9717-AF75280A6124}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{524E52A0-2359-4E08-9717-AF75280A6124} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

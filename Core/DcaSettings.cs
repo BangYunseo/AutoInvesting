@@ -46,11 +46,7 @@ namespace AutoInvest.Core
             var monthMap = LoadMonthMap();
             int month = KstNow().Month;
 
-            DcaTemplate? chosen = null;
-            if (monthMap.TryGetValue(month, out var tid) && !string.IsNullOrWhiteSpace(tid))
-                chosen = templates.FirstOrDefault(t => t.Id == tid);
-            else if (monthMap.Count == 0)
-                chosen = templates.FirstOrDefault(); // 스케줄 미설정 → 첫(기본) 템플릿을 매월 사용
+            DcaTemplate? chosen = SelectTemplate(templates, monthMap, month);
 
             if (chosen == null)
             {
@@ -65,6 +61,33 @@ namespace AutoInvest.Core
             decimal budget = chosen.BudgetKrw > 0 ? chosen.BudgetKrw : DefaultBudgetKrw;
             Logger.Info($"[DcaSettings] {month}월 적용 템플릿='{chosen.Name}' (종목 {qtys.Count}개, 예산 {budget:N0}원)");
             return (qtys, budget);
+        }
+
+        /// <summary>
+        /// 주어진 월(1~12)에 적용할 템플릿을 고릅니다 (순수 함수 — 외부 I/O 없음, 검증 대상).
+        /// 규칙:
+        ///   · 해당 월이 월배정에 있으면 그 Id의 템플릿을 선택(Id가 목록에 없으면 null → 스킵).
+        ///   · 월배정이 비어 있으면 첫(기본) 템플릿을 매월 사용(기존 단일 설정 동작 유지).
+        ///   · 월배정은 있으나 해당 월에 배정이 없으면 null → 매수 스킵.
+        /// </summary>
+        /// <param name="templates">템플릿 목록</param>
+        /// <param name="monthMap">월(1~12)→템플릿Id 배정</param>
+        /// <param name="month">적용할 월(1~12)</param>
+        /// <returns>선택된 템플릿, 없으면 null(매수 스킵)</returns>
+        public static DcaTemplate? SelectTemplate(
+            IReadOnlyList<DcaTemplate> templates,
+            IReadOnlyDictionary<int, string> monthMap,
+            int month)
+        {
+            if (templates == null || templates.Count == 0) return null;
+
+            if (monthMap != null && monthMap.TryGetValue(month, out var tid) && !string.IsNullOrWhiteSpace(tid))
+                return templates.FirstOrDefault(t => t.Id == tid);
+
+            if (monthMap == null || monthMap.Count == 0)
+                return templates.FirstOrDefault(); // 스케줄 미설정 → 첫(기본) 템플릿을 매월 사용
+
+            return null; // 월배정은 있으나 이번 달 배정 없음 → 스킵
         }
 
         /// <summary>템플릿 목록을 반환합니다 (DB → 없으면 레거시 단일 설정을 '기본' 템플릿으로 이관).</summary>
