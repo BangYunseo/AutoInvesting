@@ -34,7 +34,7 @@
 ```
 AutoInvesting/
 ├── Program.cs                          # 앱 진입점 (DI 등록, SPA fallback, 전역 예외 처리)
-├── appsettings.json                    # 통합 설정 파일 (Trading / Smtp / Kis / Security / Dca)
+├── appsettings.json                    # 통합 설정 파일 (Trading / Smtp / Resend / Kis / Security / Dca)
 ├── Dockerfile                          # 단일 컨테이너 (백엔드 + React 정적 서빙)
 │
 ├── Core/                               # 핵심 비즈니스 로직
@@ -54,39 +54,49 @@ AutoInvesting/
 │   │   └── create_tables.sql           # DDL + 초기 마스터 데이터
 │   ├── DTO/                            # Data Transfer Objects
 │   │   ├── DcaTemplate.cs              # 매수 템플릿 DTO (Id, Name, BudgetKrw, Quantities)
-│   │   ├── AssetDto.cs                 # 자산 마스터
+│   │   ├── AssetMasterDto.cs           # 자산 마스터
 │   │   ├── TradeHistoryDto.cs          # 거래 내역
 │   │   ├── HoldingDto.cs               # 보유 종목 (잔고)
 │   │   ├── PriceRangeDto.cs            # N일 가격 범위
-│   │   └── OhlcvDto.cs                 # OHLCV 일봉 데이터
+│   │   ├── OhlcvDto.cs                 # OHLCV 일봉 데이터
+│   │   ├── StrategySummaryDto.cs       # (레거시) 전략 요약 — 판단 레이어 잔재, 미사용
+│   │   ├── AdaptiveThresholdStatusDto.cs # (레거시) 적응형 임계값 상태 — Phase 5 잔재, 미사용
+│   │   └── DailyTokenUsageDto.cs       # (레거시) AI 토큰 사용량 — Phase 5 잔재, 미사용
 │   └── DAO/                            # Data Access Objects
-│       ├── AssetDAO.cs                 # TB_ASSET_MASTER 조회
-│       └── TradeHistoryDAO.cs          # TB_TRADE_HISTORY CRUD
+│       ├── TradeHistoryDAO.cs          # TB_TRADE_HISTORY CRUD
+│       └── SystemLogDAO.cs             # TB_SYSTEM_LOG 조회 (시스템 로그)
 │
 ├── Controllers/                        # REST API 컨트롤러
+│   ├── AuthController.cs               # 단일 관리자 로그인 + 세션 토큰(7일) 발급
 │   ├── ConfigController.cs             # 환경 설정 API
 │   ├── HistoryController.cs            # 거래 내역 및 로그 API
 │   ├── PortfolioController.cs          # 잔고 조회 API
+│   ├── PriceController.cs              # 현재가 조회 겸 티커 검증 (/api/price/{ticker})
 │   ├── DcaController.cs                # 적립 설정(매수 템플릿·월배정) 조회·저장 API
 │   ├── OrderController.cs              # 적립 사이클 실행 + 수동 주문 API
 │   └── TestController.cs               # 개발/테스트 전용 API (buy / send-test-email)
 │
 ├── Utils/                              # 유틸리티 (모든 레이어 접근 가능)
-│   ├── Logger.cs                       # Serilog 래퍼 (Info/Warn/Error/Fatal/LogQuant)
-│   ├── NotificationService.cs          # MailKit Naver SMTP 이메일 알림
+│   ├── Logger.cs                       # Serilog 래퍼 (Info/Warn/Error/Fatal)
+│   ├── NotificationService.cs          # 이메일 알림 (Resend HTTP API — Render의 SMTP 포트 차단 대응)
 │   ├── ExchangeRateService.cs          # 환율 API (Frankfurter + fallback, 1시간 캐싱)
+│   ├── CryptoUtil.cs                   # 시크릿 AES-256-GCM 암복호화 · 비밀번호 PBKDF2 해시 · 세션 토큰
 │   ├── ApiKeyAuthAttribute.cs          # 전역 x-api-key 인증 필터
-│   └── DateTimeHelper.cs               # NYSE 개장시각(KST) 계산 (DST 대응)
+│   └── PublicEndpointAttribute.cs      # 전역 인증 필터 면제 표시 (로그인 등 공개 엔드포인트)
 │
 ├── Frontend/                           # React SPA (Vite, Glassmorphism 디자인)
 │   └── src/
-│       ├── pages/                      # Dashboard, DcaConfig, Order, History, Settings
-│       └── components/                 # HoldingsTable 등
+│       ├── pages/                      # Login, Dashboard, DcaConfig, Order, History, Settings
+│       └── components/                 # HoldingsTable, ProgressLoader
 │
 └── Documents/                          # 프로젝트 문서
     ├── DEVELOPMENT.md                  # 개발 진척도 + 전체 변경 이력
     ├── ONBOARDING_GUIDE.md             # 신규 개발자용 아키텍처 가이드
-    └── CODE_READING_GUIDE.md           # DCA 적립 코어 코드 흐름 가이드
+    ├── CODE_READING_GUIDE.md           # DCA 적립 코어 코드 흐름 가이드
+    ├── CODE_MAP.md                     # 코드 맵 (regen-codemap.ps1로 재생성)
+    ├── API_REFERENCE.md                # REST API 레퍼런스
+    ├── API_REFERENCE_TABLE.md          # REST API 요약 표
+    └── worklog/                        # 기능 단위 작업 인계 보고서
 ```
 
 > **참고 (레거시 데이터)**: `TB_MARKET_SNAPSHOT` 테이블과 `DBManager`의 관련 마이그레이션 코드는
@@ -159,7 +169,7 @@ AutoInvesting/
 | DB            | PostgreSQL (Npgsql)                          |
 | 로깅          | Serilog                                      |
 | 내결함성      | Polly (KIS API Retry + 지수 백오프)          |
-| 이메일 알림   | MailKit (Naver SMTP)                         |
+| 이메일 알림   | Resend HTTP API (Render의 SMTP 포트 차단 대응) |
 | 증권사 API    | 한국투자증권 (KIS) REST API                  |
 | 환율 API      | Frankfurter API (무료, 키 불필요)            |
 | 배포          | Docker (단일 컨테이너, React 정적 서빙 통합) |
