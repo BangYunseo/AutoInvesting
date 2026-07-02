@@ -93,6 +93,7 @@ namespace AutoInvest.Controllers
 
                 // ── 매도 안전가드: 실제 보유 종목·수량 범위 내에서만 허용 ──
                 // (프론트 우회·실수와 무관하게 서버에서 오발주를 차단)
+                decimal sellAvgPriceUsd = 0m; // 세금 가드에서 재사용할 취득 평균단가
                 if (orderType == "SELL")
                 {
                     var holdings = await client.GetHoldingsAsync();
@@ -106,6 +107,7 @@ namespace AutoInvest.Controllers
                     {
                         return BadRequest(new { error = $"보유 수량({held.Qty}주)을 초과해 매도할 수 없습니다." });
                     }
+                    sellAvgPriceUsd = held.AvgPrice;
                 }
 
                 // 가격 미지정 시 현재가 사용
@@ -113,6 +115,26 @@ namespace AutoInvest.Controllers
                 if (price <= 0)
                 {
                     return BadRequest(new { error = $"'{ticker}'의 가격을 확인할 수 없습니다. price를 직접 지정해 주세요." });
+                }
+
+                // ── 절세 가드: 과세가 예상되는 매도인데 사용자가 세금을 확인(acknowledge)하지 않았으면 차단 ──
+                // (판단/타이밍 아님 — 세금 산수 기반 정보 제공. 취득가 불명 시엔 계산 신뢰 불가라 가드를 건너뜀)
+                if (orderType == "SELL" && sellAvgPriceUsd > 0m)
+                {
+                    decimal fx = await client.GetExchangeRateAsync();
+                    var est = TaxEstimator.Estimate(
+                        ticker, sellAvgPriceUsd, price, req.Qty, fx, req.YtdRealizedGainKrw, TaxSettings.Load());
+
+                    if (est.IsTaxable && !req.AcknowledgeTax)
+                    {
+                        Logger.Info($"[Order] 과세 매도 사전 차단(미확인): {ticker} {req.Qty}주, " +
+                            $"예상세금 {est.EstimatedTaxKrw:N0}원 (확인 시 acknowledgeTax=true로 재요청)");
+                        return Conflict(new
+                        {
+                            error = "이 매도는 양도소득세가 예상됩니다. 예상 세금을 확인한 뒤 다시 시도하세요.",
+                            taxEstimate = est
+                        });
+                    }
                 }
 
                 string orderNo = orderType == "BUY"
@@ -153,6 +175,69 @@ namespace AutoInvest.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
+        /// <summary>
+        /// 매도 예정 정보로 예상 양도소득세·수수료를 미리 계산합니다 (주문 실행 없음, 정보 제공).
+        /// 프론트가 매도 전에 호출해 "이 매도가 과세 구간인지 / 세금이 얼마인지"를 보여주는 용도입니다.
+        /// </summary>
+        /// <param name="ticker">종목 코드 (보유 종목이어야 함)</param>
+        /// <param name="qty">매도 예정 수량(주)</param>
+        /// <param name="price">매도 단가(USD). 생략 시 현재가 사용.</param>
+        /// <param name="ytd">올해 이미 실현한 양도차익 합계(원). 남은 공제 계산용(수동 입력, 기본 0).</param>
+        [HttpGet("sell-preview")]
+        public async Task<IActionResult> PreviewSell(
+            [FromQuery] string ticker,
+            [FromQuery] int qty,
+            [FromQuery] decimal? price,
+            [FromQuery] decimal ytd = 0m)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(ticker))
+                {
+                    return BadRequest(new { error = "종목 코드(ticker)는 필수입니다." });
+                }
+                if (qty <= 0)
+                {
+                    return BadRequest(new { error = "수량(qty)은 1 이상이어야 합니다." });
+                }
+
+                ticker = ticker.Trim().ToUpper();
+
+                var client = _session.GetClient();
+                if (!client.IsLoggedIn)
+                {
+                    var loginOk = await client.LoginAsync();
+                    if (!loginOk)
+                    {
+                        return StatusCode(503, new { error = "브로커 로그인 실패" });
+                    }
+                }
+
+                var holdings = await client.GetHoldingsAsync();
+                var held = holdings.FirstOrDefault(h =>
+                    string.Equals(h.Ticker, ticker, StringComparison.OrdinalIgnoreCase));
+                if (held == null || held.Qty <= 0)
+                {
+                    return BadRequest(new { error = $"보유하지 않은 종목('{ticker}')은 매도 세금을 계산할 수 없습니다." });
+                }
+
+                decimal p = price ?? await client.GetCurrentPriceAsync(ticker);
+                if (p <= 0)
+                {
+                    return BadRequest(new { error = $"'{ticker}'의 가격을 확인할 수 없습니다." });
+                }
+
+                decimal fx = await client.GetExchangeRateAsync();
+                var est = TaxEstimator.Estimate(ticker, held.AvgPrice, p, qty, fx, ytd, TaxSettings.Load());
+                return Ok(est);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Order] 매도 세금 프리뷰 실패: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
     }
 
     /// <summary>
@@ -171,5 +256,16 @@ namespace AutoInvest.Controllers
 
         /// <summary>주문 가격 (USD). 생략 시 현재가로 주문.</summary>
         public decimal? Price { get; set; }
+
+        /// <summary>
+        /// (매도 전용) 과세가 예상되는 매도임을 사용자가 확인했는지 여부.
+        /// 과세 매도인데 이 값이 false면 서버가 409로 차단합니다.
+        /// </summary>
+        public bool AcknowledgeTax { get; set; } = false;
+
+        /// <summary>
+        /// (매도 전용) 올해 이미 실현한 양도차익 합계(원). 남은 공제 계산용(수동 입력, 기본 0).
+        /// </summary>
+        public decimal YtdRealizedGainKrw { get; set; } = 0m;
     }
 }

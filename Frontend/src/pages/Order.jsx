@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 
+/** 숫자를 원화 천단위 구분 문자열로 변환 (표시용). */
+const won = (n) => Number(n ?? 0).toLocaleString('ko-KR');
+
 /**
  * 주문/적립 페이지.
  * OrderController와 연동하여 적립식(DCA) 매수 사이클과 수동 주문을 실행합니다.
@@ -26,6 +29,8 @@ const Order = () => {
   const [newTickerState, setNewTickerState] = useState({ status: 'idle', price: 0, error: null });
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState('');
+  // 매도 절세 계산용: 올해 이미 실현한 양도차익(원, 수동 입력)
+  const [ytdGain, setYtdGain] = useState('');
   const [ordering, setOrdering] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
   const [orderError, setOrderError] = useState(null);
@@ -147,8 +152,47 @@ const Order = () => {
       return;
     }
 
-    const actionLabel = orderType === 'BUY' ? '매수' : '매도';
-    if (!confirm(`${effectiveTicker} ${qty}주를 ${actionLabel}합니다.\n정말 진행하시겠습니까?`)) return;
+    // ── 매도: 세금 프리뷰 조회 → 과세면 금액 명시 확인창(Alert) → acknowledgeTax로 제출 ──
+    let acknowledgeTax = false;
+    const ytdNum = ytdGain !== '' && Number(ytdGain) > 0 ? Number(ytdGain) : 0;
+
+    if (orderType === 'SELL') {
+      let est = null;
+      try {
+        const params = new URLSearchParams({ ticker: effectiveTicker, qty: String(Number(qty)) });
+        if (price !== '' && Number(price) > 0) params.set('price', String(Number(price)));
+        if (ytdNum > 0) params.set('ytd', String(ytdNum));
+        const pr = await fetch(`/api/order/sell-preview?${params.toString()}`);
+        if (pr.ok) est = await pr.json();
+      } catch {
+        // 프리뷰 실패는 치명적이지 않음 — 기본 확인으로 진행(서버 가드가 최종 방어)
+      }
+
+      let msg = `${effectiveTicker} ${qty}주를 매도합니다.`;
+      if (est && est.costBasisUnknown) {
+        msg += `\n\n(취득가를 확인할 수 없어 예상 세금을 계산하지 못했습니다.)`;
+      } else if (est && est.isTaxable) {
+        acknowledgeTax = true;
+        msg += `\n\n⚠️ 예상 양도소득세 약 ${won(est.estimatedTaxKrw)}원이 부과됩니다.`
+          + `\n   · 예상 양도차익 ${won(est.gainKrw)}원`
+          + `\n   · 남은 기본공제 ${won(est.remainingDeductionKrw)}원`
+          + `\n   · 과세표준 ${won(est.taxableBaseKrw)}원 × 22%`
+          + `\n   · 예상 매도수수료 약 ${won(est.estimatedFeeKrw)}원`;
+        if (est.maxTaxFreeQty >= 0) {
+          msg += `\n\n💡 지금 조건에선 ${est.maxTaxFreeQty}주까지 세금 없이 매도할 수 있습니다.`;
+        }
+        msg += `\n\n그래도 진행하시겠습니까?`;
+      } else if (est) {
+        msg += `\n\n✅ 이 매도는 예상 세금이 없습니다(기본공제 이내).`
+          + `\n   · 예상 양도차익 ${won(est.gainKrw)}원 / 남은공제 ${won(est.remainingDeductionKrw)}원`
+          + `\n\n진행하시겠습니까?`;
+      } else {
+        msg += `\n\n정말 진행하시겠습니까?`;
+      }
+      if (!confirm(msg)) return;
+    } else {
+      if (!confirm(`${effectiveTicker} ${qty}주를 매수합니다.\n정말 진행하시겠습니까?`)) return;
+    }
 
     try {
       setOrdering(true);
@@ -160,6 +204,10 @@ const Order = () => {
         orderType,
       };
       if (price !== '' && Number(price) > 0) body.price = Number(price);
+      if (orderType === 'SELL') {
+        body.acknowledgeTax = acknowledgeTax;
+        body.ytdRealizedGainKrw = ytdNum;
+      }
 
       const res = await fetch('/api/order/manual', {
         method: 'POST',
@@ -167,6 +215,11 @@ const Order = () => {
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      if (res.status === 409 && data.taxEstimate) {
+        // 서버 세금 가드에 막힘(프리뷰 우회 등) — 금액 안내 후 중단
+        setOrderError(`${data.error} (예상 세금 약 ${won(data.taxEstimate.estimatedTaxKrw)}원)`);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || `주문 실패 (${res.status})`);
       setOrderResult(data);
       // 주문 후 잔고 반영을 위해 보유 종목 갱신
@@ -389,6 +442,23 @@ const Order = () => {
             />
           </div>
         </div>
+
+        {orderType === 'SELL' && (
+          <div className="form-group">
+            <label>올해 이미 실현한 차익 (원, 선택)</label>
+            <input
+              type="number"
+              min="0"
+              step="10000"
+              value={ytdGain}
+              onChange={e => setYtdGain(e.target.value)}
+              placeholder="0 (증권사 앱 등 외부 매도분이 있으면 입력)"
+            />
+            <div style={{ marginTop: 4, fontSize: '0.75rem', color: 'var(--text-muted)', wordBreak: 'keep-all' }}>
+              연 250만원 기본공제 중 남은 금액 계산에 사용됩니다. 이 시스템 밖에서 매도한 차익은 자동 집계되지 않으니 직접 입력하세요.
+            </div>
+          </div>
+        )}
 
         {orderType === 'SELL' && (
           <button
