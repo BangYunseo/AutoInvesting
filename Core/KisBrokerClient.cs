@@ -3,6 +3,7 @@ using AutoInvest.Utils;
 using Polly;
 using Polly.Retry;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
@@ -92,6 +93,22 @@ namespace AutoInvest.Core
         /// <summary>KIS 현재가 API의 EXCD(거래소) 후보 — 미국 주요 거래소 순회용.</summary>
         private static readonly string[] UsPriceExchanges = { "NAS", "NYS", "AMS" };
 
+        /// <summary>
+        /// 현재가 API의 EXCD → 주문/잔고 API의 OVRS_EXCG_CD 매핑.
+        /// KIS는 시세 조회(HHDFS00000300)와 주문(TTTT1002U 등)에서 거래소 코드 체계가 다르다.
+        /// (예: NYSE Arca ETF인 GLD/SCHD는 시세=AMS, 주문=AMEX. 주문에 시세 코드 "NAS"를 그대로
+        ///  쓰면 "해당종목정보가 없습니다"로 거부된다.)
+        /// </summary>
+        private static readonly Dictionary<string, string> PriceToOrderExchange = new()
+        {
+            ["NAS"] = "NASD",
+            ["NYS"] = "NYSE",
+            ["AMS"] = "AMEX",
+        };
+
+        /// <summary>종목별로 현재가 조회 시 확인된 EXCD 캐시 — 주문 시 올바른 거래소 코드 결정에 재사용.</summary>
+        private readonly ConcurrentDictionary<string, string> _tickerPriceExchange = new();
+
         public async Task<decimal> GetCurrentPriceAsync(string ticker)
         {
             await _tokenManager.EnsureValidTokenAsync();
@@ -122,6 +139,8 @@ namespace AutoInvest.Core
                         output.TryGetProperty("last", out var lastStr) &&
                         decimal.TryParse(lastStr.GetString(), out decimal price) && price > 0)
                     {
+                        // 이 종목이 확인된 거래소(EXCD)를 캐시해 두어, 주문 시 올바른 OVRS_EXCG_CD로 매핑한다.
+                        _tickerPriceExchange[ticker] = excd;
                         Logger.Info($"[KisBroker] 현재가 조회: {ticker} = ${price} (EXCD={excd})");
                         return price;
                     }
@@ -251,22 +270,50 @@ namespace AutoInvest.Core
             return await PlaceOrderAsync(ticker, qty, price, false);
         }
 
+        /// <summary>
+        /// 주문에 사용할 거래소 코드(OVRS_EXCG_CD)를 종목별로 결정합니다.
+        /// 현재가 조회에서 확인된 EXCD가 있으면 매핑해 쓰고, 없으면 현재가를 1회 조회해 확인합니다.
+        /// 그래도 확인되지 않으면 나스닥(NASD)을 기본값으로 사용합니다.
+        /// </summary>
+        /// <param name="ticker">종목 코드</param>
+        private async Task<string> ResolveOrderExchangeAsync(string ticker)
+        {
+            if (!_tickerPriceExchange.TryGetValue(ticker, out var excd))
+            {
+                // 아직 이 종목의 거래소가 확인되지 않았다면 현재가 조회로 캐시를 채운다(부수효과).
+                await GetCurrentPriceAsync(ticker);
+                _tickerPriceExchange.TryGetValue(ticker, out excd);
+            }
+
+            if (!string.IsNullOrEmpty(excd) && PriceToOrderExchange.TryGetValue(excd, out var orderExcg))
+            {
+                return orderExcg;
+            }
+
+            Logger.Warn($"[KisBroker] {ticker} 거래소 미확인 — 주문 거래소 코드를 기본값 NASD로 적용");
+            return "NASD";
+        }
+
         private async Task<string> PlaceOrderAsync(string ticker, int qty, decimal price, bool isBuy)
         {
             await _tokenManager.EnsureValidTokenAsync();
+
+            // 종목이 실제 상장된 거래소 코드로 주문한다(하드코딩 금지). 시세=EXCD → 주문=OVRS_EXCG_CD 매핑.
+            string ovrsExcgCd = await ResolveOrderExchangeAsync(ticker);
+
             await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
-            string trId = isBuy 
-                ? (_isPaperTrading ? "VTTT1002U" : "TTTT1002U") 
+            string trId = isBuy
+                ? (_isPaperTrading ? "VTTT1002U" : "TTTT1002U")
                 : (_isPaperTrading ? "VTTT1006U" : "TTTT1006U");
 
             string path = "/uapi/overseas-stock/v1/trading/order";
-            
+
             var body = new
             {
                 CANO = _accountNoPrefix,
                 ACNT_PRDT_CD = _accountNoSuffix,
-                OVRS_EXCG_CD = "NAS",
+                OVRS_EXCG_CD = ovrsExcgCd,
                 PDNO = ticker,
                 ORD_QTY = qty.ToString(),
                 OVRS_ORD_UNPR = price.ToString("0.00"),
