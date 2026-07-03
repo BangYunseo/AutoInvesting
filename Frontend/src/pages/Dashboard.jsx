@@ -4,22 +4,17 @@ import HoldingsTable from '../components/HoldingsTable';
 /**
  * 포트폴리오 대시보드 메인 화면.
  * 상단 요약(총자산·주식평가금액·예수금·환율 + 계좌 모드 배지)과
- * 하단 보유 종목 테이블을 각각 독립적으로 조회·새로고침합니다.
- *  - 상단: /api/portfolio/summary (예수금·환율·계좌 모드 + 카드 집계용 보유종목)
- *  - 하단: /api/portfolio/holdings (보유 종목 테이블)
+ * 하단 보유 종목 테이블을 /api/portfolio/summary 단일 응답으로 함께 렌더링합니다.
+ *  - /api/portfolio/summary 가 예수금·환율·계좌 모드 + 보유종목을 한 번에 반환하므로,
+ *    별도의 /api/portfolio/holdings 조회 없이 요약 응답의 보유종목을 테이블에 재사용합니다
+ *    (KIS 잔고조회 왕복 1회 + Rate limit 대기 400ms 절감).
  */
 const Dashboard = () => {
-  // ── 상단 요약 ──
+  // ── 요약 + 보유 종목(summary 단일 응답) ──
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState(null);
   const [summaryUpdated, setSummaryUpdated] = useState(null);
-
-  // ── 하단 보유 종목 ──
-  const [holdings, setHoldings] = useState(null);
-  const [holdingsLoading, setHoldingsLoading] = useState(true);
-  const [holdingsError, setHoldingsError] = useState(null);
-  const [holdingsUpdated, setHoldingsUpdated] = useState(null);
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -38,27 +33,9 @@ const Dashboard = () => {
     }
   }, []);
 
-  const fetchHoldings = useCallback(async () => {
-    try {
-      setHoldingsLoading(true);
-      setHoldingsError(null);
-      const res = await fetch('/api/portfolio/holdings');
-      if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
-      const json = await res.json();
-      setHoldings(Array.isArray(json) ? json : []);
-      setHoldingsUpdated(new Date());
-    } catch (err) {
-      console.error('보유 종목 조회 실패:', err);
-      setHoldingsError(err.message);
-    } finally {
-      setHoldingsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchSummary();
-    fetchHoldings();
-  }, [fetchSummary, fetchHoldings]);
+  }, [fetchSummary]);
 
   // ── 상단 요약 첫 로딩 (페이지 단위) ──
   if (summaryLoading && !summary) {
@@ -218,32 +195,23 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ── 보유 종목 테이블 ── */}
+      {/* ── 보유 종목 테이블 (요약 응답의 보유종목 재사용 — 별도 조회 없이 왕복 1회 절감) ── */}
       <div className="card fade-in" style={{ animationDelay: '0.25s', opacity: 0 }}>
         <div className="section-header">
           <h2>보유 종목</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {holdingsUpdated && (
+            {summaryUpdated && (
               <span className="section-header__sub">
-                마지막 업데이트: {holdingsUpdated.toLocaleTimeString('ko-KR')}
+                마지막 업데이트: {summaryUpdated.toLocaleTimeString('ko-KR')}
               </span>
             )}
-            <button className="btn btn--outline" onClick={fetchHoldings} disabled={holdingsLoading}>
-              {holdingsLoading ? '갱신 중...' : '🔄 새로고침'}
+            <button className="btn btn--outline" onClick={fetchSummary} disabled={summaryLoading}>
+              {summaryLoading ? '갱신 중...' : '🔄 새로고침'}
             </button>
           </div>
         </div>
 
-        {holdingsError ? (
-          <div style={{ padding: '12px 14px', background: 'var(--loss-red-bg)', color: 'var(--loss-red)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
-            ❌ 보유 종목 조회 실패: {holdingsError}{' '}
-            <button className="btn btn--outline" onClick={fetchHoldings} style={{ marginLeft: 8, padding: '2px 10px', fontSize: '0.8rem' }}>다시 시도</button>
-          </div>
-        ) : holdings === null ? (
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', padding: '8px 0' }}>보유 종목을 불러오는 중...</div>
-        ) : (
-          <HoldingsTable holdings={holdings} exchangeRate={exchangeRate} />
-        )}
+        <HoldingsTable holdings={summaryHoldings} exchangeRate={exchangeRate} />
       </div>
     </div>
   );
