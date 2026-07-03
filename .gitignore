@@ -411,3 +411,6 @@ appsettings.*.local.json
 
 # ── 분석용 외부 데이터 캐시 (일회성, 재다운로드 가능) ──
 Documents/analysis/_cache/
+
+# ── 로컬 에이전트 툴링 (하네스별 로컬 설정, 프로젝트 코드 아님) ──
+.opencode/
