@@ -13,6 +13,24 @@ namespace AutoInvest.Core
         private IBrokerClient? _client;
 
         /// <summary>
+        /// 운영용 기본 생성자. DI(AddSingleton) 및 실행 경로에서 사용합니다.
+        /// GetClient() 호출 시 설정(IS_PAPER_TRADING·KIS 키)에 따라 브로커를 생성합니다.
+        /// </summary>
+        public SessionManager()
+        {
+        }
+
+        /// <summary>
+        /// 테스트 전용 생성자. 미리 만든 브로커 클라이언트를 주입해 GetClient()가 이를 그대로 반환하게 합니다.
+        /// (실계좌·네트워크·DB 없이 컨트롤러 배선을 검증하기 위한 seam — 운영 코드는 파라미터리스 생성자만 사용)
+        /// </summary>
+        /// <param name="preset">GetClient()가 반환할 브로커 클라이언트(예: FakeBrokerClient)</param>
+        public SessionManager(IBrokerClient preset)
+        {
+            _client = preset;
+        }
+
+        /// <summary>
         /// 현재 활성 브로커 클라이언트를 반환합니다.
         /// 없으면 설정에 따라 새로 생성합니다.
         /// </summary>
