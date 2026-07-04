@@ -18,15 +18,17 @@ namespace AutoInvest.Core
         private bool _isLoggedIn;
 
         /// <summary>
-        /// ETF별 기준가 (USD). 시뮬레이션 현재가는 이 값 ±3% 범위에서 생성.
+        /// ETF별 기준가 (USD). <see cref="GetCurrentPriceAsync"/>가 이 값을 그대로(랜덤 없이) 반환한다.
+        /// 실거래 없이 적립 사이클을 실제처럼 검증하기 위한 대략적 최근 스냅샷(2026-07 기준, 수동 갱신)이며
+        /// 실시간 시세가 아니다. 표에 없는 티커는 <see cref="GetBasePrice"/>에서 $100으로 폴백한다.
         /// </summary>
         private readonly Dictionary<string, decimal> _basePrices = new Dictionary<string, decimal>
         {
-            { "SCHD",  27.50m },
-            { "QQQM", 200.00m },
-            { "GLD",  195.00m },
-            { "JEPI",  56.00m },
-            { "SPLG",  62.00m }
+            { "SCHD",  32.39m },
+            { "QQQM", 293.42m },
+            { "GLD",  378.13m },
+            { "JEPI",  56.71m },
+            { "SPLG",  80.00m }
         };
 
         /// <summary>시뮬레이션 보유 잔고</summary>
@@ -51,7 +53,8 @@ namespace AutoInvest.Core
 
         public Task<decimal> GetExchangeRateAsync()
         {
-            const decimal rate = 1350.00m;
+            // 대략적 최근 스냅샷(2026-07 기준, 수동 갱신) — 실시간 환율이 아니다.
+            const decimal rate = 1530.00m;
             Logger.Info($"[SimBroker] 환율 조회: 1 USD = {rate:N0} KRW");
             return Task.FromResult(rate);
         }
