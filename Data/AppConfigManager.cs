@@ -25,7 +25,6 @@ namespace AutoInvest.Data
             "KIS_APP_KEY",
             "KIS_APP_SECRET",
             "KIS_ACCOUNT_NO",
-            "GEMINI_API_KEY",
             "RESEND_API_KEY",
             "API_ACCESS_KEY"
         };
@@ -180,6 +179,8 @@ namespace AutoInvest.Data
 
         /// <summary>
         /// 레거시 키명을 appsettings.json의 계층 구조 키로 매핑합니다.
+        /// (Phase 6에서 판단 레이어를 제거해, 매매 판단·전략·리밸런싱·AI·합의·FX 관련 키 매핑은 삭제됨.
+        ///  현재는 거래 모드·KIS 인증·발송/인증 시크릿 등 실제 사용하는 키만 남깁니다.)
         /// </summary>
         private static string? ResolveFromConfiguration(string key)
         {
@@ -187,32 +188,13 @@ namespace AutoInvest.Data
             string? mappedPath = key switch
             {
                 "IS_PAPER_TRADING"      => "Trading:IsPaperTrading",
-                "INVEST_AMOUNT_KRW"     => "Trading:InvestAmountKrw",
-                "ACTIVE_STRATEGY"       => "Trading:ActiveStrategy",
-                "STRATEGY_TYPE"         => "Trading:StrategyType",
-                "ORDER_SCHEDULE"        => "Trading:OrderSchedule",
-                "REBALANCE_ENABLED"     => "Rebalance:Enabled",
-                "REBALANCE_PERIOD"      => "Rebalance:Period",
-                "REBALANCE_THRESHOLD"   => "Rebalance:Threshold",
-                "LAST_REBALANCE_DATE"   => null, // DB 전용
                 "KIS_SERVER"            => "Kis:Server",
                 "KIS_ACCOUNT_PROD"      => "Kis:AccountProd",
                 "KIS_APP_KEY"           => "Kis:AppKey",
                 "KIS_APP_SECRET"        => "Kis:AppSecret",
                 "KIS_ACCOUNT_NO"        => "Kis:AccountNo",
-                "AI_PROVIDER"           => "Ai:Provider",
-                "GEMINI_API_KEY"        => "Ai:GeminiApiKey",
-                "GEMINI_MODEL"          => "Ai:Model",
                 "RESEND_API_KEY"        => "Resend:ApiKey",
                 "API_ACCESS_KEY"        => "Security:ApiAccessKey",
-                "QUANT_WEIGHT"          => "Consensus:QuantWeight",
-                "CHART_AI_WEIGHT"       => "Consensus:ChartAiWeight",
-                "FUND_AI_WEIGHT"        => "Consensus:FundAiWeight",
-                "BUY_THRESHOLD"         => "Consensus:BuyThreshold",
-                "SELL_THRESHOLD"        => "Consensus:SellThreshold",
-                "FX_ADVISOR_ENABLED"    => "FxAdvisor:Enabled",
-                "FX_LOOKBACK_DAYS"      => "FxAdvisor:LookbackDays",
-                "FX_HIGH_PERCENTILE"    => "FxAdvisor:HighPercentile",
                 _ => null
             };
 
@@ -221,7 +203,7 @@ namespace AutoInvest.Data
             string? value = _configuration?[mappedPath];
 
             // bool → "1"/"0" 변환 (레거시 호환)
-            if (value != null && (key == "IS_PAPER_TRADING" || key == "REBALANCE_ENABLED" || key == "FX_ADVISOR_ENABLED"))
+            if (value != null && key == "IS_PAPER_TRADING")
             {
                 if (bool.TryParse(value, out bool boolVal))
                 {
