@@ -136,25 +136,6 @@ namespace AutoInvest.Core
             return 0m;
         }
 
-        public async Task<(decimal High, decimal Low)> GetPriceRangeAsync(string ticker, int days)
-        {
-            var ohlcvList = await GetOhlcvAsync(ticker, days);
-            
-            if (ohlcvList.Count == 0) return (0m, 0m);
-
-            decimal high = 0m;
-            decimal low = decimal.MaxValue;
-
-            foreach (var item in ohlcvList)
-            {
-                if (item.High > high) high = item.High;
-                if (item.Low < low) low = item.Low;
-            }
-
-            Logger.Info($"[KisBroker] {days}일 가격범위: {ticker} High=${high} Low=${low}");
-            return (high, low);
-        }
-
         public async Task<decimal> GetExchangeRateAsync()
         {
             return await ExchangeRateService.GetUsdKrwAsync();
@@ -258,57 +239,6 @@ namespace AutoInvest.Core
 
             Logger.Warn("[KisBroker] 예수금 조회 실패. 기본값 0 반환.");
             return 0m;
-        }
-
-        public async Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days)
-        {
-            await _tokenManager.EnsureValidTokenAsync();
-            await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
-
-            string path = $"/uapi/overseas-price/v1/quotations/dailyprice?AUTH=&EXCD=NAS&SYMB={ticker}&GUBN=0&BYMD=&MODP=1";
-            var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, "HHDFS76240000"));
-
-            response.EnsureSuccessStatusCode();
-
-            var responseString = await response.Content.ReadAsStringAsync();
-            var json = JsonSerializer.Deserialize<JsonElement>(responseString);
-
-            var result = new List<OhlcvDto>();
-            if (json.TryGetProperty("output2", out var output2) && output2.ValueKind == JsonValueKind.Array)
-            {
-                int count = 0;
-                foreach (var item in output2.EnumerateArray())
-                {
-                    if (count >= days) break;
-
-                    string dateStr = item.TryGetProperty("xymd", out var d1) ? d1.GetString() ?? "" 
-                        : (item.TryGetProperty("stck_bsop_date", out var d2) ? d2.GetString() ?? "" : "");
-                    if (DateTime.TryParseExact(dateStr, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out DateTime date))
-                    {
-                        decimal.TryParse(item.GetProperty("open").GetString(), out decimal open);
-                        decimal.TryParse(item.GetProperty("high").GetString(), out decimal high);
-                        decimal.TryParse(item.GetProperty("low").GetString(), out decimal low);
-                        decimal.TryParse(item.GetProperty("clos").GetString(), out decimal close);
-                        long.TryParse(item.GetProperty("tvol").GetString(), out long volume);
-
-                        result.Add(new OhlcvDto
-                        {
-                            Date = date,
-                            Open = open,
-                            High = high,
-                            Low = low,
-                            Close = close,
-                            Volume = volume
-                        });
-                        count++;
-                    }
-                }
-            }
-            
-            result.Reverse();
-
-            Logger.Info($"[KisBroker] OHLCV 조회: {ticker} {result.Count}일치");
-            return result;
         }
 
         public async Task<string> PlaceBuyOrderAsync(string ticker, int qty, decimal price)

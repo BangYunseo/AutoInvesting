@@ -17,12 +17,9 @@ namespace AutoInvest.Core
         /// <summary>현재 로그인 상태</summary>
         bool IsLoggedIn { get; }
 
-        // ─── 시세 조회 ── KIS [해외주식] 시세 / 차트 ──
+        // ─── 시세 조회 ── KIS [해외주식] 시세 ──
         /// <summary>현재가 조회 (USD)</summary>
         Task<decimal> GetCurrentPriceAsync(string ticker);
-
-        /// <summary>N일 최고가/최저가 조회</summary>
-        Task<(decimal High, decimal Low)> GetPriceRangeAsync(string ticker, int days);
 
         // ─── 잔고 ── KIS [해외주식] 계좌 ─────────────
         /// <summary>환율 조회 (USD → KRW)</summary>
@@ -33,10 +30,6 @@ namespace AutoInvest.Core
 
         /// <summary>예수금(현금 잔고) 조회 (USD)</summary>
         Task<decimal> GetCashBalanceAsync();
-
-        // ─── 차트 데이터 ── 퀀트 지표 계산용 ────────────
-        /// <summary>N일치 OHLCV 일봉 데이터 조회 (퀀트 지표 계산용)</summary>
-        Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days);
 
         // ─── 주문 ── KIS [해외주식] 주문 ─────────────
         /// <summary>매수 주문. 성공 시 주문번호 반환</summary>
