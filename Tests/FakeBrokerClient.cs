@@ -49,17 +49,11 @@ namespace AutoInvest.Tests
 
         public Task<decimal> GetCurrentPriceAsync(string ticker) => Task.FromResult(_price);
 
-        public Task<(decimal High, decimal Low)> GetPriceRangeAsync(string ticker, int days)
-            => Task.FromResult((_price, _price));
-
         public Task<decimal> GetExchangeRateAsync() => Task.FromResult(_fx);
 
         public Task<List<HoldingDto>> GetHoldingsAsync() => Task.FromResult(_holdings);
 
         public Task<decimal> GetCashBalanceAsync() => Task.FromResult(0m);
-
-        public Task<List<OhlcvDto>> GetOhlcvAsync(string ticker, int days)
-            => Task.FromResult(new List<OhlcvDto>());
 
         public Task<string> PlaceBuyOrderAsync(string ticker, int qty, decimal price)
             => Task.FromResult("FAKE-BUY-0001");
