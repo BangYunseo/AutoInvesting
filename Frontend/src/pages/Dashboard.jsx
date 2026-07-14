@@ -15,6 +15,7 @@ const Dashboard = () => {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState(null);
   const [summaryUpdated, setSummaryUpdated] = useState(null);
+  const [currency, setCurrency] = useState('USD'); // 금액 카드 표시 통화 — 'USD' | 'KRW'
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -65,6 +66,13 @@ const Dashboard = () => {
   // 카드 집계는 요약 응답의 보유종목 스냅샷을 사용(테이블과 독립 새로고침).
   const summaryHoldings = Array.isArray(summary.holdings) ? summary.holdings : [];
 
+  // ── 통화 토글 포맷터 ──
+  // 내부 계산은 USD 기준. 표시만 현재 환율로 USD↔KRW 전환한다.
+  const fmtUsd = (usd) => '$' + usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtKrw = (usd) => '₩' + (usd * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const fmtMoney = (usd) => (currency === 'KRW' ? fmtKrw(usd) : fmtUsd(usd)); // 선택 통화(주 표시)
+  const fmtMoneyAlt = (usd) => (currency === 'KRW' ? fmtUsd(usd) : fmtKrw(usd)); // 반대 통화(서브 표시)
+
   // ── 계좌 모드 배지 표기 (실거래 전환 가시화) ──
   const accountBadge = {
     LIVE: { label: '실거래 계좌', color: 'var(--loss-red)', bg: 'var(--loss-red-bg)', icon: '🔴' },
@@ -76,7 +84,6 @@ const Dashboard = () => {
   const stockEvalUsd = summaryHoldings.reduce((sum, h) => sum + h.currentPrice * h.qty, 0);
   const totalCostUsd = summaryHoldings.reduce((sum, h) => sum + h.avgPrice * h.qty, 0);
   const totalAssetsUsd = stockEvalUsd; // 총 자산 = 보유 종목 평가액(예수금 제외)
-  const totalAssetsKrw = totalAssetsUsd * exchangeRate;
   const totalProfitUsd = stockEvalUsd - totalCostUsd;
   const totalProfitRate =
     totalCostUsd > 0 ? ((totalProfitUsd / totalCostUsd) * 100).toFixed(2) : '0.00';
@@ -123,9 +130,15 @@ const Dashboard = () => {
       {/* ── 요약 카드 그리드 ── */}
       <div className="section-header" style={{ marginBottom: 12 }}>
         <h2 style={{ fontSize: '1.05rem' }}>자산 요약</h2>
-        <button className="btn btn--outline" onClick={fetchSummary} disabled={summaryLoading} style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
-          {summaryLoading ? '갱신 중...' : '🔄 요약 새로고침'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="ccy-toggle" role="group" aria-label="표시 통화">
+            <button className={currency === 'USD' ? 'active' : ''} onClick={() => setCurrency('USD')}>$ USD</button>
+            <button className={currency === 'KRW' ? 'active' : ''} onClick={() => setCurrency('KRW')}>₩ KRW</button>
+          </div>
+          <button className="btn btn--outline" onClick={fetchSummary} disabled={summaryLoading} style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
+            {summaryLoading ? '갱신 중...' : '🔄 새로고침'}
+          </button>
+        </div>
       </div>
 
       {summaryError && (
@@ -142,10 +155,10 @@ const Dashboard = () => {
             <div className="summary-card__icon summary-card__icon--blue">💰</div>
           </div>
           <div className="summary-card__value">
-            ${totalAssetsUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {fmtMoney(totalAssetsUsd)}
           </div>
           <div className="summary-card__sub">
-            ₩{totalAssetsKrw.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            {fmtMoneyAlt(totalAssetsUsd)}
           </div>
         </div>
 
@@ -156,14 +169,14 @@ const Dashboard = () => {
             <div className="summary-card__icon summary-card__icon--purple">📈</div>
           </div>
           <div className="summary-card__value">
-            ${stockEvalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {fmtMoney(stockEvalUsd)}
           </div>
           <div className="summary-card__sub">
             <span className={`badge-profit ${isOverallProfit ? 'badge-profit--up' : 'badge-profit--down'}`}>
               {isOverallProfit ? '▲' : '▼'} {isOverallProfit ? '+' : ''}{totalProfitRate}%
             </span>
             <span style={{ marginLeft: 8 }}>
-              {isOverallProfit ? '+' : ''}${totalProfitUsd.toFixed(2)}
+              {isOverallProfit ? '+' : ''}{fmtMoney(totalProfitUsd)}
             </span>
           </div>
         </div>
@@ -175,10 +188,10 @@ const Dashboard = () => {
             <div className="summary-card__icon summary-card__icon--green">💵</div>
           </div>
           <div className="summary-card__value">
-            ${cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {fmtMoney(cashBalance)}
           </div>
           <div className="summary-card__sub">
-            ₩{(cashBalance * exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            {fmtMoneyAlt(cashBalance)}
           </div>
         </div>
 
@@ -199,16 +212,11 @@ const Dashboard = () => {
       <div className="card fade-in" style={{ animationDelay: '0.25s', opacity: 0 }}>
         <div className="section-header">
           <h2>보유 종목</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {summaryUpdated && (
-              <span className="section-header__sub">
-                마지막 업데이트: {summaryUpdated.toLocaleTimeString('ko-KR')}
-              </span>
-            )}
-            <button className="btn btn--outline" onClick={fetchSummary} disabled={summaryLoading}>
-              {summaryLoading ? '갱신 중...' : '🔄 새로고침'}
-            </button>
-          </div>
+          {summaryUpdated && (
+            <span className="section-header__sub">
+              마지막 업데이트: {summaryUpdated.toLocaleTimeString('ko-KR')} · 위 새로고침과 함께 갱신
+            </span>
+          )}
         </div>
 
         <HoldingsTable holdings={summaryHoldings} exchangeRate={exchangeRate} />
