@@ -86,8 +86,8 @@ const Login = () => {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div className="card fade-in" style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div className="app-nav__brand-icon" style={{ margin: '0 auto 12px' }}>AI</div>
-          <h2 style={{ fontSize: '1.15rem' }}>{needsSetup ? '관리자 계정 설정' : 'AutoInvesting 로그인'}</h2>
+          <div className="app-nav__brand-icon" style={{ margin: '0 auto 12px' }}>📈</div>
+          <h2 style={{ fontSize: '1.15rem' }}>{needsSetup ? '관리자 계정 설정' : 'ETF 적립 매수 로그인'}</h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 6 }}>
             {needsSetup
               ? '최초 1회 관리자 아이디와 비밀번호를 설정하세요.'
