@@ -20,6 +20,7 @@ const DcaConfig = () => {
   const [currentMonth, setCurrentMonth] = useState(0);
   const [exchangeRate, setExchangeRate] = useState(0);
   const [cashUsd, setCashUsd] = useState(0); // 예수금(현금 잔고, USD) — /api/portfolio/summary
+  const [accountMode, setAccountMode] = useState(''); // 'SIM' | 'PAPER' | 'LIVE' — 폴백 문구 분기용
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -102,6 +103,7 @@ const DcaConfig = () => {
       const data = await res.json();
       if (typeof data.cashBalance === 'number') setCashUsd(data.cashBalance);
       if (data.exchangeRate > 0) setExchangeRate(er => (er > 0 ? er : data.exchangeRate));
+      if (data.accountMode) setAccountMode(data.accountMode);
     } catch {
       // 예수금 조회 실패는 치명적이지 않다 — 예산 기준으로 폴백(별도 에러 배너 표시 안 함)
     }
@@ -357,7 +359,9 @@ const DcaConfig = () => {
               </div>
             ) : (
               <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                예수금 미조회 — 예산 기준으로 표시 중 (모의투자 계좌는 예수금 조회를 미지원)
+                {accountMode === 'PAPER'
+                  ? '모의투자는 예수금 조회를 미지원 — 예산 기준으로 표시 중'
+                  : '예수금이 0원이거나 조회되지 않음 — 예산 기준으로 표시 중'}
               </div>
             )}
           </div>
