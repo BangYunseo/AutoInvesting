@@ -20,8 +20,8 @@ function Shell() {
       {!isLogin && (
         <nav className="app-nav">
           <div className="app-nav__brand">
-            <div className="app-nav__brand-icon">AI</div>
-            <span className="app-nav__brand-text">AutoInvesting</span>
+            <div className="app-nav__brand-icon">📈</div>
+            <span className="app-nav__brand-text">ETF 적립 매수</span>
           </div>
 
           <div className="app-nav__links">
