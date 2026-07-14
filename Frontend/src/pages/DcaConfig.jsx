@@ -19,6 +19,7 @@ const DcaConfig = () => {
   const [selectedId, setSelectedId] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(0);
   const [exchangeRate, setExchangeRate] = useState(0);
+  const [cashUsd, setCashUsd] = useState(0); // 예수금(현금 잔고, USD) — /api/portfolio/summary
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -91,7 +92,22 @@ const DcaConfig = () => {
     }
   };
 
-  useEffect(() => { loadConfig(); }, []);
+  // ── 예수금(현금 잔고) 조회 ──
+  // 설정 로드와 독립적으로(비차단) 호출한다. 실패하거나 0이면 예산 기준 표시로 폴백하므로
+  // 화면을 막지 않는다. (모의투자 계좌는 KIS가 해외주식 예수금 조회를 미지원 → 항상 $0)
+  const loadCash = async () => {
+    try {
+      const res = await fetch('/api/portfolio/summary');
+      if (!res.ok) return; // 조회 실패 → cashUsd=0 유지 → 예산 폴백
+      const data = await res.json();
+      if (typeof data.cashBalance === 'number') setCashUsd(data.cashBalance);
+      if (data.exchangeRate > 0) setExchangeRate(er => (er > 0 ? er : data.exchangeRate));
+    } catch {
+      // 예수금 조회 실패는 치명적이지 않다 — 예산 기준으로 폴백(별도 에러 배너 표시 안 함)
+    }
+  };
+
+  useEffect(() => { loadConfig(); loadCash(); }, []);
 
   const selected = templates.find(t => t.id === selectedId) || null;
   const budgetNum = selected ? Number(selected.budget) || 0 : 0;
@@ -153,6 +169,10 @@ const DcaConfig = () => {
   const rowAmount = (r) => (r.status === 'valid' && r.price > 0 ? (parseInt(r.qty, 10) || 0) * r.price * exchangeRate : 0);
   const totalCost = selected ? selected.rows.reduce((s, r) => s + rowAmount(r), 0) : 0;
   const overBudget = budgetNum > 0 && totalCost > budgetNum;
+  // 예수금 대비 표시용(읽기 전용). 예수금 0(모의투자)이면 hasCash=false → 예산 기준으로 폴백.
+  const cashKrw = cashUsd * exchangeRate;
+  const hasCash = cashUsd > 0 && exchangeRate > 0;
+  const overCash = hasCash && totalCost > cashKrw;
 
   const handleSave = async () => {
     setError(null);
@@ -329,6 +349,17 @@ const DcaConfig = () => {
             <div style={{ color: overBudget ? 'var(--loss-red)' : 'var(--text-secondary)' }}>
               비중 합계 (예산 대비): <strong>{(budgetNum > 0 ? (totalCost / budgetNum) * 100 : 0).toFixed(1)}%</strong>
             </div>
+            {hasCash ? (
+              <div style={{ color: overCash ? 'var(--loss-red)' : 'var(--text-secondary)', paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                예수금 대비: 예수금 <strong>{won(cashKrw)}</strong>
+                {' · '}소진율 <strong>{(cashKrw > 0 ? (totalCost / cashKrw) * 100 : 0).toFixed(1)}%</strong>
+                {overCash && ` · ⚠ 예수금 초과 (${won(totalCost - cashKrw)})`}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                예수금 미조회 — 예산 기준으로 표시 중 (모의투자 계좌는 예수금 조회를 미지원)
+              </div>
+            )}
           </div>
         </div>
       )}
