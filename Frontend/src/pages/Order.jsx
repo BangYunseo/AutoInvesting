@@ -290,7 +290,7 @@ const Order = () => {
   const handleDcaRun = async () => {
     if (
       !confirm(
-        "설정된 목표비중(Dca:Targets)대로 적립식 매수 사이클을 실행합니다.\n정말 진행하시겠습니까?",
+        "이번 달에 배정된 매수 템플릿의 종목별 고정 수량대로 적립식 매수 사이클을 실행합니다.\n정말 진행하시겠습니까?",
       )
     )
       return;
@@ -526,11 +526,10 @@ const Order = () => {
             wordBreak: "keep-all",
           }}
         >
-          ℹ️ 타이밍을 판단하지 않고, 설정된{" "}
-          <strong>목표비중(Dca:Targets)</strong>을 향해 정해진 예산만큼 정수
-          단위로 매수합니다. 1주를 채우지 못한 잔돈은 다음 사이클로 이월됩니다.
-          (예산·목표비중은 <code>appsettings.json</code>의 <code>Dca</code>{" "}
-          섹션에서 설정)
+          ℹ️ 타이밍을 판단하지 않고, 이번 달에 배정된{" "}
+          <strong>매수 템플릿의 종목별 고정 수량</strong>대로 매수합니다. 1주를
+          채우지 못한 잔돈은 다음 사이클로 이월됩니다. 수량·예산·월별 배정은 상단{" "}
+          <code>적립 설정</code> 페이지에서 편집합니다.
         </div>
 
         <button
