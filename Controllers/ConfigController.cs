@@ -31,6 +31,9 @@ namespace AutoInvest.Controllers
             _session = session;
         }
 
+        /// <summary>
+        /// 운영 설정을 조회합니다. 시크릿(KIS 키/계좌)은 값 대신 설정 여부(_SET)만 반환합니다.
+        /// </summary>
         [HttpGet]
         public IActionResult GetAllConfigs()
         {
@@ -58,6 +61,11 @@ namespace AutoInvest.Controllers
             }
         }
 
+        /// <summary>
+        /// 운영 설정을 저장합니다. 시크릿 키는 빈 값으로 들어오면 기존 값을 유지(미변경)하며,
+        /// 저장 후 세션을 리셋해 다음 호출부터 새 설정으로 브로커를 재생성합니다.
+        /// </summary>
+        /// <param name="newConfigs">키-값 설정 맵</param>
         [HttpPost]
         public IActionResult UpdateConfig([FromBody] Dictionary<string, string> newConfigs)
         {
@@ -66,7 +74,7 @@ namespace AutoInvest.Controllers
                 // 시크릿 키는 빈 값으로 덮어쓰지 않음 (UI에서 미입력 시 기존 값 유지)
                 var secretKeys = new HashSet<string>
                 {
-                    "KIS_APP_KEY", "KIS_APP_SECRET", "KIS_ACCOUNT_NO", "GEMINI_API_KEY", "RESEND_API_KEY", "API_ACCESS_KEY"
+                    "KIS_APP_KEY", "KIS_APP_SECRET", "KIS_ACCOUNT_NO", "RESEND_API_KEY", "API_ACCESS_KEY"
                 };
 
                 foreach (var kvp in newConfigs)
@@ -77,8 +85,8 @@ namespace AutoInvest.Controllers
                     AppConfigManager.Set(kvp.Key, kvp.Value);
                 }
 
-                // ── 브로커/AI 설정이 바뀌었을 수 있으므로 세션을 초기화 ──
-                //    (다음 호출 시 새 설정으로 클라이언트·분석기를 재생성한다)
+                // ── 브로커/거래 설정이 바뀌었을 수 있으므로 세션을 초기화 ──
+                //    (다음 호출 시 새 설정으로 브로커 클라이언트를 재생성한다)
                 _session.Reset();
 
                 return Ok(new { message = "설정이 성공적으로 저장되었습니다." });

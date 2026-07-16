@@ -7,8 +7,7 @@ using System.Threading.Tasks;
 namespace AutoInvest.Controllers
 {
     /// <summary>
-    /// 투자 자산 배분 및 잔고를 조회하는 API.
-    /// 기존 WinForms의 AllocationPanel 역할을 대체합니다.
+    /// 보유 잔고·예수금·대시보드 요약을 조회하는 API.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -21,6 +20,9 @@ namespace AutoInvest.Controllers
             _session = session;
         }
 
+        /// <summary>
+        /// 현재 보유 종목 목록을 조회합니다.
+        /// </summary>
         [HttpGet("holdings")]
         public async Task<IActionResult> GetHoldings()
         {

@@ -60,6 +60,10 @@ namespace AutoInvest.Data
                     using (var cmd = new NpgsqlCommand(sql, conn))
                         cmd.ExecuteNonQuery();
 
+                    // ⚠️ 아래 ALTER 마이그레이션은 모두 Phase 6에서 제거된 판단 레이어(퀀트/AI)의 레거시 스키마다.
+                    //    TB_MARKET_SNAPSHOT/TB_INVEST_STRATEGY는 더 이상 기록되지 않으나(과거 데이터 보존용),
+                    //    create_tables.sql이 신규 DB에 컬럼을 이미 정의하므로 이 마이그레이션은 사실상 중복(구 운영 DB 호환용)이다.
+                    //    임의 삭제·DROP 금지 (recommended_rules: 누적 데이터 보호).
                     // Phase 2.5 마이그레이션: STRATEGY_TYPE 컬럼 추가
                     RunMigration(conn,
                         "ALTER TABLE TB_INVEST_STRATEGY ADD COLUMN STRATEGY_TYPE TEXT DEFAULT 'MEAN_REVERSION'");

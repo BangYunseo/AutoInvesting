@@ -166,6 +166,10 @@ namespace AutoInvest.Core
             await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
             string trId = _isPaperTrading ? "VTTS3012R" : "TTTS3012R";
+            // ⚠️ OVRS_EXCG_CD=NASD 의미는 환경별로 다르다(KIS 공식 스펙 확인):
+            //   · 실전(TTTS3012R): NASD='미국전체' → 단일 호출로 NASDAQ+NYSE+AMEX 보유 전량 반환(SPLG/SCHD/GLD 포함) → 정상.
+            //   · 모의(VTTS3012R): NASD='나스닥'만 → NYSE/AMEX 보유분(SPLG/SCHD/GLD) 누락. 모의에서 전량 조회가 필요하면
+            //     NASD/NYSE/AMEX를 나눠 호출 후 종목코드(ovrs_pdno) 기준 병합해야 한다. (현재 실전 운영이면 단일 NASD로 정상)
             string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NASD&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
             
             var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
