@@ -37,35 +37,50 @@ AutoInvesting/
 ├── Core/                               # 핵심 비즈니스 로직
 │   ├── IBrokerClient.cs                # 증권사 API 추상화
 │   ├── KisBrokerClient.cs              # KIS 실거래 연동 모듈 (Polly 적용)
+│   ├── KisTokenManager.cs              # KIS OAuth 토큰 발급·메모리 보관·자동 갱신
 │   ├── SimBrokerClient.cs              # 가상 모의투자 환경
 │   ├── SessionManager.cs               # 모의/실전 브로커 생명주기 관리
 │   ├── DcaAccumulationEngine.cs        # 적립식 매수 엔진 (판단 없음 / PlanPurchases 순수함수)
 │   ├── DcaSettings.cs                  # 매수 템플릿·월배정·예산 읽기/쓰기 (DB 우선 → appsettings 폴백)
-│   └── DailyExecutionService.cs        # 적립 사이클 진입점 (RunDcaCycleAsync)
+│   ├── DailyExecutionService.cs        # 적립 사이클 진입점 (RunDcaCycleAsync)
+│   ├── TaxEstimator.cs                 # 매도 양도소득세 추정 (순수함수 / 정보·확인용 — 판단 레이어 아님)
+│   └── MacroBriefingService.cs         # FRED 거시지표 국면 브리핑 (표시 전용 / 매수 로직 미연결 — 판단 레이어 아님)
 │
 ├── Controllers/                        # 외부 제어용 REST API 엔드포인트
-│   ├── OrderController.cs              # dca-run(적립 사이클), manual(수동 주문)
+│   ├── OrderController.cs              # dca-run(적립 사이클), manual(수동 주문), sell-preview(매도 양도세 프리뷰)
 │   ├── DcaController.cs               # /api/dca/config 매수 템플릿·월배정 조회·저장 (GET: {templates, monthMap, currentMonth, activeTemplateId} / PUT: {templates, monthMap})
 │   ├── PriceController.cs             # /api/price/{ticker} 현재가 조회 겸 티커 검증
+│   ├── AuthController.cs              # /api/auth status/setup/login (단일 관리자 인증, 서명 세션 토큰) [PublicEndpoint]
+│   ├── MacroController.cs             # /api/macro/briefing 거시지표 국면 브리핑 (표시 전용)
 │   ├── ConfigController.cs
 │   ├── PortfolioController.cs
 │   ├── HistoryController.cs
-│   └── TestController.cs              # buy / send-test-email (점검용)
+│   └── TestController.cs              # buy / send-test-email (점검용 — 실주문 우회 경로, 실거래 전 봉인 검토)
 │
 ├── Data/                               # 데이터 액세스 (DTO/DAO)
 │   ├── DBManager.cs                    # PostgreSQL 연결 (Npgsql, DATABASE_URL 지원)
-│   ├── AppConfigManager.cs             # 설정값 관리 (TB_APP_CONFIG: DCA_TEMPLATES/DCA_MONTH_MAP 등)
-│   ├── DTO/                            # Data Transfer Objects (TradeHistoryDto 등)
-│   │   └── DcaTemplate.cs              # 매수 템플릿 DTO (Id, Name, BudgetKrw, Quantities)
-│   └── DAO/                            # Data Access Objects (TradeHistoryDAO 등)
+│   ├── AppConfigManager.cs             # 설정값 관리 (TB_APP_CONFIG: DCA_TEMPLATES/DCA_MONTH_MAP 등, 시크릿 암복호화)
+│   ├── DTO/                            # Data Transfer Objects
+│   │   ├── DcaTemplate.cs              # 매수 템플릿 DTO (Id, Name, BudgetKrw, Quantities)
+│   │   ├── TradeHistoryDto.cs          # 거래내역 DTO
+│   │   ├── HoldingDto.cs               # 보유종목 DTO
+│   │   ├── SellTaxEstimateDto.cs       # 매도 양도세 추정 결과 DTO
+│   │   └── MacroBriefingDto/MacroIndicatorDto.cs  # 거시 브리핑·지표 DTO (표시 전용)
+│   └── DAO/                            # Data Access Objects
+│       ├── TradeHistoryDAO.cs          # TB_TRADE_HISTORY 기록·조회
+│       └── SystemLogDAO.cs             # TB_SYSTEM_LOG 로그 영구 적재 (Logger.DbSink)
 │
 ├── Utils/                              # 범용 유틸리티
-│   ├── Logger.cs                       # Serilog/File 로깅 래퍼
-│   ├── ExchangeRateService.cs          # 환율 API (Frankfurter)
-│   └── NotificationService.cs          # SMTP 이메일 발송 관리 (Phase B/C)
+│   ├── Logger.cs                       # Serilog 로깅 래퍼 (콘솔+파일+DB 싱크)
+│   ├── ExchangeRateService.cs          # 환율 API (Frankfurter / ExchangeRate-API 폴백)
+│   ├── NotificationService.cs          # 이메일 알림 발송 (Resend HTTP API)
+│   ├── FredClient.cs                   # FRED 거시지표 조회 클라이언트 (MacroBriefingService 전용)
+│   ├── CryptoUtil.cs                   # 시크릿 AES-GCM 암복호화 + 비밀번호 해시 + 세션 토큰 서명
+│   ├── ApiKeyAuthAttribute.cs          # 전역 인증 필터 (Bearer 세션토큰 또는 x-api-key)
+│   └── PublicEndpointAttribute.cs      # 인증 면제 마커 (로그인/초기설정용)
 │
-├── Frontend/                           # React SPA (대시보드/적립설정/주문·적립/거래내역/설정)
-├── appsettings.json                    # 환경 설정 — Trading/Smtp/Kis/Security/Dca 섹션
+├── Frontend/                           # React SPA (로그인/대시보드/적립설정/주문·적립/거래내역/설정)
+├── appsettings.json                    # 환경 설정 — Trading/Smtp/Resend/Kis/Security/Dca/Tax 섹션
 ├── README.md
 └── Documents/
     ├── DEVELOPMENT.md              # 개발 진척도 및 변경 이력
@@ -76,16 +91,24 @@ AutoInvesting/
 > AllocationEngine, RebalancingEngine, 관련 DAO/DTO/Controller·프론트 페이지)는 모두 제거되었습니다.
 > `TB_MARKET_SNAPSHOT` 테이블과 DBManager의 관련 마이그레이션은 과거 데이터 보존 목적으로
 > 스키마에만 남아 있으며 더 이상 기록되지 않습니다(레거시).
+>
+> Phase 6 이후 추가된 보조 기능: **Auth**(단일 관리자 인증 — 전역 필터로 모든 엔드포인트 보호),
+> **Tax**(매도 양도세 추정 — 수동 매도 확인용), **Macro**(FRED 거시지표 국면 브리핑 — 표시 전용).
+> ⚠️ **Macro·Tax는 정보/보고 전용으로, `DcaAccumulationEngine`·`DailyExecutionService`의 매수 의사결정에
+> 어떤 값도 흘려보내지 않습니다(판단 레이어 재도입 아님).** 이 경계를 깨는 배선은 금지됩니다.
  
 ## 핵심 인터페이스: IBrokerClient
  
 | 메서드 | 설명 |
 |--------|------|
-| `LoginAsync()` | 로그인 (토큰 발급) |
+| `LoginAsync()` / `IsLoggedIn` | 로그인 (토큰 발급) / 로그인 상태 |
 | `GetCurrentPriceAsync(ticker)` | 현재가 조회 (USD) |
-| `GetOhlcvAsync(ticker, days)` | OHLCV 일봉 데이터 |
+| `GetExchangeRateAsync()` | USD/KRW 환율 조회 |
+| `GetHoldingsAsync()` / `GetCashBalanceAsync()` | 보유 잔고 / 예수금 조회 |
 | `PlaceBuyOrderAsync(...)` | 매수 주문 |
 | `PlaceSellOrderAsync(...)` | 매도 주문 |
+
+> 과거 판단 레이어용 `GetOhlcvAsync`/`GetPriceRangeAsync`는 Phase 6에서 인터페이스·구현체 모두에서 제거됨.
  
 ## Phase 진행 상태
  

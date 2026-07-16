@@ -12,6 +12,8 @@ trigger: always_on
 
 ## 레이어 구조 및 의존성 방향
 ```
+[전역 인증 필터: ApiKeyAuthAttribute] — Bearer 세션토큰(사람) 또는 x-api-key(크론), [PublicEndpoint]만 면제
+  ↓
 API (Controllers/)  ← 외부 크론잡이 dca-run 호출 / 사용자 제어·조회
   ↓ (단방향)
 Core (Core/)
@@ -36,7 +38,9 @@ Data (Data/, Data/DTO/, Data/DAO/)
 - `DcaAccumulationEngine` — 적립식 매수 엔진. `PlanPurchases`(순수함수, 외부 I/O 없음 — 현재 월 템플릿의 종목별 고정 수량 매수 계획 + 총 매수금액 산출)와 `AccumulateAsync`(현재가·환율 조회 → 계획 → 주문 → 기록) 분리
 - `DcaSettings` — 매수 템플릿 목록·월별 배정·예산의 단일 읽기/쓰기 지점 (DB `TB_APP_CONFIG`: `DCA_TEMPLATES` JSON / `DCA_MONTH_MAP` 우선 → 레거시 `DCA_QTYS`/`DCA_BUDGET_KRW`/`appsettings.json > Dca` 폴백, 자동 이관)
 - `DailyExecutionService` — 적립 사이클 실행 진입점 (`RunDcaCycleAsync`, Scoped, `IServiceScopeFactory` 패턴)
-- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (MailKit, Naver SMTP)
+- `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (Resend HTTP API, 443 포트 — Render SMTP 차단 우회)
+- `ApiKeyAuthAttribute` — 전역 인증 필터. 모든 컨트롤러에 적용되며 Bearer 세션 토큰(사람) 또는 `x-api-key`(크론) 중 하나로 통과. `[PublicEndpoint]` 표시 액션(로그인/초기설정/상태)만 면제
+- `TaxEstimator` / `MacroBriefingService` — **정보·확인 전용 보조 기능**. 매도 양도세 추정(수동 매도 확인용)·FRED 거시지표 국면 브리핑(표시 전용). ⚠️ 둘 다 `DcaAccumulationEngine`/`DailyExecutionService`의 매수 의사결정에 값을 흘려보내지 않는다(판단 레이어 재도입 아님)
 
 ## 아키텍처 흐름
 ```
