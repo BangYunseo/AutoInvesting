@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using AutoInvest.Core;
+using AutoInvest.Data;
 using Microsoft.AspNetCore.Mvc;
 
 using AutoInvest.Utils;
@@ -18,9 +19,23 @@ namespace AutoInvest.Controllers
             _sessionManager = sessionManager;
         }
 
+        /// <summary>
+        /// [점검용] 지정 종목을 현재가로 매수합니다(기본 QQQM 1주).
+        /// ⚠️ 보유검증·세금가드·거래이력 기록이 없는 진단 전용 경로이므로, 실전 거래 모드
+        /// (IS_PAPER_TRADING="0")에서는 오발주 방지를 위해 차단됩니다(모의 모드 전용). 실주문은 /api/order/manual 사용.
+        /// </summary>
+        /// <param name="ticker">종목 코드 (기본 QQQM)</param>
+        /// <param name="qty">매수 수량 (기본 1)</param>
         [HttpPost("buy")]
         public async Task<IActionResult> Buy(string ticker = "QQQM", int qty = 1)
         {
+            // ── 실전 모드 차단 가드 ── 진단용 매수는 모의(SimBroker/모의투자)에서만 허용한다.
+            if (AppConfigManager.Get("IS_PAPER_TRADING", "1") == "0")
+            {
+                Logger.Warn("[TestController] 실전 거래 모드에서 /api/test/buy 호출이 차단되었습니다.");
+                return StatusCode(403, new { error = "실전 거래 모드에서는 점검용 매수(/api/test/buy)가 비활성화됩니다. 실주문은 /api/order/manual 을 사용하세요." });
+            }
+
             try
             {
                 var broker = _sessionManager.GetClient();
