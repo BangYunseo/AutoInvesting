@@ -86,21 +86,6 @@ namespace AutoInvest.Utils
             Persist("FATAL", ex != null ? $"{msg} | {ex.Message}" : msg);
         }
 
-        public static void LogQuant(string msg)
-        {
-            // 퀀트 전용 로깅 - Information 레벨 사용하되 접두어 추가
-            Log.Information($"[QUANT] {msg}");
-            Persist("INFO", $"[QUANT] {msg}");
-        }
-
-        public static void LogQuant(string ticker, System.Collections.Generic.List<string> quantConditions, object signal, string strategyType)
-        {
-            string conditionsStr = quantConditions != null ? string.Join(", ", quantConditions) : "";
-            string line = $"[QUANT] [{strategyType}] {ticker} | Signal: {signal} | Conditions: {conditionsStr}";
-            Log.Information(line);
-            Persist("INFO", line);
-        }
-
         public static void FlushAndClose()
         {
             Log.CloseAndFlush();

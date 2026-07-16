@@ -486,55 +486,6 @@ a:hover {
   color: var(--text-muted);
 }
 
-/* ── 진행바 로딩 (예상시간 기반 + 경과초) ── */
-.progress-loader {
-  padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  margin-bottom: 16px;
-}
-
-.progress-loader__label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-}
-
-.progress-loader__spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  border-top-color: var(--accent-blue);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  flex-shrink: 0;
-}
-
-.progress-loader__bar {
-  height: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-loader__fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.progress-loader__meta {
-  margin-top: 8px;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
 /* ── 에러 메시지 ── */
 .error-container {
   display: flex;
@@ -694,6 +645,14 @@ select.input-field:hover {
 .form-group select:focus,
 select.input-field:focus {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+
+/* 마우스 클릭으로 남는 포커스 강조 제거 — 키보드(Tab) 포커스일 때만 링을 유지 */
+.form-group select:focus:not(:focus-visible),
+select.input-field:focus:not(:focus-visible) {
+  border-color: var(--border-primary);
+  box-shadow: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
 }
 
 /* 드롭다운 옵션 목록(브라우저 지원 범위 내) — 다크 테마에 맞춤 */
@@ -912,56 +871,6 @@ select.input-field option {
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
-/* ── 게이지 바 ── */
-.gauge-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.gauge-item {
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.gauge-item__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.gauge-item__label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.gauge-item__value {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-feature-settings: 'tnum';
-  font-family: var(--font-mono);
-}
-
-.gauge-bar {
-  width: 100%;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.gauge-bar__fill {
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
-  transition: width var(--transition-slow);
-}
-
 /* ── 로그 뷰어 ── */
 .log-viewer {
   border: 1px solid var(--border-primary);
@@ -1006,11 +915,6 @@ select.input-field option {
   background: rgba(245, 158, 11, 0.08);
 }
 
-.log-line--quant {
-  color: var(--accent-cyan);
-  background: rgba(6, 182, 212, 0.06);
-}
-
 /* ── Order 페이지 세로 적층 레이아웃 ── */
 /* 창 너비를 늘려도 종목 퀀트 분석과 수동 스마트 주문 카드가 같은 가로줄에 오지 않도록 항상 1단으로 쌓는다. */
 .order-layout {
@@ -1031,44 +935,7 @@ select.input-field option {
   .settings-grid {
     grid-template-columns: 1fr;
   }
-
-  .gauge-grid {
-    grid-template-columns: 1fr;
-  }
 }
-
-/* ── Backtest 폼 그리드 ── */
-.backtest-form {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-@media (max-width: 768px) {
-  .backtest-form {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 480px) {
-  .backtest-form {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ���� ���� �߰��� UI ������� (���, ����, �ڵ��ϼ�) ���� */
-
-/* ��� ��ư */
-.btn--green {
-  background: var(--profit-green);
-  color: white;
-}
-.btn--green:hover {
-  background: #059669;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
-}
-
-/* ��� �������� �� â */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1103,217 +970,4 @@ select.input-field option {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-/* �ڵ��ϼ� ��Ӵٿ� */
-.autocomplete-container {
-  position: relative;
-}
-
-.autocomplete-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-sm);
-  margin-top: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 10;
-  box-shadow: var(--shadow-md);
-  list-style: none;
-  padding: 4px 0;
-}
-
-.autocomplete-item {
-  padding: 8px 14px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: background var(--transition-fast);
-}
-
-.autocomplete-item:hover, .autocomplete-item.active {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--accent-blue);
-}
-
-/* ���� (Hover) */
-.tooltip-container {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin-left: 6px;
-  cursor: help;
-}
-
-.tooltip-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: bold;
-  transition: all var(--transition-fast);
-}
-
-.tooltip-container:hover .tooltip-icon {
-  background: var(--accent-blue);
-  color: white;
-}
-
-.tooltip-text {
-  visibility: hidden;
-  opacity: 0;
-  width: 260px;
-  background-color: var(--bg-card-hover);
-  color: var(--text-primary);
-  text-align: left;
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  position: absolute;
-  z-index: 100;
-  bottom: 125%;
-  left: 50%;
-  transform: translateX(-50%);
-  transition: opacity 0.3s;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  border: 1px solid var(--border-primary);
-  box-shadow: var(--shadow-md);
-  pointer-events: none;
-}
-
-.tooltip-text::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  margin-left: -5px;
-  border-width: 5px;
-  border-style: solid;
-  border-color: var(--bg-card-hover) transparent transparent transparent;
-}
-
-.tooltip-container:hover .tooltip-text {
-  visibility: visible;
-  opacity: 1;
-}
-
-
-/* ���� ���� ī�� ������Ʈ ���� */
-.strategy-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.strategy-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  display: flex;
-  flex-direction: column;
-}
-
-.strategy-card:hover {
-  border-color: var(--accent-blue);
-  box-shadow: var(--shadow-glow-blue);
-  transform: translateY(-2px);
-}
-
-.strategy-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.strategy-card__title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.strategy-card__type {
-  font-size: 0.75rem;
-  padding: 4px 8px;
-  background: var(--bg-input);
-  border-radius: 4px;
-  color: var(--text-secondary);
-}
-
-.strategy-card__stats {
-  margin-top: auto;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-/* ���� ���̺� ���̾ƿ� ����ȭ ���� */
-.data-table.fixed-layout {
-  table-layout: fixed;
-  width: 100%;
-}
-
-.data-table.fixed-layout th,
-.data-table.fixed-layout td {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 스마트 주문 결과 표 — 너비 고정 + '이유' 칸 줄바꿈으로 화면 너비와 무관하게 안정적으로 표시 */
-.data-table.order-result-table {
-  table-layout: fixed;
-  width: 100%;
-}
-
-.data-table.order-result-table thead th,
-.data-table.order-result-table tbody td {
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-  vertical-align: top;
-  padding-left: 12px;
-  padding-right: 12px;
-}
-
-.data-table.order-result-table tbody td.col-reason {
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-
-/* ���� �˻��� ��Ÿ�� ���� */
-.search-bar {
-  display: flex;
-  align-items: center;
-  background: var(--bg-input);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  width: 300px;
-}
-.search-bar input {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  width: 100%;
-  margin-left: 8px;
-}
-
-/* ���� ���� �������̵� (�ζ��� ��� ��) ���� */
-.tooltip-container {
-  display: inline-block;
-  margin-left: 6px;
 }

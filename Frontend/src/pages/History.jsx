@@ -79,7 +79,6 @@ const History = () => {
   const getLogLineClass = (line) => {
     if (line.includes('[ERROR]') || line.includes('ERROR')) return 'log-line--error';
     if (line.includes('[WARN]') || line.includes('WARN')) return 'log-line--warn';
-    if (line.includes('[QUANT]')) return 'log-line--quant';
     return '';
   };
 

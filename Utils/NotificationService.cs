@@ -121,21 +121,6 @@ namespace AutoInvest.Utils
             Logger.Info($"[Notification] 관리자에게 알림 메일을 발송했습니다: {subject}");
         }
 
-        /// <summary>
-        /// 현재 이메일 발송 설정 상태를 점검합니다. (헬스체크용 — API 키 값은 노출하지 않고 채워짐 여부만 반환)
-        /// </summary>
-        public static EmailConfigStatus GetConfigStatus()
-        {
-            return new EmailConfigStatus
-            {
-                Provider = "Resend (HTTP API)",
-                ApiKeySet = !string.IsNullOrEmpty(_apiKey),
-                SenderEmail = _senderEmail,
-                SenderName = _senderName,
-                AdminEmailSet = !string.IsNullOrEmpty(_adminEmail),
-            };
-        }
-
         private static string Truncate(string value, int max)
             => string.IsNullOrEmpty(value) || value.Length <= max ? value : value.Substring(0, max) + "...";
 
@@ -150,18 +135,4 @@ namespace AutoInvest.Utils
         }
     }
 
-    /// <summary>
-    /// 이메일 발송 설정 점검 결과 (시크릿 값은 포함하지 않음 — 채워짐 여부만)
-    /// </summary>
-    public class EmailConfigStatus
-    {
-        public string Provider { get; set; } = string.Empty;
-        public bool ApiKeySet { get; set; }
-        public string SenderEmail { get; set; } = string.Empty;
-        public string SenderName { get; set; } = string.Empty;
-        public bool AdminEmailSet { get; set; }
-
-        /// <summary>발송에 필요한 모든 항목(API 키/발신자/수신자)이 채워졌는지 여부</summary>
-        public bool IsReady => ApiKeySet && !string.IsNullOrEmpty(SenderEmail) && AdminEmailSet;
-    }
 }
