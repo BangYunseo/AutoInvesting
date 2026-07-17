@@ -7,18 +7,20 @@ using Microsoft.Extensions.Configuration;
 namespace AutoInvest.Data
 {
     /// <summary>
-    /// 애플리케이션 설정값을 통합 관리합니다.
-    /// 우선순위: 환경변수 → PostgreSQL DB (TB_APP_CONFIG) → appsettings.json
-    /// 민감 정보(KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NO)는 환경변수 전용입니다.
-    /// DB는 런타임에 UI로 저장한 값을 보관하며, appsettings.json의 기본값을 항상 덮어씁니다.
+    /// 애플리케이션 설정값 통합 관리
+    /// 우선순위 : 환경변수 > DB 테이블(TB_APP_CONFIG) > appsettings.json
+    /// 민감정보 : (KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NO) -> 환경변수 전용
+    /// DB 테이블 : 런타임에 UI 저장값 보관, appsettings.json 기본값 덮어쓰기(Always)
     /// </summary>
     public static class AppConfigManager
     {
         private static IConfiguration? _configuration;
 
         /// <summary>
-        /// DB(TB_APP_CONFIG)에 저장 시 암호화하고 조회 시 복호화하는 민감 키 목록.
-        /// 환경변수로 주입된 값은 평문 그대로 사용됩니다(이 목록과 무관).
+        /// DB 테이블(TB_APP_CONFIG) 민감 키 목록
+        /// (1) 저장 시 암호화 
+        /// (2) 조회 시 복호화
+        /// 환경변수는 그대로 사용(암호화/복호화 불필요)
         /// </summary>
         private static readonly HashSet<string> SensitiveKeys = new(StringComparer.Ordinal)
         {
@@ -30,53 +32,59 @@ namespace AutoInvest.Data
         };
 
         /// <summary>
-        /// ASP.NET Core IConfiguration을 주입합니다. Program.cs에서 호출.
+        /// ASP.NET Core IConfiguration 주입
         /// </summary>
         public static void Initialize(IConfiguration configuration)
         {
             _configuration = configuration;
-            Logger.Info("[Config] AppConfigManager 초기화 완료 (appsettings.json 연동)");
+            if (configuration != null)
+            {
+                Logger.Info("[AppConfig] AppConfigManager 초기화 완료 : appsettings.json/IConfiguration 설정 등록");
+            }
+            else
+            {
+                Logger.Warn("[AppConfig] AppConfigManager 초기화 경고 : appsettings.json/IConfiguration 설정 등록 실패");
+            }
         }
 
         /// <summary>
-        /// 설정값 조회. 우선순위: 환경변수 → DB(TB_APP_CONFIG) → appsettings.json → 기본값.
-        /// UI에서 저장한 DB 값이 appsettings.json 기본값을 항상 덮어씁니다.
+        /// 설정값 조회
+        /// 우선순위 : 환경변수 > DB 테이블(TB_APP_CONFIG) > appsettings.json > 기본값.
         /// </summary>
         public static string Get(string key, string defaultValue = "")
         {
             try
             {
-                // 1. 환경변수 (최우선 — 민감 정보용)
+                // 환경변수 (최우선 — 배포 환경 실제 값)
                 string? envValue = Environment.GetEnvironmentVariable(key);
                 if (!string.IsNullOrEmpty(envValue)) return envValue;
 
-                // 2. PostgreSQL DB (런타임 수정 가능한 설정 — 저장 시 항상 덮어쓰기)
-                //    DB 장애 시 null을 반환해 appsettings.json 기본값으로 폴백한다.
+                // DB 테이블(TB_APP_CONFIG) — DB 장애 시 null 반환 -> appsettings.json 기본값 폴백
                 string? dbValue = TryGetFromDb(key);
                 if (!string.IsNullOrEmpty(dbValue)) return dbValue;
 
-                // 3. appsettings.json (IConfiguration) — DB에 저장된 적 없는 키의 초기 기본값
+                // appsettings.json (키 매핑: IS_PAPER_TRADING → Trading:IsPaperTrading 등)
                 if (_configuration != null)
                 {
-                    // 평탄화된 키 매핑: IS_PAPER_TRADING → Trading:IsPaperTrading 등
                     string? configValue = ResolveFromConfiguration(key);
                     if (!string.IsNullOrEmpty(configValue)) return configValue;
                 }
 
-                // 4. 기본값
+                // 기본값
                 return defaultValue;
             }
             catch (Exception ex)
             {
-                Logger.Error($"Config 조회 실패 [{key}]: {ex.Message}");
+                Logger.Error($"[AppConfig] 조회 실패 [{key}]: {ex.Message}");
                 return defaultValue;
             }
         }
 
         /// <summary>
-        /// TB_APP_CONFIG에서 설정값을 조회합니다.
-        /// 행이 없거나 DB 오류가 발생하면 null을 반환해 상위 호출부가
-        /// appsettings.json 기본값으로 폴백하도록 합니다.
+        /// TB_APP_CONFIG 설정값 조회
+        /// 특정 상황[(1), (2)] 발생 시 null 반환 -> appsettings.json 기본값으로 폴백
+        /// (1) 행 없음 
+        /// (2) DB 오류
         /// </summary>
         private static string? TryGetFromDb(string key)
         {
@@ -89,35 +97,42 @@ namespace AutoInvest.Data
                     cmd.Parameters.AddWithValue("@k", key);
                     string? value = cmd.ExecuteScalar()?.ToString();
 
-                    // 암호문(enc:v1:...)이면 복호화. 평문/비민감 키는 접두사 검사로 그대로 통과.
-                    if (CryptoUtil.IsEncrypted(value ?? string.Empty))
+                    // (1) 암호문(enc:v1:...) -> 복호화 
+                    // (2) 평문/비민감 키 -> 통과
+                    if (CryptoUtil.IsEncrypted(value ?? string.Empty)) 
+                    { 
                         return CryptoUtil.DecryptSecret(value!);
+                    }
 
                     return value;
                 }
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[Config] DB 조회 실패, 기본 설정으로 폴백 [{key}]: {ex.Message}");
+                Logger.Warn($"[AppConfig] DB 조회 실패 -> 기본 설정 폴백 [{key}]: {ex.Message}");
                 return null;
             }
         }
 
         /// <summary>
-        /// 설정값 저장 (PostgreSQL DB에 저장).
+        /// 설정값 저장 (TB_APP_CONFIG)
         /// </summary>
         public static void Set(string key, string value)
         {
             try
             {
-                // ── 민감 키는 저장 직전 암호화 ──
+                // 민감 키의 경우 저장 직전 암호화
                 string storedValue = value;
                 if (SensitiveKeys.Contains(key) && !string.IsNullOrEmpty(value))
                 {
                     if (CryptoUtil.IsConfigured)
+                    {
                         storedValue = CryptoUtil.EncryptSecret(value);
+                    }
                     else
-                        Logger.Warn($"[Config] MASTER_KEY 미설정 — 민감 키를 평문으로 저장합니다 [{key}]. 운영 환경에서는 MASTER_KEY를 설정하세요.");
+                    {
+                        Logger.Warn($"[AppConfig] MASTER_KEY 미설정 \n\t: 민감 키 평문 저장 [{key}]\n\tMASTER_KEY 설정 요청");
+                    }
                 }
 
                 using (var conn = DBManager.Instance.GetConnection())
@@ -130,7 +145,7 @@ namespace AutoInvest.Data
 
                     if (affected == 0)
                     {
-                        // 키가 없으면 INSERT
+                        // 키가 없을 경우 INSERT
                         using var insertCmd = new NpgsqlCommand(
                             "INSERT INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE) VALUES (@k, @v)", conn);
                         insertCmd.Parameters.AddWithValue("@k", key);
@@ -139,21 +154,22 @@ namespace AutoInvest.Data
                     }
                 }
 
-                // 민감 키는 값 노출 없이 키 이름만 기록 (security.md 마스킹 규칙)
+                // 민감 키 : 키 이름만 기록
                 if (SensitiveKeys.Contains(key))
-                    Logger.Info($"[Config] 저장: {key} = ****(암호화)");
+                    Logger.Info($"[AppConfig] 저장: {key} = ****...");
                 else
-                    Logger.Info($"[Config] 저장: {key} = {value}");
+                    Logger.Info($"[AppConfig] 저장: {key} = {value}");
             }
             catch (Exception ex)
             {
-                Logger.Error($"[Config] 저장 실패 [{key}]: {ex.Message}");
+                Logger.Error($"[AppConfig] 저장 실패 [{key}]: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// appsettings.json의 특정 섹션을 키/값 딕셔너리로 조회합니다 (예: "FxAdvisor:HedgeMap").
-        /// 값이 있는 직속 하위 항목만 포함하며, 섹션이 없으면 빈 딕셔너리를 반환합니다.
+        /// appsettings.json의 특정 섹션 조회(키/값 딕셔너리)
+        /// 값이 있는 직속 하위 항목만 포함
+        /// 섹션이 없을 경우 빈 딕셔너리 반환
         /// </summary>
         /// <param name="path">섹션 경로 (콜론 구분)</param>
         public static Dictionary<string, string> GetMap(string path)
@@ -167,20 +183,20 @@ namespace AutoInvest.Data
                 foreach (var child in section.GetChildren())
                 {
                     if (!string.IsNullOrEmpty(child.Value))
+                    {
                         map[child.Key] = child.Value;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Logger.Error($"[Config] 섹션 조회 실패 [{path}]: {ex.Message}");
+                Logger.Error($"[AppConfig] 섹션 조회 실패 [{path}]: {ex.Message}");
             }
             return map;
         }
 
         /// <summary>
-        /// 레거시 키명을 appsettings.json의 계층 구조 키로 매핑합니다.
-        /// (Phase 6에서 판단 레이어를 제거해, 매매 판단·전략·리밸런싱·AI·합의·FX 관련 키 매핑은 삭제됨.
-        ///  현재는 거래 모드·KIS 인증·발송/인증 시크릿 등 실제 사용하는 키만 남깁니다.)
+        /// 레거시 키 -> 계층 구조 키 매핑
         /// </summary>
         private static string? ResolveFromConfiguration(string key)
         {
