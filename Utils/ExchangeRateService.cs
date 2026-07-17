@@ -35,12 +35,12 @@ namespace AutoInvest.Utils
                 var rate = await FetchFromFrankfurterAsync();
                 _cachedRate = rate;
                 _cacheTime = DateTime.Now;
-                Logger.Info($"[환율] Frankfurter API 조회 성공: 1 USD = {rate:N1} KRW");
+                Logger.Info($"[ExchangeRate] Frankfurter API 조회 성공: 1 USD = {rate:N1} KRW");
                 return rate;
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[환율] Frankfurter API 실패: {ex.Message}");
+                Logger.Warn($"[ExchangeRate] Frankfurter API 실패: {ex.Message}");
             }
 
             // 2차: ExchangeRate-API (fallback)
@@ -49,19 +49,19 @@ namespace AutoInvest.Utils
                 var rate = await FetchFromExchangeRateApiAsync();
                 _cachedRate = rate;
                 _cacheTime = DateTime.Now;
-                Logger.Info($"[환율] ExchangeRate-API 조회 성공: 1 USD = {rate:N1} KRW");
+                Logger.Info($"[ExchangeRate] ExchangeRate-API 조회 성공: 1 USD = {rate:N1} KRW");
                 return rate;
             }
             catch (Exception ex)
             {
-                Logger.Warn($"[환율] ExchangeRate-API 실패: {ex.Message}");
+                Logger.Warn($"[ExchangeRate] ExchangeRate-API 실패: {ex.Message}");
             }
 
             // 모두 실패 시 캐시 또는 기본값 반환
             if (_cachedRate > 0)
                 return _cachedRate;
 
-            Logger.Warn("[환율] 모든 API 실패 — 기본값 1,350원 사용");
+            Logger.Warn("[ExchangeRate] 모든 API 실패 — 기본값 1,350원 사용");
             return 1350m;
         }
 

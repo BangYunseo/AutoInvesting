@@ -35,11 +35,11 @@ namespace AutoInvest.Controllers
                 }
 
                 var holdings = await client.GetHoldingsAsync();
-                return Ok(holdings);
+                return Ok(new { holdings });
             }
             catch (Exception ex)
             {
-                Logger.Error($"잔고 조회 실패: {ex.Message}");
+                Logger.Error($"[Portfolio] 잔고 조회 실패: {ex.Message}");
                 return StatusCode(500, ex.Message);
             }
         }
@@ -75,7 +75,7 @@ namespace AutoInvest.Controllers
             }
             catch (Exception ex)
             {
-                Logger.Error($"[API] 포트폴리오 요약 조회 실패: {ex.Message}");
+                Logger.Error($"[Portfolio] 포트폴리오 요약 조회 실패: {ex.Message}");
                 return StatusCode(500, "포트폴리오 요약 조회 중 오류가 발생했습니다.");
             }
         }

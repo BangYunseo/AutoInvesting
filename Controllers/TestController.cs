@@ -32,7 +32,7 @@ namespace AutoInvest.Controllers
             // ── 실전 모드 차단 가드 ── 진단용 매수는 모의(SimBroker/모의투자)에서만 허용한다.
             if (AppConfigManager.Get("IS_PAPER_TRADING", "1") == "0")
             {
-                Logger.Warn("[TestController] 실전 거래 모드에서 /api/test/buy 호출이 차단되었습니다.");
+                Logger.Warn("[Test] 실전 거래 모드에서 /api/test/buy 호출이 차단되었습니다.");
                 return StatusCode(403, new { error = "실전 거래 모드에서는 점검용 매수(/api/test/buy)가 비활성화됩니다. 실주문은 /api/order/manual 을 사용하세요." });
             }
 
@@ -53,6 +53,7 @@ namespace AutoInvest.Controllers
             }
             catch (Exception ex)
             {
+                Logger.Error($"[Test] 점검용 매수 실패 [{ticker}]: {ex.Message}");
                 return StatusCode(500, new { error = ex.Message });
             }
         }
@@ -69,7 +70,7 @@ namespace AutoInvest.Controllers
             }
             catch (System.Exception ex)
             {
-                Logger.Error($"[TestController] 테스트 이메일 발송 중 오류 발생: {ex.Message}");
+                Logger.Error($"[Test] 테스트 이메일 발송 중 오류 발생: {ex.Message}");
                 return StatusCode(500, $"테스트 이메일 발송 중 오류 발생: {ex.Message}");
             }
         }

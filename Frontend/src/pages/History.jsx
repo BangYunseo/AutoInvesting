@@ -27,7 +27,7 @@ const History = () => {
       const res = await fetch(`/api/history/trades?limit=${tradeLimit}`);
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
       const data = await res.json();
-      setTrades(data);
+      setTrades(Array.isArray(data?.trades) ? data.trades : []);
     } catch (err) {
       setError(err.message);
     } finally {

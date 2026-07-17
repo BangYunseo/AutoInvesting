@@ -26,7 +26,7 @@ namespace AutoInvest.Controllers
             {
                 var trades = TradeHistoryDAO.GetRecent(limit);
                 Logger.Info($"[History] 매매 내역 {trades.Count}건 조회");
-                return Ok(trades);
+                return Ok(new { trades });
             }
             catch (Exception ex)
             {

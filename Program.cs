@@ -19,7 +19,7 @@ namespace AutoInvest
             try
             {
                 Logger.Initialize();
-                Logger.Info("[서버] 자동 투자 API 서버 초기화 중...");
+                Logger.Info("[Program] 자동 투자 API 서버 초기화 중...");
 
                 var builder = WebApplication.CreateBuilder(args);
                 builder.Host.UseSerilog();
@@ -35,7 +35,7 @@ namespace AutoInvest
                 // ── 암호화 유틸 초기화 (MASTER_KEY: 시크릿 암복호화 + 토큰 서명) ──
                 CryptoUtil.Initialize(builder.Configuration);
                 if (!CryptoUtil.IsConfigured)
-                    Logger.Warn("[서버] MASTER_KEY 미설정 — 시크릿이 평문으로 저장됩니다. 운영 환경에서는 반드시 설정하세요.");
+                    Logger.Warn("[Program] MASTER_KEY 미설정 — 시크릿이 평문으로 저장됩니다. 운영 환경에서는 반드시 설정하세요.");
 
                 // ── 서비스 등록 ──
                 builder.Services.AddControllers(options =>
@@ -72,12 +72,12 @@ namespace AutoInvest
                 // ── SPA Fallback (프론트엔드 라우팅) ──
                 app.MapFallbackToFile("index.html");
 
-                Logger.Info("[서버] 자동 투자 API 서버 시작 완료");
+                Logger.Info("[Program] 자동 투자 API 서버 시작 완료");
                 app.Run();
             }
             catch (Exception ex)
             {
-                Logger.Fatal($"[서버] 치명적 오류: {ex.Message}\n{ex.StackTrace}");
+                Logger.Fatal($"[Program] 치명적 오류: {ex.Message}\n{ex.StackTrace}");
             }
             finally
             {

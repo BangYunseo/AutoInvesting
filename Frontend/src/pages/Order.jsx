@@ -273,7 +273,7 @@ const Order = () => {
       const res = await fetch("/api/portfolio/holdings");
       if (!res.ok) throw new Error(`보유 종목 조회 실패 (${res.status})`);
       const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
+      const list = Array.isArray(data?.holdings) ? data.holdings : [];
       setHoldings(list);
       setSelectedTicker((prev) => prev || (list[0]?.ticker ?? ""));
     } catch (err) {

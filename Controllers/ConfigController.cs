@@ -57,6 +57,7 @@ namespace AutoInvest.Controllers
             }
             catch (Exception ex)
             {
+                Logger.Error($"[Config] 설정 조회 실패: {ex.Message}");
                 return StatusCode(500, ex.Message);
             }
         }
@@ -93,6 +94,7 @@ namespace AutoInvest.Controllers
             }
             catch (Exception ex)
             {
+                Logger.Error($"[Config] 설정 저장 실패: {ex.Message}");
                 return StatusCode(500, ex.Message);
             }
         }
