@@ -135,26 +135,28 @@ namespace AutoInvest.Core
                 if (!string.IsNullOrEmpty(result.BudgetWarning))
                     body.Append($"<p style='color:#b8860b;'><strong>⚠️ 예산 초과:</strong> {result.BudgetWarning}</p>");
 
-                // ── 매수 성공 내역 (종목별 수량 합산) ──
+                // ── 매수 성공 내역 (종목별 수량 합산, 종목당 카드 1장) ──
                 if (result.Filled.Count == 0)
                 {
                     body.Append("<p>✅ <strong>매수 성공:</strong> 없음 (예산 부족·설정 없음·전량 실패 등)</p>");
                 }
                 else
                 {
-                    var lines = result.Filled
+                    // 이메일 클라이언트 호환을 위해 카드는 인라인 스타일 div로 구성한다(head 스타일·flex 미지원 대비).
+                    var cards = result.Filled
                         .GroupBy(f => f.Ticker)
-                        .Select(g => $"<li><strong>{g.Key}</strong> {g.Sum(x => x.Qty)}주 매수 (단가 ${g.First().Price:N2})</li>");
-                    body.Append("<p>✅ <strong>오늘의 적립식 매수 내역:</strong></p><ul>" + string.Join("", lines) + "</ul>");
+                        .Select(g => BuildCard("매수", "#1e8e3e", "#f4faf6", "#d7e3ef", g.Key,
+                            $"단가 : ${g.First().Price:N2}", $"수량 : {g.Sum(x => x.Qty)}주"));
+                    body.Append("<p>✅ <strong>오늘의 적립식 매수 내역:</strong></p>" + string.Join("", cards));
                 }
 
-                // ── 매수 실패 내역 (종목별 개별 메일 대신 여기에 종합) ──
+                // ── 매수 실패 내역 (종목별 개별 메일 대신 여기에 카드로 종합) ──
                 if (result.Failures.Count > 0)
                 {
-                    var failLines = result.Failures
-                        .Select(f => $"<li><strong>{f.Ticker}</strong> {f.Qty}주 실패 — {f.Error}</li>");
-                    body.Append("<p style='color:#c0392b;'>❌ <strong>매수 실패 내역:</strong></p>"
-                        + "<ul style='color:#c0392b;'>" + string.Join("", failLines) + "</ul>");
+                    var failCards = result.Failures
+                        .Select(f => BuildCard("실패", "#c0392b", "#fdf5f4", "#f0d0cc", f.Ticker,
+                            $"수량 : {f.Qty}주", $"사유 : {f.Error}"));
+                    body.Append("<p style='color:#c0392b;'>❌ <strong>매수 실패 내역:</strong></p>" + string.Join("", failCards));
                 }
 
                 await NotificationService.SendEmailAsync("적립식 매수 보고서", body.ToString());
@@ -163,6 +165,28 @@ namespace AutoInvest.Core
             {
                 Logger.Error($"[DcaCycle] 적립식 보고서 발송 중 오류: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 보고서용 종목 카드 HTML 1장을 생성합니다.
+        /// 이메일 클라이언트가 &lt;head&gt; 스타일·flex를 무시할 수 있으므로 인라인 스타일 div로 구성합니다.
+        /// </summary>
+        /// <param name="label">좌상단 배지 문구 (예: "매수", "실패")</param>
+        /// <param name="accent">강조색 (배지 배경·좌측 테두리)</param>
+        /// <param name="bg">카드 배경색</param>
+        /// <param name="border">카드 테두리색</param>
+        /// <param name="ticker">종목 코드</param>
+        /// <param name="detail1">첫째 상세 문구 (예: "단가 : $185.30")</param>
+        /// <param name="detail2">둘째 상세 문구 (예: "수량 : 2주")</param>
+        private static string BuildCard(string label, string accent, string bg, string border,
+            string ticker, string detail1, string detail2)
+        {
+            return
+                $"<div style='border:1px solid {border}; border-left:4px solid {accent}; border-radius:8px; padding:12px 16px; margin:8px 0; background:{bg};'>"
+                + $"<span style='display:inline-block; background:{accent}; color:#ffffff; font-size:12px; font-weight:700; border-radius:4px; padding:2px 8px; margin-right:8px;'>{label}</span>"
+                + $"<strong style='font-size:15px;'>{ticker}</strong>"
+                + $"<div style='margin-top:6px; color:#333333; font-size:14px;'>{detail1} &nbsp;&middot;&nbsp; {detail2}</div>"
+                + "</div>";
         }
     }
 }
