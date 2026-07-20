@@ -5,6 +5,7 @@ using AutoInvest.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace AutoInvest.Core
@@ -45,7 +46,7 @@ namespace AutoInvest.Core
         public async Task<string> RunDcaCycleAsync()
         {
             Logger.Info("[DcaCycle] ▶ 적립식 자동 매수 사이클이 시작되었습니다.");
-            var filled = new List<TradeHistoryDto>();
+            var result = new DcaCycleResult();
             string statusNote = "";
 
             // ── 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 스킵 ──
@@ -83,12 +84,12 @@ namespace AutoInvest.Core
                 else
                 {
                     var engine = new DcaAccumulationEngine(client);
-                    filled = await engine.AccumulateAsync(quantities, budget);
-                    Logger.Info($"[DcaCycle] ✔ 적립식 매수 완료 — {filled.Count}주 체결");
+                    result = await engine.AccumulateAsync(quantities, budget);
+                    Logger.Info($"[DcaCycle] ✔ 적립식 매수 완료 — {result.Filled.Count}개 종목 체결");
 
                     // 체결이 1건이라도 있으면 이번 달 적립 완료로 표시 → 남은 날 재실행 스킵.
                     // 체결 0건(전량 실패/장마감 등)이면 마커를 남기지 않아 다음 날 자동 재시도.
-                    if (filled.Count > 0)
+                    if (result.Filled.Count > 0)
                     {
                         AppConfigManager.Set(LastRunMonthKey, thisMonth);
                         Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 표시 저장");
@@ -107,38 +108,56 @@ namespace AutoInvest.Core
             }
             finally
             {
-                await SendDcaReportAsync(filled, statusNote);
+                await SendDcaReportAsync(result, statusNote);
             }
 
             Logger.Info("[DcaCycle] ✔ 적립식 매수 사이클이 종료되었습니다.");
-            return string.IsNullOrEmpty(statusNote) ? $"적립식 매수 완료: {filled.Count}주 체결" : statusNote;
+            return string.IsNullOrEmpty(statusNote) ? $"적립식 매수 완료: {result.Filled.Count}개 종목 체결" : statusNote;
         }
 
         /// <summary>
-        /// 적립식 매수 결과를 이메일로 발송합니다 (조기 종료/오류 시에도 항상 발송).
+        /// 적립식 매수 결과(성공·실패·예산경고)를 <b>한 통</b>의 종합 이메일로 발송합니다.
+        /// 조기 종료/오류 시에도 항상 발송하며, 종목별 개별 메일은 보내지 않습니다.
         /// </summary>
-        private async Task SendDcaReportAsync(List<TradeHistoryDto> filled, string statusNote = "")
+        /// <param name="result">사이클 실행 결과 (체결·실패·예산경고)</param>
+        /// <param name="statusNote">조기 종료·오류 등 안내 문구 (없으면 빈 문자열)</param>
+        private async Task SendDcaReportAsync(DcaCycleResult result, string statusNote = "")
         {
             try
             {
-                string noticeHtml = string.IsNullOrEmpty(statusNote)
-                    ? ""
-                    : $"<p style='color:#b8860b;'><strong>ℹ️ 안내:</strong> {statusNote}</p>";
+                var body = new StringBuilder();
 
-                string body;
-                if (filled.Count == 0)
+                // ── 안내(조기 종료/오류 사유) ──
+                if (!string.IsNullOrEmpty(statusNote))
+                    body.Append($"<p style='color:#b8860b;'><strong>ℹ️ 안내:</strong> {statusNote}</p>");
+
+                // ── 예산 초과 경고 ──
+                if (!string.IsNullOrEmpty(result.BudgetWarning))
+                    body.Append($"<p style='color:#b8860b;'><strong>⚠️ 예산 초과:</strong> {result.BudgetWarning}</p>");
+
+                // ── 매수 성공 내역 (종목별 수량 합산) ──
+                if (result.Filled.Count == 0)
                 {
-                    body = noticeHtml + "<p>오늘은 매수한 종목이 없습니다. (예산 부족 또는 설정 없음)</p>";
+                    body.Append("<p>✅ <strong>매수 성공:</strong> 없음 (예산 부족·설정 없음·전량 실패 등)</p>");
                 }
                 else
                 {
-                    var lines = filled
+                    var lines = result.Filled
                         .GroupBy(f => f.Ticker)
-                        .Select(g => $"<li><strong>{g.Key}</strong> {g.Count()}주 매수 (단가 ${g.First().Price:N2})</li>");
-                    body = noticeHtml + "<p>오늘의 적립식 매수 내역입니다:</p><ul>" + string.Join("", lines) + "</ul>";
+                        .Select(g => $"<li><strong>{g.Key}</strong> {g.Sum(x => x.Qty)}주 매수 (단가 ${g.First().Price:N2})</li>");
+                    body.Append("<p>✅ <strong>오늘의 적립식 매수 내역:</strong></p><ul>" + string.Join("", lines) + "</ul>");
                 }
 
-                await NotificationService.SendEmailAsync("적립식 매수 보고서", body);
+                // ── 매수 실패 내역 (종목별 개별 메일 대신 여기에 종합) ──
+                if (result.Failures.Count > 0)
+                {
+                    var failLines = result.Failures
+                        .Select(f => $"<li><strong>{f.Ticker}</strong> {f.Qty}주 실패 — {f.Error}</li>");
+                    body.Append("<p style='color:#c0392b;'>❌ <strong>매수 실패 내역:</strong></p>"
+                        + "<ul style='color:#c0392b;'>" + string.Join("", failLines) + "</ul>");
+                }
+
+                await NotificationService.SendEmailAsync("적립식 매수 보고서", body.ToString());
             }
             catch (Exception ex)
             {
