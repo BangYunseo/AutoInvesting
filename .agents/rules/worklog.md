@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # 작업 보고서(Worklog) 규칙
 
 기능 단위 작업을 할 때는 **인계(handoff)용 보고서**를 남긴다.
@@ -15,7 +11,7 @@ trigger: always_on
   - 파일명: **`[YYYY-MM-DD] NN_제목.md`** (날짜 = 작성일, `NN` = 두 자리 순번 `01`부터, 같은 날짜 내 순서대로)
   - 문서 양식: YAML 프론트매터(`title` / `date` / `company` / `tags` / `status`) → 단일 H1(제목) → `## 개요` → `## 배경 / 목적` → `## 본문` → `## 정리 / 결론` → `## 참고`
   - `## 개요`는 이름 고정. 헤딩은 H2→H3→H4 순서(H4가 최하위). 코드블록은 언어 명시 + **전체 그대로(핵심만 발췌·`// ...` 축약 금지)**.
-  - `company`는 `[콤웨어]`, `tags`는 내용 요약 태그만(회사명 금지), `status`는 생성 시 `draft`(이후 `in-progress`/`done` 등은 필요 시 직접 변경).
+  - `company`는 `[개인]`, `tags`는 내용 요약 태그만(회사명 금지), `status`는 생성 시 `draft`(이후 `in-progress`/`done` 등은 필요 시 직접 변경).
 - 템플릿: `Documents/worklog/_TEMPLATE.md`
 - worklog 성격상 본문은 **"무엇을 왜 했고 / 무엇이 남았는지(다음 단계)"** 가 드러나게 쓴다(핸드오프 목적).
 

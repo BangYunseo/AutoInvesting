@@ -31,4 +31,4 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 - 배분 로직 변경은 `PlanPurchases` 단위 시나리오(지정 수량 그대로 매수 / 현재가 없는 종목 제외 / 총 매수금액 합산 / 수량 0 제외)로 확인
 - 신규 로직은 `IS_PAPER_TRADING="1"`(SimBroker)로 먼저 검증
 
-> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다(`harness-sync.md`).
+> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다. 역할/책임 변경 시 두 파일을 같은 커밋에서 함께 수정하세요.

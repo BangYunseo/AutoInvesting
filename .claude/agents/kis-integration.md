@@ -33,4 +33,4 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 ## 검증
 - `IS_PAPER_TRADING="1"`(SimBroker) 또는 KIS 모의투자 환경에서 먼저 검증
 
-> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다(`harness-sync.md`).
+> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다. 역할/책임 변경 시 두 파일을 같은 커밋에서 함께 수정하세요.

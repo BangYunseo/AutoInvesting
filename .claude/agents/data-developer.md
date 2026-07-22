@@ -32,4 +32,4 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 - 기존 데이터 보존 — 기존 컬럼 유지 + 신규 컬럼 추가(ALTER TABLE)만 허용
 - 마이그레이션 스크립트 작성하여 반영
 
-> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다(`harness-sync.md`).
+> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다. 역할/책임 변경 시 두 파일을 같은 커밋에서 함께 수정하세요.

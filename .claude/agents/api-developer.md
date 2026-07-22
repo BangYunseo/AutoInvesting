@@ -33,4 +33,4 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 - 빈 catch 블록 — Controller는 catch → `Logger.Error()` + HTTP 500 응답
 - API 키/토큰을 응답·로그에 노출
 
-> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다(`harness-sync.md`).
+> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다. 역할/책임 변경 시 두 파일을 같은 커밋에서 함께 수정하세요.

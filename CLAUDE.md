@@ -6,20 +6,16 @@
 
 ---
 
-## ⚠️ 멀티 하네스 동기화 규칙 (가장 먼저 읽을 것)
+## 규칙 SSOT (가장 먼저 읽을 것)
 
-이 프로젝트는 **Claude Code**와 **Antigravity** 두 에이전트 하네스를 **동시에** 지원합니다.
-어느 쪽도 삭제하지 않으며, 한쪽을 바꾸면 다른 쪽도 동일하게 유지합니다.
-
-- 공유 지식의 **단일 진실 원천(SSOT)** 은 `.agents/rules/*.md` 입니다.
-- `CLAUDE.md`는 그 파일들을 `@import`로 재사용하므로, **규칙을 고칠 때는 `.agents/rules/`만 수정**하면 Claude Code(임포트)와 Antigravity(`trigger: always_on`) 양쪽에 자동 반영됩니다. 같은 내용을 두 번 쓰지 마세요.
-- 에이전트·명령·설정처럼 도구별 포맷이 다른 구성요소는 **`.agents/rules/harness-sync.md`의 동기화 절차**를 반드시 따라 양쪽을 함께 갱신합니다.
+- 공유 지식의 **단일 진실 원천(SSOT)** 은 `.agents/rules/*.md` 입니다. `CLAUDE.md`는 그 파일들을 `@import`로 로딩합니다.
+- **규칙을 고칠 때는 `.agents/rules/`의 해당 파일만 수정**하세요 — CLAUDE.md 본문에 같은 내용을 복붙하지 않습니다.
+- 에이전트 역할은 `.agents/rules/persona.md`(역할·책임 명세)와 `.claude/agents/<role>.md`(실행 정의)를 **같은 커밋에서 동일 내용으로 함께** 갱신합니다.
 
 ---
 
 ## 자동 로딩 컨텍스트 (SSOT 임포트 — 수정 금지, 원본은 `.agents/rules/`)
 
-@.agents/rules/harness-sync.md
 @.agents/rules/project_overview.md
 @.agents/rules/architecture.md
 @.agents/rules/code-style-guide.md
@@ -71,7 +67,7 @@
 ## 서브에이전트 (위임)
 
 `persona.md`의 리드+서브 에이전트 구조를 Claude Code 서브에이전트로 구현해 `.claude/agents/`에 둡니다.
-각 에이전트는 `persona.md`와 **동일 내용으로 동기화**되어야 합니다 (`harness-sync.md` 절차 준수).
+각 에이전트는 `persona.md`와 **동일 내용으로 동기화**되어야 합니다 (역할/책임 변경 시 `persona.md`와 `.claude/agents/`를 같은 커밋에서 함께 수정).
 
 | 에이전트 | 담당 |
 |---------|------|

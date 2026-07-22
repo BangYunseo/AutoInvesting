@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # 추가 개발 규칙 & 권장사항
  
 ## Phase 간 호환성 규칙
@@ -52,11 +48,15 @@ trigger: always_on
 - `TB_MARKET_SNAPSHOT` 등 과거 누적 테이블은 레거시 데이터로 더 이상 기록하지 않으나,
   **임의 삭제·수정 금지**(과거 분석/회귀 검증용). 스키마 변경 시 ALTER TABLE만 허용.
 
-### 실거래 전환 시 필수 변경 (현재 모의투자 — MUST when going live)
-- 현재 일일 크론(GitHub Actions, KST 23:40)은 **모의투자 계좌** 기준이라 매일 적립해도 무방하다.
-- **실거래 계좌로 전환하면** 월 예산(`MonthlyBudgetKrw`)을 매일 전액 소진해 ~30배 과매수가 된다.
-  전환 시 ① 크론을 매월 1일(`40 14 1 * *`)로 변경, ② 엔진에 "이번 달 이미 적립 시 스킵" 멱등 가드 추가.
-- 상세 체크리스트: `Documents/DEVELOPMENT.md`의 "실거래 전환 시 필수 변경".
+### 실거래 전환 시 필수 변경 (현재 모의투자)
+- 과매수 방지(월 예산 매일 소진 시 ~30배)는 **코드로 이미 해결됨** — `DailyExecutionService.RunDcaCycleAsync`의
+  월 1회 멱등 가드(`TB_APP_CONFIG`의 `DCA_LAST_RUN_MONTH`, KST)가 당월 1회만 집행하고, 체결 0건인 날은
+  마커를 남기지 않아 다음 날 자동 재시도한다. 따라서 크론(`.github/workflows/daily-run.yml`,
+  `40 14 1-31 * *` = 매일 KST 23:40)은 **그대로 두어도 안전하다**(매월 1일로 변경할 필요 없음 —
+  월초부터 시도해 처음 성공하는 날 1회만 적립).
+- 전환 시 남는 **운영 작업**: ① 계좌를 실전으로 전환(`Trading:IsPaperTrading=false`, KIS `Server`를 실전으로),
+  ② 실전 자격증명·예수금·체결 검증, ③ `TestController`의 세금/보유검증 없는 실주문 우회 경로 봉인 검토.
+- 상세 이력: `Documents/DEVELOPMENT.md`의 "실거래 전환" 섹션(과매수 방지 구현 완료 기록).
 ---
  
 ## 테스트 규칙

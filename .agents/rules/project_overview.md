@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # AutoInvesting 프로젝트 개요
  
 > 해외 ETF 자동 투자 시스템 — ASP.NET Core Web API (.NET 8.0)

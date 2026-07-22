@@ -33,4 +33,4 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 - 매수 템플릿·월별 배정·종목별 수량·예산은 `DcaSettings`를 통해서만 읽고 씀
 - 신규 로직은 `IS_PAPER_TRADING="1"`(SimBroker)로 먼저 검증, 변경 후 `dotnet build`로 컴파일 확인
 
-> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다. 역할/책임 변경 시 양쪽을 함께 수정하세요(`harness-sync.md`).
+> 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다. 역할/책임 변경 시 두 파일을 같은 커밋에서 함께 수정하세요.

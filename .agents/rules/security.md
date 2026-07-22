@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # 보안 규칙
 
 ## API 키 관리

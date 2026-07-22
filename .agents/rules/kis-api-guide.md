@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # KIS (한국투자증권) API 가이드
 
 ## API 환경

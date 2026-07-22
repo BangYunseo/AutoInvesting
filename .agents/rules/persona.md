@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # 리드 에이전트 페르소나: AutoInvesting 오케스트레이터
 
 ## 역할 정의
