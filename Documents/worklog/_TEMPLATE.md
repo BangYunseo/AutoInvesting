@@ -1,7 +1,7 @@
 ---
 title: [작업 제목]
 date: [YYYY-MM-DD]
-company: [콤웨어]
+company: [개인]
 tags: [태그1, 태그2]
 status: draft
 ---
