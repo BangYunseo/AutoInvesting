@@ -1,10 +1,15 @@
-# AutoInvesting — Claude Code 작업 지침 (CLAUDE.md)
-
-> 해외 ETF 자동 **적립(DCA)** 투자 시스템 · ASP.NET Core Web API (.NET 8.0, C#) + React SPA
-> 외부 크론잡이 적립 사이클을 호출하는 Headless 서비스 · 증권사: 한국투자증권(KIS)
-> 현재 **Phase 6 (DCA 적립)** — 백테스트로 가치 없음이 확인된 판단 레이어(퀀트/AI)를 제거하고 기계적 적립으로 전환 완료.
-
 ---
+title: AutoInvesting — Claude Code 작업 지침
+date: 2026-07-23
+company: [개인]
+tags: [작업지침, DCA적립, 규칙SSOT, 아키텍처]
+status: draft
+---
+
+# AutoInvesting — Claude Code 작업 지침
+
+## 개요
+> 해외 ETF 자동 **적립(DCA)** 투자 시스템 · ASP.NET Core Web API (.NET 8.0, C#) + React SPA. 외부 크론잡이 적립 사이클을 호출하는 Headless 서비스이며 증권사는 한국투자증권(KIS)이다. 현재 **Phase 6 (DCA 적립)** — 백테스트로 가치 없음이 확인된 판단 레이어(퀀트/AI)를 제거하고 기계적 적립으로 전환 완료.
 
 ## 규칙 SSOT (가장 먼저 읽을 것)
 

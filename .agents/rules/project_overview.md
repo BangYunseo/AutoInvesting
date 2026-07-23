@@ -78,9 +78,16 @@ AutoInvesting/
 ├── Frontend/                           # React SPA (로그인/대시보드/적립설정/주문·적립/거래내역/설정)
 ├── appsettings.json                    # 환경 설정 — Trading/Smtp/Resend/Kis/Security/Dca/Tax 섹션
 ├── README.md
-└── Documents/
+└── Documents/                     # 단일 문서 홈 (프로젝트 문서 전부)
     ├── DEVELOPMENT.md              # 개발 진척도 및 변경 이력
-    └── THEME_GUIDE.md              # ⚠️ 레거시 — WinForms 제거로 무효. 참조 금지
+    ├── ONBOARDING_GUIDE.md         # 신규 개발자용 아키텍처 가이드
+    ├── CODE_READING_GUIDE.md       # DCA 적립 코어 코드 흐름 가이드
+    ├── CODE_MAP.md                 # 코드 색인 (regen-codemap.ps1로 재생성)
+    ├── API_REFERENCE.md / API_REFERENCE_TABLE.md  # REST API 레퍼런스
+    ├── [YYYY-MM-DD] NN_*.md        # 분석·진단 문서 (프로젝트 개요/아키텍처 등)
+    ├── modules/                    # 모듈별 이해 문서
+    ├── analysis/                   # 백테스트·절세 분석 산출물
+    └── worklog/                    # 기능 단위 작업 인계 보고서
 ```
 
 > Phase 6에서 판단 레이어(SmartOrderEngine, Core/Quant/*, Core/Advisors/*, AI MarketAnalyzer,

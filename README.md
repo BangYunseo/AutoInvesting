@@ -1,6 +1,15 @@
+---
+title: AutoInvesting
+date: 2026-07-23
+company: [개인]
+tags: [프로젝트개요, DCA적립, ETF, KIS]
+status: draft
+---
+
 # AutoInvesting
 
-> 해외 ETF 자동 적립(DCA) 투자 시스템 — ASP.NET Core Web API (.NET 8.0)
+## 개요
+> 해외 ETF 자동 적립(DCA) 투자 시스템 — ASP.NET Core Web API (.NET 8.0). 여러 매수 템플릿을 월별로 배정해 현재 월 템플릿대로 기계적으로 적립 매수하는 Headless 서비스다.
 
 ## 📌 프로젝트 개요
 

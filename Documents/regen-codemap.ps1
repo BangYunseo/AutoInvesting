@@ -112,13 +112,21 @@ function Escape-Md { param([string]$s) if ($null -eq $s) { return '' } $s -repla
 
 # ── 본문 생성 ──────────────────────────────────────────
 $sb = New-Object System.Text.StringBuilder
-$null = $sb.AppendLine('# 🗺️ AutoInvesting 코드 맵 (전체 파일 색인)')
+$today = Get-Date -Format 'yyyy-MM-dd'
+$null = $sb.AppendLine('---')
+$null = $sb.AppendLine('title: AutoInvesting 코드 맵')
+$null = $sb.AppendLine("date: $today")
+$null = $sb.AppendLine('company: [개인]')
+$null = $sb.AppendLine('tags: [코드맵, 파일색인, 자동생성]')
+$null = $sb.AppendLine('status: draft')
+$null = $sb.AppendLine('---')
 $null = $sb.AppendLine()
-$null = $sb.AppendLine('> "어느 파일에 어느 코드가 있는지" 한눈에 찾는 자동 생성 색인입니다.')
-$null = $sb.AppendLine('> **이 파일을 직접 수정하지 마세요.** 각 소스 파일의 XML `<summary>` 주석이 진실 원천이며,')
-$null = $sb.AppendLine('> `pwsh Documents/regen-codemap.ps1` 실행으로 재생성됩니다.')
-$null = $sb.AppendLine('>')
-$null = $sb.AppendLine('> ⚠️ 표시 = 해당 파일에 클래스 `<summary>` 주석이 없습니다 → 코드에 추가하면 다음 재생성 때 채워집니다.')
+$null = $sb.AppendLine('# AutoInvesting 코드 맵')
+$null = $sb.AppendLine()
+$null = $sb.AppendLine('## 개요')
+$null = $sb.AppendLine('> "어느 파일에 어느 코드가 있는지" 한눈에 찾는 자동 생성 색인이다. 각 소스 파일의 XML `<summary>` 주석이 진실 원천이며, `pwsh Documents/regen-codemap.ps1` 실행으로 재생성된다. **이 파일을 직접 수정하지 마세요.** (⚠️ 표시 = 클래스 `<summary>` 주석이 없는 파일)')
+$null = $sb.AppendLine()
+$null = $sb.AppendLine('## 본문')
 $null = $sb.AppendLine()
 
 $missing = New-Object System.Collections.Generic.List[string]
@@ -134,7 +142,7 @@ foreach ($key in $Sections.Keys) {
 
     if (-not $files) { continue }
 
-    $null = $sb.AppendLine("## $($sec.Title)")
+    $null = $sb.AppendLine("### $($sec.Title)")
     $null = $sb.AppendLine()
     $null = $sb.AppendLine('| 파일 | 타입 | 책임 요약 | 핵심 멤버 |')
     $null = $sb.AppendLine('|------|------|-----------|-----------|')
@@ -152,7 +160,7 @@ foreach ($key in $Sections.Keys) {
 }
 
 # ── 요약 통계 ──
-$null = $sb.AppendLine('---')
+$null = $sb.AppendLine('## 정리')
 $null = $sb.AppendLine()
 $null = $sb.AppendLine("**총 ${total}개 파일** · 요약 없는 파일 **$($missing.Count)개**")
 if ($missing.Count -gt 0) {
@@ -163,6 +171,10 @@ if ($missing.Count -gt 0) {
     $null = $sb.AppendLine()
     $null = $sb.AppendLine('</details>')
 }
+$null = $sb.AppendLine()
+$null = $sb.AppendLine('## 참고')
+$null = $sb.AppendLine('- 재생성: `pwsh Documents/regen-codemap.ps1`')
+$null = $sb.AppendLine('- 요약 원천: 각 .cs 파일 클래스 선언 위의 XML `<summary>` 주석 (code-style-guide.md)')
 
 # UTF-8 (BOM 없이) 저장 — 한글 깨짐 방지
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
