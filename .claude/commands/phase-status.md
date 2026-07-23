@@ -7,7 +7,7 @@ allowed-tools: Read, Edit, Grep, Glob, Bash(git log:*)
 
 ## 절차
 1. `.agents/rules/project_overview.md`의 "Phase 진행 상태" 표를 읽습니다.
-2. 최근 커밋(`git log --oneline -30`)과 `Documents/DEVELOPMENT.md`를 비교해 실제 진척과 표가 일치하는지 확인합니다.
+2. 최근 커밋(`git log --oneline -30`)과 `Documents/reference/DEVELOPMENT.md`를 비교해 실제 진척과 표가 일치하는지 확인합니다.
 3. 불일치가 있으면 `project_overview.md`의 Phase 표를 실제 상태로 갱신합니다. (이 파일은 SSOT이므로 여기만 고치면 `CLAUDE.md` 임포트에 자동 반영됨)
 4. 다음 우선 작업(예: Phase 4-e, Phase 5)을 요약해 제시합니다.
 

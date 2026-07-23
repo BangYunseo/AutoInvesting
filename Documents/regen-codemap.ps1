@@ -13,14 +13,14 @@
 .USAGE
     Documents 폴더 기준 또는 리포 루트에서:
         pwsh Documents/regen-codemap.ps1
-    결과: Documents/CODE_MAP.md 덮어쓰기
+    결과: Documents/reference/CODE_MAP.md 덮어쓰기
 #>
 
 $ErrorActionPreference = 'Stop'
 
 # ── 경로 설정 ──────────────────────────────────────────
 $RepoRoot = Split-Path -Parent $PSScriptRoot   # Documents/ 의 상위 = 리포 루트
-$OutFile  = Join-Path $PSScriptRoot 'CODE_MAP.md'
+$OutFile  = Join-Path $PSScriptRoot 'reference\CODE_MAP.md'
 
 # 스캔 대상 폴더 → 표 섹션 제목 (출력 순서대로)
 $Sections = [ordered]@{

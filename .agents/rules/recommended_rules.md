@@ -56,7 +56,7 @@
   월초부터 시도해 처음 성공하는 날 1회만 적립).
 - 전환 시 남는 **운영 작업**: ① 계좌를 실전으로 전환(`Trading:IsPaperTrading=false`, KIS `Server`를 실전으로),
   ② 실전 자격증명·예수금·체결 검증, ③ `TestController`의 세금/보유검증 없는 실주문 우회 경로 봉인 검토.
-- 상세 이력: `Documents/DEVELOPMENT.md`의 "실거래 전환" 섹션(과매수 방지 구현 완료 기록).
+- 상세 이력: `Documents/reference/DEVELOPMENT.md`의 "실거래 전환" 섹션(과매수 방지 구현 완료 기록).
 ---
  
 ## 테스트 규칙
