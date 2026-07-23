@@ -6,7 +6,7 @@ namespace AutoInvest.Tests
     /// <summary>
     /// TaxEstimator.Estimate(순수 함수 — 외부 I/O 없음)의 단위 검증.
     /// 실제 매도로 세금이 나가기 전에 "이 매도가 과세 구간인지 / 세금이 얼마인지" 계산이
-    /// 정확한지 자동으로 확인합니다. (근거: Documents/analysis/260702_해외ETF-절세-가이드.md)
+    /// 정확한지 자동으로 확인합니다. (근거: Documents/analysis/[2026-07-02] 02_해외 ETF 절세 가이드.md)
     ///
     /// 대부분의 케이스는 환율=1로 두어 USD 값을 그대로 '원'처럼 다뤄 계산을 명확히 합니다.
     /// </summary>

@@ -12,7 +12,7 @@ namespace AutoInvest.Tests
     /// OrderController의 매도 배선(안전가드 + 절세 가드)을 실계좌·네트워크·DB 없이 검증합니다.
     /// SessionManager에 <see cref="FakeBrokerClient"/>를 주입해, "취득가 → 세금계산 → 409 차단"이
     /// 주문·기록(DB 호출) 이전에 이뤄지는지를 자동으로 확인합니다.
-    /// (Documents/260702_절세기능-테스트-실행계획서.md B계층)
+    /// (Documents/[2026-07-02] 03_절세기능 테스트 실행계획서.md B계층)
     ///
     /// ⚠️ 매도 성공(200) 경로는 TradeHistoryDAO.Insert(정적 DB 호출)를 타므로 DB 없이 검증 불가라
     /// 이 스위트에서 제외합니다. 해당 경로는 수동 UI(계획서 C계층) 또는 후속(DAO 추상화)에서 다룹니다.

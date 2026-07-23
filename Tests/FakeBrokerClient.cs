@@ -11,7 +11,7 @@ namespace AutoInvest.Tests
     /// OrderController의 절세 가드 배선(취득가→세금계산→409 차단)을 검증하는 데 사용합니다.
     ///
     /// 원칙: 테스트 데이터를 실제 계좌에 만들지 않는다 — 인터페이스로 가짜 객체를 주입한다.
-    /// (Documents/260702_절세기능-테스트-실행계획서.md B계층)
+    /// (Documents/[2026-07-02] 03_절세기능 테스트 실행계획서.md B계층)
     /// </summary>
     public class FakeBrokerClient : IBrokerClient
     {
