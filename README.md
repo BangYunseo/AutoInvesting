@@ -89,13 +89,15 @@ AutoInvesting/
 │       ├── pages/                      # Login, Dashboard, DcaConfig, Order, History, Settings
 │       └── components/                 # HoldingsTable, ProgressLoader
 │
-└── Documents/                          # 프로젝트 문서
+└── Documents/                          # 단일 문서 홈 (프로젝트 문서 전부)
     ├── DEVELOPMENT.md                  # 개발 진척도 + 전체 변경 이력
     ├── ONBOARDING_GUIDE.md             # 신규 개발자용 아키텍처 가이드
     ├── CODE_READING_GUIDE.md           # DCA 적립 코어 코드 흐름 가이드
     ├── CODE_MAP.md                     # 코드 맵 (regen-codemap.ps1로 재생성)
     ├── API_REFERENCE.md                # REST API 레퍼런스
     ├── API_REFERENCE_TABLE.md          # REST API 요약 표
+    ├── modules/                        # 모듈별 이해 문서
+    ├── analysis/                       # 백테스트·절세 분석 산출물
     └── worklog/                        # 기능 단위 작업 인계 보고서
 ```
 
@@ -228,9 +230,86 @@ AutoInvesting/
 
 ## 🔧 로컬 실행
 
-1. Visual Studio 2022에서 `AutoInvest.sln` 열기
-2. NuGet 패키지 복원
-3. `F5`로 디버그 실행 (로컬 PostgreSQL 필요 — 기본 접속: `localhost`, DB명 `autoinvest`. 테이블은 `create_tables.sql`로 자동 생성. 배포 시 `DATABASE_URL` 환경변수 사용)
+로컬 PostgreSQL이 필요합니다 — 기본 접속 `localhost`, DB명 `autoinvest`. 테이블은 최초 실행 시 `Data/sql/create_tables.sql`로 자동 생성됩니다(배포 시 `DATABASE_URL` 환경변수 사용).
 
-> 증권사 API 키 없이도 SimBrokerClient(시뮬레이션 모드)로 전체 적립 흐름을 테스트할 수 있습니다.
+### 1) 백엔드 실행
+
+**Visual Studio 2022**
+
+1. `AutoInvest.sln` 열기
+2. NuGet 패키지 복원
+3. `F5`로 디버그 실행
+
+**CLI (.NET 8 SDK)**
+
+```bash
+dotnet restore
+dotnet build
+dotnet run          # ASP.NET Core 호스트 기동
+```
+
+> 프론트 개발 서버(Vite)는 `/api` 요청을 `http://localhost:5000`으로 프록시합니다. 프론트와 함께 쓰려면 백엔드를 `:5000`으로 띄우세요 — 환경변수 `ASPNETCORE_URLS`를 `http://localhost:5000`으로 설정.
+
+> 증권사 API 키 없이도 `SimBrokerClient`(시뮬레이션 모드 — `IS_PAPER_TRADING` 기본 켜짐)로 전체 적립 흐름을 테스트할 수 있습니다.
 > 적립 실행은 `POST /api/order/dca-run`(또는 프론트 "주문·적립" 페이지)으로 트리거합니다.
+
+### 2) 프론트엔드 (`Frontend/`)
+
+```bash
+cd Frontend
+npm install
+npm run dev        # Vite 개발 서버 — /api 요청을 http://localhost:5000(백엔드)으로 프록시
+# 또는
+npm run build      # 운영 정적 산출물(Frontend/dist) 생성 — 배포 시 백엔드 wwwroot로 서빙
+```
+
+- **개발 중(권장)**: 백엔드(`:5000`)와 Vite 개발 서버를 함께 띄우고, 브라우저는 Vite 개발 서버 주소로 접속합니다(`/api`는 자동 프록시).
+- **통합 서빙 확인**: `npm run build`로 만든 `Frontend/dist`를 백엔드 `wwwroot/`로 복사하면 백엔드 단독으로 SPA까지 서빙합니다(Docker는 이 복사를 자동 수행).
+
+### 3) Docker (단일 컨테이너 — 운영과 동일)
+
+프론트 빌드 → 백엔드 빌드 → 정적 서빙을 하나의 컨테이너에 담습니다(`Dockerfile`). 컨테이너는 `:5000`을 노출하고 타임존은 KST(Asia/Seoul)로 고정됩니다.
+
+```bash
+docker build -t autoinvesting .
+docker run --rm -p 5000:5000 \
+  -e DATABASE_URL="<your-postgres-connection-uri>" \
+  -e MASTER_KEY="<your-base64-32byte-key>" \
+  autoinvesting
+```
+
+- 실제 값은 아래 환경변수 표를 참고해 `-e 이름="값"`으로 주입합니다(값은 커밋 금지).
+
+### 4) 환경변수 (이름만 — 값은 여기에 적지 말 것)
+
+> ⚠️ **보안(필수)**: API 키·시크릿·계좌번호·토큰·DB 접속문자열 등 **실제 값은 소스·커밋·이 문서에 절대 넣지 않습니다.**
+> 값은 환경변수 또는 `appsettings.local.json`(gitignore 대상)에만 두고, 아래는 **변수 이름**만 정리한 것입니다. (`.agents/rules/security.md`)
+
+| 변수 이름 | 용도 | 필수 여부 |
+| --- | --- | --- |
+| `DATABASE_URL` | PostgreSQL 접속 URI (미설정 시 `localhost` 기본 접속) | 선택 (로컬 기본값 사용 시 생략) |
+| `MASTER_KEY` | 시크릿 AES-256-GCM 암복호화 + 세션 토큰 서명 키 (base64 32바이트) | 권장 (미설정 시 시크릿 평문 저장·로그인 불가) |
+| `AUTH_TOKEN_SECRET` | 세션 토큰 서명 전용 키 (미설정 시 `MASTER_KEY`에서 파생) | 선택 |
+| `API_ACCESS_KEY` | 크론이 보내는 `x-api-key` 헤더를 검증하는 서버 측 키 | 크론 트리거 사용 시 필수 |
+| `IS_PAPER_TRADING` | 모의(`1`)/실전(`0`) 분기 (미설정 시 `appsettings.json > Trading:IsPaperTrading` = 모의) | 선택 |
+| `KIS_APP_KEY` | 한국투자증권 APP KEY | 실전 전환 시 필수 |
+| `KIS_APP_SECRET` | 한국투자증권 APP SECRET | 실전 전환 시 필수 |
+| `KIS_ACCOUNT_NO` | KIS 계좌번호 (개인정보 — 소스 금지) | 실전 전환 시 필수 |
+| `KIS_ACCOUNT_PROD` | KIS 계좌 상품코드 (기본 `01`) | 선택 |
+| `KIS_SERVER` | KIS 서버 구분 (기본 `vps`) | 선택 |
+| `RESEND_API_KEY` | 이메일 알림(Resend) API 키 | 선택 (알림 사용 시) |
+| `ADMIN_EMAIL` | 알림 수신자 이메일 (개인정보 — 소스 금지) | 선택 (알림 사용 시) |
+| `FRED_API_KEY` | FRED 거시지표 브리핑 조회 키 (표시 전용) | 선택 |
+
+> `x-api-key` 값은 GitHub Actions에서 시크릿 `CRON_API_KEY`로 보관해 헤더로 전송하며, 서버는 이를 위 `API_ACCESS_KEY`와 비교합니다(두 값이 같아야 통과).
+
+**설정 예시** (값은 자리표시자 — 본인 값으로 교체, 커밋 금지):
+
+```powershell
+# Windows PowerShell — 현재 세션에만 적용
+$env:MASTER_KEY     = "<your-base64-32byte-key>"
+$env:DATABASE_URL   = "<your-postgres-connection-uri>"
+$env:API_ACCESS_KEY = "<your-cron-api-key>"
+```
+
+또는 `appsettings.local.json`(gitignore 대상)의 `Kis`/`Resend`/`Security` 섹션에 둘 수 있습니다.
