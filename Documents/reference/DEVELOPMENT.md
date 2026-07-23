@@ -1,7 +1,15 @@
+---
+title: 개발 진척도 (CHANGELOG)
+date: 2026-07-23
+company: [개인]
+tags: [개발이력, CHANGELOG, Phase6, DCA적립]
+status: draft
+---
+
 # 개발 진척도 (CHANGELOG)
 
-> 이 문서는 AutoInvesting 프로젝트의 개발 진행 상황을 기록합니다.
-> 새 개발자가 이 문서를 보고 현재 상태와 다음 작업을 파악할 수 있도록 작성합니다.
+## 개요
+> AutoInvesting 프로젝트의 개발 진행 상황을 기록하는 변경 이력(CHANGELOG)이다. 새 개발자가 현재 상태와 다음 작업을 파악할 수 있도록 유지한다.
 
 ---
 
@@ -17,6 +25,7 @@
 - **Phase 4-a~e** (AI 시장분석 엔진 / 확률 기반 합의 스코어링): ✅ 완료 → ⚠️ **Phase 6에서 제거**
 - **Phase 5-a~d** (적응형 임계값 / AI 성과·토큰 모니터링 / 성과 피드백 루프): ✅ 완료 → ⚠️ **Phase 6에서 제거**
 - **Phase 6** (판단 레이어 제거, DCA 적립 코어 전환): ✅ **완료**
+- **Phase 6+** (이후 추가된 정보·보조 기능): **Auth**(단일 관리자 인증·전역 필터), **Tax**(매도 양도세 추정 — `sell-preview`), **Macro**(FRED 거시지표 국면 브리핑 — 표시 전용), **Price**(현재가 조회·티커 검증). ⚠️ Tax·Macro는 매수 의사결정에 값을 넘기지 않음(판단 레이어 아님).
 
 > ⚠️ **Phase 4~5의 판단(타이밍) 기능은 Phase 6에서 전부 제거되었습니다.** 아래 Phase 4~5 변경 이력은
 > **역사적 기록(과거에 그렇게 구현되었음)**으로 보존된 것이며, 현재 코드베이스에는 해당 클래스·엔드포인트·화면이
@@ -49,7 +58,7 @@
 
 ## Phase 6 상세 변경 이력 — 판단 레이어 제거 & DCA 적립 코어 전환
 
-### 핵심: "퀀트/AI로 타이밍을 판단" → "정해진 목표비중대로 정수 매수만 하는 적립(DCA)"
+### 핵심: "퀀트/AI로 타이밍을 판단" → "월별 템플릿의 종목별 고정 수량을 매수하는 적립(DCA)"
 
 정직한 백테스트(2012~현재) 결과 **퀀트/AI 타이밍 판단이 단순 적립식(DCA)에 2.7~4배 열세**였고,
 완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 불과(타이밍은 잘해야 본전)함이 검증되었습니다.
@@ -61,7 +70,7 @@
 > "매수 템플릿 + 월별 배정(DCA_TEMPLATES/DCA_MONTH_MAP)" 모델로 발전했습니다. 아래 설명은
 > **현재 동작(템플릿 모델)** 기준입니다.
 
-```
+```text
 변경 전 (Phase 5):
   DailyExecutionService.RunDailyCycleAsync
     → SmartOrderEngine → 퀀트(QuantIndicator/QuantFilter) + AI(차트/펀더멘털) + 합의 스코어링
@@ -88,8 +97,8 @@
 | 파일 | 변경 내용 |
 |------|----------|
 | `Core/DailyExecutionService.cs` | `RunDcaCycleAsync`만 유지 — 월 1회 멱등 가드(`DCA_LAST_RUN_MONTH`) → 로그인 → `DcaSettings.Load` → `AccumulateAsync` → 이메일 보고서. (구 `RunDailyCycleAsync`/AI 평가/일일 보고서 제거) |
-| `Controllers/OrderController.cs` | `POST /api/order/dca-run`(적립 사이클, 202 즉시 반환) + `POST /api/order/manual`(판단 없는 수동 매수/매도, SELL 시 보유수량 서버 가드)만 남김. (구 `execute`/`analyze`/`daily-run` 제거) |
-| `appsettings.json` | `Trading`/`Smtp`/`Resend`/`Kis`/`Security`/`Dca` 섹션만 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { Enabled, MonthlyBudgetKrw, Quantities:{SPLG:3,QQQM:2,SCHD:5,GLD:1} }` (레거시 폴백용 — 실동작은 DB의 `DCA_TEMPLATES`/`DCA_MONTH_MAP`) |
+| `Controllers/OrderController.cs` | `POST /api/order/dca-run`(적립 사이클, 202 즉시 반환) + `POST /api/order/manual`(판단 없는 수동 매수/매도, SELL 시 보유수량·절세 서버 가드) + `GET /api/order/sell-preview`(매도 양도세 프리뷰)만 남김. (구 `execute`/`analyze`/`daily-run` 제거) |
+| `appsettings.json` | `Trading`/`Smtp`/`Resend`/`Kis`/`Security`/`Dca`/`Tax` 섹션 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { Enabled, MonthlyBudgetKrw, Quantities:{SPLG:3,QQQM:2,SCHD:5,GLD:1} }` (레거시 폴백용 — 실동작은 DB의 `DCA_TEMPLATES`/`DCA_MONTH_MAP`) |
 
 ### 6-3. 제거된 파일·개념
 
@@ -106,7 +115,7 @@
 ### 6-4. 유지된 것 (자동화 인프라)
 
 `IBrokerClient`/`KisBrokerClient`/`SimBrokerClient`, `SessionManager`(이제 브로커 생명주기만 — AI analyzer 분기 제거),
-`TradeHistoryDAO`, `NotificationService`(MailKit 이메일), `ExchangeRateService`, `DBManager`/`AppConfigManager`,
+`TradeHistoryDAO`, `NotificationService`(Resend HTTP API — Render의 SMTP 포트 차단 우회), `ExchangeRateService`, `DBManager`/`AppConfigManager`,
 `ConfigController`, `PortfolioController`, `HistoryController`, `TestController`(buy/send-test-email만). 외부 크론잡이 `dca-run`을 호출하는 구조.
 
 ### 6-5. 프론트엔드 재구성
@@ -624,7 +633,7 @@ Mock 환경에서 벗어나 실제 Google Gemini API 연동을 완료하고, 퀀
 | `.gitignore` | `appsettings.local.json`, `*.secrets.json` 등 시크릿 파일 패턴 추가되어 레포지토리 내 중요정보 반출 방비 안전장치 반영 |
 | `appsettings.local.json` | **[추적 제외됨]** 로컬 실행 및 시크릿 환경 변수 처리용 템플릿 |
 
-> 비용/토큰 분석 참고: `results/260602_AI엔진도입비용분석.md`
+> 비용/토큰 분석 참고: `Documents/worklog/[2026-06-02] 01_AI엔진 도입 비용 분석.md`
 
 ---
 
