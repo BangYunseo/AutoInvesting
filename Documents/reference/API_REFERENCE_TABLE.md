@@ -1,47 +1,49 @@
-# AutoInvesting API 일람표 (한 줄 = 한 API)
+---
+title: AutoInvesting API 일람표
+date: 2026-07-23
+company: [개인]
+tags: [API, 일람표, 엔드포인트, 인증]
+status: draft
+---
 
-> 시트처럼 한눈에 보는 평면 표. 상세 요청/응답 예시는 [`API_REFERENCE.md`](API_REFERENCE.md), 인터랙티브 명세는 `/swagger` 참조.
-> 인증: 헬스체크(`/api/health`) 외 **모든 엔드포인트는 `x-api-key` 헤더 필수**.
-> ℹ️ 현재 매매 결정은 **퀀트 단독**(AI 결정 경로 휴면). 모니터링/적응형/가중치 A/B 엔드포인트는 유지되나 신규 데이터 미적재(휴면).
+# AutoInvesting API 일람표
+
+## 개요
+> 한 줄 = 한 API로 한눈에 보는 평면 표(Phase 6 — DCA 적립 코어 기준). 상세 요청/응답 예시는 `Documents/reference/API_REFERENCE.md`, 인터랙티브 명세는 `/swagger` 참조. 판단 레이어(전략/퀀트/AI/모니터링/분할매도/백테스트/시뮬)는 제거되어 관련 엔드포인트는 존재하지 않는다.
+
+## 본문
+
+### 인증 규약
+전역 필터(`ApiKeyAuthAttribute`)가 모든 엔드포인트에 적용되며 **Bearer 세션토큰(사람) 또는 `x-api-key`(크론)** 중 하나로 통과한다. `/api/auth/*`와 `GET /api/health`는 `[PublicEndpoint]`로 면제.
+
+### 엔드포인트
 
 | # | 그룹 | Method | 경로 | 설명 | 요청 (파라미터/본문) | 주요 응답(200) | 오류 코드 | 비고 |
 |---|------|--------|------|------|----------------------|----------------|-----------|------|
-| 1 | 주문 | POST | `/api/order/execute` | 활성 전략 스마트 주문 즉시 실행 | 없음 | `{message, results[]}` | 400/503/500 | |
-| 2 | 주문 | POST | `/api/order/daily-run` | 일일 전체 사이클 백그라운드 실행 | 없음 | `202 {message}` | — | 외부 크론용·즉시 202·결과는 로그/메일 |
-| 3 | 주문 | POST | `/api/order/manual` | 신호 무관 즉시 매수/매도 | body: `ticker*`, `qty*`, `orderType`, `price` | `{message, orderNo, ...}` | 400/503/502/500 | 검증용·체결 시 이력 저장 |
-| 4 | 주문 | GET | `/api/order/analyze/{ticker}` | 단일 종목 분석(주문 X) | path: `ticker`; query: `strategy`=MEAN_REVERSION | `{signal, indicators, conditions, advisoryNotes}` | 500 | 퀀트 단독 신호 + 환율 코멘트(advisoryNotes) |
-| 5 | 설정 | GET | `/api/config` | 운영 설정 조회(시크릿 제외) | 없음 | `{IS_PAPER_TRADING, ACTIVE_STRATEGY, ...}` | 500 | |
-| 6 | 설정 | POST | `/api/config` | 설정 저장 + 세션 리셋 | body: `{key:value}` | `{message}` | 500 | |
-| 7 | 설정 | GET | `/api/config/gemini-models` | 사용 가능 Gemini 모델 목록 | 없음 | `{models[]}` | 500 | 키 미설정 시 `{models:[], error}` |
-| 8 | 전략 | GET | `/api/strategy/summary` | 전략 요약 목록 | 없음 | `[summary]` | 500 | |
-| 9 | 전략 | GET | `/api/strategy/adaptive-status` | 적응형 임계값 작동 진단 | query: `name` | `{strategy, items[]}` | 500 | 미지정 시 ACTIVE_STRATEGY |
-| 10 | 전략 | GET | `/api/strategy/{name}` | 특정 전략 종목 목록 | path: `name`=사용자정의 | `[StrategyDto]` | 500 | |
-| 11 | 전략 | POST | `/api/strategy/{name}` | 전략 저장(덮어쓰기) | path: `name`; body: `StrategyDto[]` | `{message}` | 400/500 | |
-| 12 | 전략 | DELETE | `/api/strategy/{name}` | 전략 삭제 | path: `name` | `{message}` | 500 | |
-| 13 | 모니터링 | GET | `/api/monitoring/summary` | 요약 핵심 지표 | query: `days`=30 | `{todayTotalTokens, evaluatedCount, ...}` | 500 | |
-| 14 | 모니터링 | GET | `/api/monitoring/performance` | 최근 AI 판단 성과 | query: `limit`=50 | `[성과]` | 500 | 휴면·과거 데이터만 |
-| 15 | 모니터링 | GET | `/api/monitoring/tokens/by-agent` | 에이전트별 토큰/비용 | query: `days`=30 | `{periodDays, agents[]}` | 500 | |
-| 16 | 모니터링 | GET | `/api/monitoring/tokens/daily` | 일자별 토큰/비용 | query: `days`=14 | `{periodDays, daily[]}` | 500 | |
-| 17 | 모니터링 | GET | `/api/monitoring/agent-accuracy` | 에이전트 실측 적중률 | query: `horizonDays`=7 | `{horizonDays, agents}` | 500 | Phase 5-d |
-| 18 | 모니터링 | GET | `/api/monitoring/weight-abtest` | 합의 가중치 A/B | query: `horizonDays`=7 | `{schemes, note}` | 500 | ⚠️ 검증용·미반영 |
-| 19 | 모니터링 | GET | `/api/monitoring/adaptive-threshold` | 종목 적응형 임계값 근거 | query: `ticker*` | `{buyThreshold, sellThreshold, ...}` | 400/500 | |
-| 20 | 이력 | GET | `/api/history/trades` | 매매 내역 | query: `limit`=50 | `[trades]` | 500 | |
-| 21 | 이력 | GET | `/api/history/logs` | 시스템 로그 | query: `date`, `lines`=200 | `{date, logs[]}` 또는 `{availableDates[]}` | 500 | |
-| 22 | 분할매도 | GET | `/api/sellplan` | 활성 플랜 목록 | 없음 | `[SellPlanDto]` | 500 | |
-| 23 | 분할매도 | POST | `/api/sellplan` | 플랜 생성 | body: `SellPlanDto` | `SellPlanDto` (planId) | 500 | status/soldQty 서버 설정 |
-| 24 | 분할매도 | DELETE | `/api/sellplan/{id}` | 플랜 취소 | path: `id` | `{Message}` | 404/500 | 대문자 `Message` |
-| 25 | 포트폴리오 | GET | `/api/portfolio/holdings` | 보유 종목 | 없음 | `[holdings]` | 500 | |
-| 26 | 포트폴리오 | GET | `/api/portfolio/summary` | 보유+예수금+환율 | 없음 | `{holdings, cashBalance, exchangeRate}` | 500 | |
-| 27 | 퀀트 | GET | `/api/quant/analyze/{ticker}` | 실시간 퀀트 분석 | path: `ticker`; query: `strategyType` | `{currentPrice, indicators, analysis}` | 400/404/500 | 합의 없이 순수 퀀트 |
-| 28 | 백테스트 | POST | `/api/backtest/run` | 과거 데이터 전략 검증 | body: `ticker*`, `strategyType`, `days`, `initialCapital`, `buyThreshold`, `sellThreshold` | `{totalReturnPct, maxDrawdownPct, winRatePct, trades[]}` | 400/500 | days 최대 1000 |
-| 29 | 시뮬 | POST | `/api/sim/generate-training-data` | SIM 학습데이터 생성 | body: `GenerateRequest` | `{insertedCount, tickerCount, perTicker}` | 500 | DATA_SOURCE=SIM |
-| 30 | 시뮬 | GET | `/api/sim/verify-training-data` | SIM 데이터 적중률/가중치 검증 | query: `horizonDays`=7 | `{snapshotCount, agentAccuracy, weightAbTest}` | 500 | |
-| 31 | 테스트 | POST | `/api/test/inject-mock` | QQQ 목업 30건 주입 | 없음 | `string` | — | ⚠️ TB_MARKET_SNAPSHOT QQQ DELETE 후 삽입 |
-| 32 | 테스트 | GET | `/api/test/test-adaptive` | 적응형+분석 테스트 | query: `ticker`=QQQ | `{adaptiveThreshold, analysisResult}` | — | |
-| 33 | 테스트 | POST | `/api/test/buy` | 즉시 매수 | query: `ticker`=QQQM, `qty`=1 | `{orderNo, ...}` | 400/500 | ⚠️ 실제 주문 발생 |
-| 34 | 테스트 | POST | `/api/test/send-report` | 테스트 일일 보고서 메일 | 없음 | `{message}` | 500 | |
-| 35 | 테스트 | GET | `/api/test/send-test-email` | 테스트 이메일(원인 노출) | 없음 | `{ok, message}` | 503/500 | reason: CONFIG_MISSING/SEND_ERROR |
-| 36 | 테스트 | GET | `/api/test/health` | 의존성+운영모드 헬스체크 | 없음 | `{ok, mode, email, db, broker}` | 503 | 시크릿 미노출 |
-| 37 | 헬스 | GET | `/api/health` | 경량 헬스체크 | 없음 | `Healthy` | — | **인증 불요** |
+| 1 | 인증 | GET | `/api/auth/status` | 최초 설정 필요 여부 | 없음 | `{needsSetup}` | — | 인증 면제 |
+| 2 | 인증 | POST | `/api/auth/setup` | 관리자 계정 최초 설정 | body: `username*`, `password*`(8자+) | `{message}` | 400/409 | 인증 면제·1회만 |
+| 3 | 인증 | POST | `/api/auth/login` | 로그인·세션토큰 발급 | body: `username*`, `password*` | `{token, expiresAt}` | 400/401/500 | 인증 면제·토큰 7일 |
+| 4 | 설정 | GET | `/api/config` | 운영 설정 조회(시크릿 제외) | 없음 | `{IS_PAPER_TRADING, KIS_SERVER, KIS_APP_KEY_SET, ...}` | 500 | 시크릿은 `_SET` 여부만 |
+| 5 | 설정 | POST | `/api/config` | 설정 저장 + 세션 리셋 | body: `{key:value}` | `{message}` | 500 | 시크릿 빈값=미변경 |
+| 6 | 설정 | GET | `/api/config/secret/{key}` | 시크릿 평문 단건 조회 | path: `key` | `{key, value, set}` | 400/500 | 화이트리스트(KIS 키/계좌)만 |
+| 7 | 적립설정 | GET | `/api/dca/config` | 템플릿+월배정+현재월 조회 | 없음 | `{templates, monthMap, currentMonth, activeTemplateId}` | 500 | |
+| 8 | 적립설정 | PUT | `/api/dca/config` | 템플릿·월배정 저장 | body: `templates[]*`, `monthMap` | `{message, templates, monthMap}` | 400/500 | id 중복·예산·수량 검증 |
+| 9 | 주문 | POST | `/api/order/dca-run` | 적립(DCA) 사이클 백그라운드 실행 | 없음 | `202 {message}` | — | 외부 크론용·즉시 202·결과는 로그/메일 |
+| 10 | 주문 | POST | `/api/order/manual` | 신호 무관 즉시 매수/매도 | body: `ticker*`, `qty*`, `orderType`, `price`, `acknowledgeTax`, `ytdRealizedGainKrw` | `{message, orderNo, ...}` | 400/409/502/503/500 | 매도 보유·절세 가드(409=과세 미확인, `taxEstimate` 첨부) |
+| 11 | 주문 | GET | `/api/order/sell-preview` | 매도 예상 양도세 계산(주문 X) | query: `ticker*`, `qty*`, `price`, `ytd` | `SellTaxEstimateDto` | 400/503/500 | 정보 제공용 |
+| 12 | 시세 | GET | `/api/price/{ticker}` | 현재가+환율 환산 | path: `ticker` | `{ticker, priceUsd, exchangeRate, priceKrw}` | 400/404/500 | 404=미존재/조회 실패(티커 검증 겸용) |
+| 13 | 포트폴리오 | GET | `/api/portfolio/holdings` | 보유 종목 | 없음 | `{holdings}` | 500 | |
+| 14 | 포트폴리오 | GET | `/api/portfolio/summary` | 보유+예수금+환율+계좌모드 | 없음 | `{holdings, cashBalance, exchangeRate, accountMode, accountMasked}` | 500 | accountMode: SIM/PAPER/LIVE |
+| 15 | 이력 | GET | `/api/history/trades` | 매매 내역 | query: `limit`=50 | `{trades}` | 500 | |
+| 16 | 이력 | GET | `/api/history/logs` | 시스템 로그(TB_SYSTEM_LOG) | query: `date`, `lines`=200 | `{date, totalLines, logs}` 또는 `{message, availableDates}` | 500 | |
+| 17 | 거시 | GET | `/api/macro/briefing` | 거시지표 국면 브리핑 | 없음 | `MacroBriefingDto` | 500 | ⚠️ 정보 전용·매수 로직 미연결 |
+| 18 | 점검 | POST | `/api/test/buy` | 진단용 즉시 매수 | query: `ticker`=QQQM, `qty`=1 | `{message, orderNo, ...}` | 400/403/500 | ⚠️ 모의 전용(실전 403 차단)·검증 없음 |
+| 19 | 점검 | GET | `/api/test/send-test-email` | 테스트 이메일 발송 | 없음 | 평문 문자열 | 500 | Resend |
+| 20 | 헬스 | GET | `/api/health` | 경량 헬스체크 | 없음 | `Healthy` | — | **인증 불요** |
 
-> `*` = 필수 · `=값` = 기본값 · ⚠️ = 운영 주의(실주문/DB변경/검증용)
+> `*` = 필수 · `=값` = 기본값 · ⚠️ = 운영 주의(실주문/모의 전용/정보 전용)
+
+## 참고
+- 상세 요청/응답: `Documents/reference/API_REFERENCE.md`
+- 인터랙티브 명세: `/swagger`
+- 본 문서는 `Controllers/` 변경 시 함께 갱신한다.

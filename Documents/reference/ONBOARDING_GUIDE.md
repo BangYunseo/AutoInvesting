@@ -1,7 +1,16 @@
-# AutoInvesting 프로젝트 온보딩 가이드 🚀
+---
+title: AutoInvesting 프로젝트 온보딩 가이드
+date: 2026-07-23
+company: [개인]
+tags: [온보딩, 아키텍처, DCA적립, 브로커분기]
+status: draft
+---
 
-이 문서는 개발자가 AutoInvesting 프로젝트의 전체 흐름과 각 구성요소를 쉽게 이해하고 즉시 기여할 수 있도록 돕기 위해 작성되었습니다.
+# AutoInvesting 프로젝트 온보딩 가이드
 
+## 개요
+> 개발자가 AutoInvesting의 전체 흐름과 각 구성요소를 빠르게 이해하고 즉시 기여할 수 있도록 돕는 문서다.
+>
 > **먼저 알아둘 것 (Phase 6 — DCA 적립 코어 전환)**: 이 시스템은 더 이상 "지금 사야 할까"를 판단하지
 > 않습니다. 정직한 백테스트(2012~현재) 결과 퀀트/AI 타이밍 판단이 단순 적립식(DCA)에 2.7~4배 열세였고,
 > 완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 불과(타이밍은 잘해야 본전)함이 드러났습니다. 그래서
@@ -13,7 +22,7 @@
 본 프로젝트는 ASP.NET Core 기반의 **Headless 백그라운드 서비스 및 REST API 서버**입니다.
 크게 다음과 같은 흐름으로 동작합니다.
 
-```
+```text
 [외부 크론잡 (매수 주기에 호출)]            [외부 요청 (Web UI, API Client)]
       │ POST /api/order/dca-run                │ (x-api-key 인증 통과 시)
       ▼                                        ▼
@@ -23,7 +32,7 @@
 [ DailyExecutionService.RunDcaCycleAsync ]
       │  로그인 → DcaSettings.Load → DcaAccumulationEngine.AccumulateAsync → 이메일 보고서
       ▼
-[ Core/DcaAccumulationEngine ] ──▶ [ SessionManager → 브로커(Sim/KIS) ] ──▶ 정수 단위 매수 + 기록
+[ Core/DcaAccumulationEngine ] ──▶ [ SessionManager → 브로커(Sim/KIS) ] ──▶ 고정 수량 매수 + 기록
 ```
 
 - **적립 사이클 트리거**: 백그라운드 타이머 대신 **외부 크론잡**이 매수 주기(예: 매월 첫 거래일)에
@@ -43,9 +52,8 @@
 
 AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(실전)을 쓰는지 모릅니다.** 브로커 추상화 인터페이스(`IBrokerClient`)를 사용하기 때문입니다.
 
-- `SessionManager`는 `IS_PAPER_TRADING` 환경변수(또는 `appsettings.json`의 값)가 `1`이거나, 설정된 API Key가 없으면 기본적으로 **`SimBrokerClient` (가상 모의투자 환경)**를 주입합니다.
-- 반대로 키가 정상적으로 존재하면 **`KisBrokerClient` (한국투자증권 실거래망/모의망 연결)**를 주입합니다.
-  - KIS 연동에서도 `Kis:Server` 값을 통해 KIS 실전망(prod)과 KIS 모의투자망(vps)으로 한 번 더 분기할 수 있습니다.
+- `SessionManager.GetClient()`는 **KIS 앱키(`KIS_APP_KEY`)가 없으면** — `IS_PAPER_TRADING` 값과 무관하게 — **`SimBrokerClient` (가상 모의투자 환경)**를 주입합니다. 키 없이는 실거래가 불가능하기 때문입니다.
+- 키가 존재하면 항상 **`KisBrokerClient` (한국투자증권 연결)**를 주입하되, **실전망(prod)/모의망(vps) 분기는 `IS_PAPER_TRADING`이 결정**합니다 — `"0"`이면 실전망(`openapi…:9443`), 그 외 값이면 모의망(`openapivts…:29443`). 즉 **Sim/KIS 선택 기준은 "키 유무", prod/vps 선택 기준은 `IS_PAPER_TRADING`**입니다(`Kis:Server` 값은 분기에 쓰이지 않습니다).
 
 ## 4. 적립 로직: 월별 템플릿의 고정 수량 매수 (DcaAccumulationEngine)
 
@@ -57,7 +65,7 @@ AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(�
    - UI(`DcaController` → `PUT /api/dca/config`)에서 저장하면 DB에 기록되어 다음 사이클부터 반영됩니다.
 2. **시세 수집 (`AccumulateAsync`)**: 브로커에서 환율(USD→KRW)과 종목별 현재가를 조회합니다. 현재가를 못 가져오는 종목은 자동 제외하며, 나머지 종목은 비중 재조정 없이 설정된 고정 수량 그대로 매수합니다.
 3. **순수 매수 계획 (`PlanPurchases`)**:
-   ```
+   ```text
    for (템플릿의 종목별 (ticker, qty)):
        qty <= 0 이면 제외
        현재가가 없거나 0 이하이면 제외
@@ -85,8 +93,12 @@ AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(�
 
 > 시크릿은 절대 소스코드·로그·커밋·문서에 넣지 마세요. 위 예시의 값은 모두 자리표시자입니다.
 
-### 서버 보호: API Key Authentication
-개발된 백엔드 기능을 타사 프론트엔드 등에서 호출하려면 반드시 위에서 설정한 `Security:ApiAccessKey` 값을 HTTP 헤더 **`x-api-key`**에 담아 요청해야 합니다. 그렇지 않으면 `401 Unauthorized` 오류가 발생하여 비인가 접근을 원천 차단합니다.
+### 서버 보호: 전역 인증 필터
+모든 엔드포인트는 전역 필터(`ApiKeyAuthAttribute`)로 보호됩니다. 통과 방법은 두 가지입니다.
+- **사람/Web UI**: `AuthController`(`/api/auth/login`)로 로그인해 받은 **서명된 세션 토큰**을 `Authorization: Bearer <token>` 헤더로 전송합니다. 프론트엔드는 이 경로를 사용합니다.
+- **외부 크론잡**: 위에서 설정한 `Security:ApiAccessKey` 값을 HTTP 헤더 **`x-api-key`**에 담아 전송합니다.
+
+둘 중 하나로 통과하며, 어느 쪽도 없으면 `401 Unauthorized`로 비인가 접근을 차단합니다. 단 로그인·초기설정·상태 조회(`/api/auth/*`)는 `[PublicEndpoint]`로 인증이 면제됩니다.
 
 ## 6. 프론트엔드 화면 구성
 
