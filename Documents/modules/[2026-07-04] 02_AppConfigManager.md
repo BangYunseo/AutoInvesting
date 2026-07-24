@@ -98,15 +98,37 @@ return value;
 ```csharp
 if (SensitiveKeys.Contains(key) && !string.IsNullOrEmpty(value))
 {
-    if (CryptoUtil.IsConfigured) storedValue = CryptoUtil.EncryptSecret(value);
-    else Logger.Warn($"[AppConfig] MASTER_KEY 미설정 ... 민감 키 평문 저장 [{key}]");
+    if (CryptoUtil.IsConfigured)
+    {
+        storedValue = CryptoUtil.EncryptSecret(value);
+    }
+    else
+    {
+        Logger.Warn($"[AppConfig] MASTER_KEY 미설정 \n\t: 민감 키 평문 저장 [{key}]\n\tMASTER_KEY 설정 요청");
+    }
 }
 ```
 민감 키는 저장 직전 `MASTER_KEY`로 암호화(AES-GCM). 키가 없으면 평문 저장 + 경고.
 
 ```csharp
-int affected = cmd.ExecuteNonQuery();   // UPDATE ... WHERE CONFIG_KEY=@k
-if (affected == 0) { /* INSERT */ }
+using (var conn = DBManager.Instance.GetConnection())
+using (var cmd = new NpgsqlCommand(
+    "UPDATE TB_APP_CONFIG SET CONFIG_VALUE=@v WHERE CONFIG_KEY=@k", conn))
+{
+    cmd.Parameters.AddWithValue("@v", storedValue);
+    cmd.Parameters.AddWithValue("@k", key);
+    int affected = cmd.ExecuteNonQuery();
+
+    if (affected == 0)
+    {
+        // 키가 없을 경우 INSERT
+        using var insertCmd = new NpgsqlCommand(
+            "INSERT INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE) VALUES (@k, @v)", conn);
+        insertCmd.Parameters.AddWithValue("@k", key);
+        insertCmd.Parameters.AddWithValue("@v", storedValue);
+        insertCmd.ExecuteNonQuery();
+    }
+}
 ```
 `UPDATE` 후 영향 행이 0이면 `INSERT` — 있으면 갱신, 없으면 추가하는 upsert.
 
@@ -127,9 +149,14 @@ foreach (var child in section.GetChildren())
 ```csharp
 string? mappedPath = key switch
 {
-    "IS_PAPER_TRADING" => "Trading:IsPaperTrading",
-    "KIS_APP_KEY"      => "Kis:AppKey",
-    // ... (KIS/Resend/Security 키)
+    "IS_PAPER_TRADING"      => "Trading:IsPaperTrading",
+    "KIS_SERVER"            => "Kis:Server",
+    "KIS_ACCOUNT_PROD"      => "Kis:AccountProd",
+    "KIS_APP_KEY"           => "Kis:AppKey",
+    "KIS_APP_SECRET"        => "Kis:AppSecret",
+    "KIS_ACCOUNT_NO"        => "Kis:AccountNo",
+    "RESEND_API_KEY"        => "Resend:ApiKey",
+    "API_ACCESS_KEY"        => "Security:ApiAccessKey",
     _ => null
 };
 ```

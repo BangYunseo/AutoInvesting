@@ -11,8 +11,6 @@ status: draft
 ## 개요
 > AutoInvesting 프로젝트의 개발 진행 상황을 기록하는 변경 이력(CHANGELOG)이다. 새 개발자가 현재 상태와 다음 작업을 파악할 수 있도록 유지한다.
 
----
-
 ## 현재 상태: Phase 6 완료 — DCA 적립 코어 전환 ✅
 
 - **Phase 1** (기반): ✅ 완료
@@ -30,8 +28,6 @@ status: draft
 > ⚠️ **Phase 4~5의 판단(타이밍) 기능은 Phase 6에서 전부 제거되었습니다.** 아래 Phase 4~5 변경 이력은
 > **역사적 기록(과거에 그렇게 구현되었음)**으로 보존된 것이며, 현재 코드베이스에는 해당 클래스·엔드포인트·화면이
 > **존재하지 않습니다.** 현재 동작은 본 문서 최상단의 "Phase 6 상세 변경 이력"을 기준으로 보세요.
-
----
 
 ## ⚠️ 실거래 전환 (과매수 방지: 구현 완료 / 계좌 전환: 운영 작업)
 
@@ -53,8 +49,6 @@ status: draft
 - Render 환경변수에 **실전** `KIS_APP_KEY`/`KIS_APP_SECRET`/`KIS_ACCOUNT_NO`/`KIS_ACCOUNT_PROD` 설정(모의와 별도 발급).
 - `IS_PAPER_TRADING=0` 설정 → `SessionManager`가 실전 도메인·실전 tr_id로 자동 분기.
 - 전환 직후 크론을 끄고 `workflow_dispatch` 수동 1회로 소액 체결·잔고 확인 후 자동화 재개 권장.
-
----
 
 ## Phase 6 상세 변경 이력 — 판단 레이어 제거 & DCA 적립 코어 전환
 
@@ -148,8 +142,6 @@ status: draft
 > 테스트 실행: `dotnet test Tests/AutoInvest.Tests.csproj` (net8.0, xUnit). 메인 웹 프로젝트는
 > `AutoInvest.csproj`에서 `Tests\**`를 컴파일 대상에서 제외해 분리되어 있습니다.
 
----
-
 > 📌 **이하 Phase 5-d ~ Phase 4-a 및 그 이전의 변경 이력은 역사적 기록입니다.** 여기서 설명하는
 > 퀀트/AI 판단 관련 클래스·엔드포인트·화면은 **Phase 6에서 모두 제거되어 현재 코드베이스에 존재하지
 > 않습니다.** 과거 어떤 시도를 했고 왜 접었는지를 이해하기 위한 보존용 기록으로만 참고하세요.
@@ -162,7 +154,7 @@ Phase 5-b/c까지 AI 성과·토큰 데이터를 수집·시각화했으나, 누
 또한 적응형 임계값(5-a)은 매수에만, 그것도 BuyProbability **분포**(백분위)만 사용했고 **실제 승패**는 반영하지 않았습니다.
 Phase 5-d에서 (1) 스냅샷에 에이전트별 방향 신호를 보강하고, (2) 실측 적중률·가중치 A/B를 산출하며, (3) 매도 적응형 임계값을 추가해 피드백 루프를 닫았습니다.
 
-```
+```text
 [수집·시각화 (5-b/c)]              [피드백 분석 (5-d)]
 TB_MARKET_SNAPSHOT ──► (에이전트별 신호 보강) ──► PerformanceFeedbackEngine
   · QUANT_SIGNAL                                    ├── 에이전트별 실측 적중률 (7일 forward return 대조)
@@ -199,8 +191,6 @@ AdaptiveThresholdEngine.GetSellThreshold ◄── SELL_PROBABILITY 분포   ─
 | `Frontend/src/pages/Monitoring.jsx` | "가중치 검증" 탭 추가 — 에이전트별 적중률 + 가중치 A/B 표 |
 | `.agents/rules/project_overview.md`, `.agents/rules/architecture.md` | Phase 표·핵심 추상화 갱신 |
 
----
-
 ## Phase 5-c 상세 변경 이력 — AI 모니터링 대시보드 UI
 
 ### 핵심: "수집만 되던 AI 성과·토큰 데이터" → "대시보드에서 조회·시각화"
@@ -209,7 +199,7 @@ Phase 5-b에서 `SmartOrderEngine`/`DailyExecutionService`가 AI 판단 성과(`
 토큰 사용량(`TB_TOKEN_USAGE`)을 적재하기 시작했으나, 이를 조회하는 API·화면이 없었습니다.
 Phase 5-c에서 읽기 전용 조회 경로와 프론트엔드 모니터링 페이지를 신설하여 기능을 완성했습니다.
 
-```
+```text
 [데이터 수집 (Phase 5-b)]                [데이터 조회·시각화 (Phase 5-c)]
 SmartOrderEngine ──┐                      MonitoringController
 DailyExecutionSvc ─┴─► TB_AI_PERFORMANCE  ─► /api/monitoring/performance ─► Monitoring.jsx
@@ -219,7 +209,7 @@ DailyExecutionSvc ─┴─► TB_AI_PERFORMANCE  ─► /api/monitoring/perform
 
 #### 비용 추정 공식 (Gemini 1.5 Flash 공식 단가, 128k 이하 컨텍스트 기준)
 
-```
+```text
 추정 비용(USD) = 프롬프트 토큰 / 1M × $0.075 + 완성 토큰 / 1M × $0.30
 ```
 
@@ -245,8 +235,6 @@ DailyExecutionSvc ─┴─► TB_AI_PERFORMANCE  ─► /api/monitoring/perform
 |------|----------|
 | `Frontend/src/pages/Strategy.jsx` | 전략 수정 화면 진입 시 미선언 변수(`editStrategyName`) 참조로 발생하던 `ReferenceError`(빈 페이지) 제거, 종목 수 표시 키 `TickerCount` → `tickerCount`(camelCase) 수정 |
 
----
-
 ## Phase 4-e 상세 변경 이력 — 확률 기반 합의 스코어링 시스템
 
 ### 핵심 변경: "3자 만장일치 합의(0 or 1)" → "가중치 × 확신도 확률 합산(0.0~1.0)"
@@ -254,7 +242,7 @@ DailyExecutionSvc ─┴─► TB_AI_PERFORMANCE  ─► /api/monitoring/perform
 Phase 4-d의 만장일치(CombineSignals) 방식을 확률 기반 가중 합산(CalculateConsensusScore)으로 교체했습니다.
 매매 판단의 근거를 수치로 투명하게 추적할 수 있으며, Phase 5 종목별 적응형 임계값의 기초 데이터를 축적합니다.
 
-```
+```text
 변경 전 흐름 (Phase 4-d):
   SmartOrderEngine → [퀀트] + [차트AI] + [펀더멘털AI] → 만장일치(CombineSignals) → 0 or 1
 
@@ -268,7 +256,7 @@ Phase 4-d의 만장일치(CombineSignals) 방식을 확률 기반 가중 합산(
 
 #### 확률 합산 공식
 
-```
+```text
 BuyProbability = QUANT_WEIGHT(BUY 충족 시 고정) + CHART_AI_WEIGHT × 차트확신도 + FUND_AI_WEIGHT × 펀더멘털확신도
 
 기본 가중치: 퀀트 40% / 차트AI 30% / 펀더멘털AI 30% (appsettings.json 설정)
@@ -280,7 +268,7 @@ BuyProbability = QUANT_WEIGHT(BUY 충족 시 고정) + CHART_AI_WEIGHT × 차트
 
 #### 로그 출력 형식
 
-```
+```text
 [SmartOrder] [MEAN_REVERSION] QQQ 최종 판정: BUY ✅
   ├── 퀀트       : BUY  → +40.0%
   ├── 차트AI     : BUY (확신도:0.76) → +22.8%
@@ -306,8 +294,6 @@ BuyProbability = QUANT_WEIGHT(BUY 충족 시 고정) + CHART_AI_WEIGHT × 차트
 | `appsettings.json` | `Consensus` 설정 섹션 추가 (QuantWeight, ChartAiWeight, FundAiWeight, BuyThreshold, SellThreshold) |
 | `Data/AppConfigManager.cs` | Consensus 키 매핑 5개 추가 (QUANT_WEIGHT, CHART_AI_WEIGHT, FUND_AI_WEIGHT, BUY_THRESHOLD, SELL_THRESHOLD) |
 
----
-
 ## Phase 4-d 상세 변경 이력 — 다중 에이전트(투자 위원회) 구조 및 재무 프롬프트 통합
 
 ### 핵심 변경: "단일 AI 에이전트" → "차트+펀더멘털 이중 에이전트 만장일치 합의"
@@ -315,7 +301,7 @@ BuyProbability = QUANT_WEIGHT(BUY 충족 시 고정) + CHART_AI_WEIGHT × 차트
 Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조를 벤치마킹하여,
 기존 단일 Gemini 프롬프트를 두 개의 독립된 에이전트로 분리하고 퀀트+AI 2자 합의를 3자 만장일치 합의로 업그레이드했습니다.
 
-```
+```text
 변경 전 흐름:
   SmartOrderEngine → [퀀트] + [단일 Gemini AI] → 2자 합의(CombineSignals)
 
@@ -337,7 +323,7 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
 
 #### 로그 출력 예시
 
-```
+```text
 [SmartOrder] [MEAN_REVERSION] QQQ 최종 판정: HOLD
   ├── 퀀트       : BUY — RSI(38.2) ≤ 45 AND Position(0.21) ≤ 0.30
   ├── 차트AI     : BUY (확신도:0.78) — 기술적 반등 신호 및 BB 하단 지지 확인
@@ -363,8 +349,6 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
 | `Core/AiMarketAnalyzer.cs` | Mock 구현체를 `MultiAgentAnalysisResult` 반환으로 업데이트. 차트/펀더멘털 Mock 에이전트 분리 |
 | `Core/SmartOrderEngine.cs` | `SmartOrderResult`에 `MultiAgentResult` 필드 추가. `CombineSignals()`를 3자 만장일치 합의로 전면 교체. 상세 3자 판단 로그 추가 |
 
----
-
 ## Phase B/C 상세 변경 이력 — 내결함성(Polly), 이메일 알림 연동, React 프론트엔드 연동
 
 ### 핵심 변경: "React-Router 기반 SPA 프론트엔드 구축 및 운영 안정성 강화"
@@ -375,8 +359,6 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
   - 대시보드 (`Dashboard.jsx`), 전략 관리 (`Strategy.jsx`), 거래 내역 (`History.jsx`), 퀀트 분석 (`Order.jsx`), 백테스트 (`Backtest.jsx`), 설정 (`Settings.jsx`) 총 6개의 핵심 페이지 및 라우팅 구현 완료.
   - 프리미엄 Glassmorphism UI 디자인 시스템(`index.css`)을 적용했습니다.
 
----
-
 ## Phase A 상세 변경 이력 — 프로젝트 정비 및 안정화
 
 ### 핵심 변경: "WinForms 레거시 완전 제거 및 REST API 전환"
@@ -386,13 +368,11 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
 - **의존성 주입(DI) 정비**: `DBManager` 등 핵심 컴포넌트를 `Program.cs`의 DI 컨테이너에 싱글턴으로 등록하고 컨트롤러에 주입하는 패턴을 확립했습니다.
 - **API 컨트롤러 도입**: 기존 Panel UI를 대체하는 `HistoryController`, `StrategyController`, `OrderController`, `BacktestController` 등 RESTful API 엔드포인트를 신설하여 외부 제어가 가능해졌습니다.
 
----
-
 ## Phase 2.6 상세 변경 이력 — 구조 리팩토링
 
 ### 핵심 변경: "멀티 Form 팝업" → "단일 창 Panel 전환 (SPA)"
 
-```
+```text
 기존 흐름:
   사이드바 버튼 클릭 → new ConfigForm().ShowDialog()  ← 별도 창 팝업
 
@@ -455,13 +435,11 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
 | `Forms/AllocationSetupForm.resx` | 상동 |
 | `Forms/BacktestForm.cs` | 미사용 (MainForm에서 호출 없음) |
 
----
-
 ## Phase 2.5 상세 변경 이력 — 퀀트 엔진 모듈
 
 ### 핵심 변경: "단순 예약 매수" → "퀀트 조건 판단 후 매수"
 
-```
+```text
 기존 흐름:
   오후 10:30 → SmartOrderEngine → Position ≤ 0.10 이면 매수
 
@@ -520,8 +498,6 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
 | `Forms/MainForm.cs` | 백테스팅 버튼 클릭 핸들러 추가 |
 | `Forms/MainForm.Designer.cs` | 사이드바에 "백테스팅" 버튼 추가 |
 
----
-
 ## Phase 2 상세 변경 이력
 
 ### 2-1. 엔진 코어 (신규 파일 7건)
@@ -543,8 +519,6 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
 | ~~`Forms/AllocationSetupForm.cs`~~ | 배분 설정 비즈니스 로직 (삭제됨) |
 | ~~`Forms/AllocationSetupForm.Designer.cs`~~ | UI 레이아웃 (삭제됨) |
 
----
-
 ## Phase 3 개발 가이드 (KIS API 전환)
 
 ### 완료된 핵심 작업
@@ -560,8 +534,6 @@ Anthropic의 `financial-services` 레포지토리의 다중 에이전트 구조�
 ### 퀀트 엔진과의 연동 포인트
 
 Phase 3 연동에 따라 `KisBrokerClient.GetOhlcvAsync()`가 KIS [해외주식] 일별 시세 API에서 실제 OHLCV 데이터를 반환하게 됩니다. 이 데이터가 `QuantIndicator`에 입력되어 **실전 시장 데이터 기반의 퀀트 지표 계산**이 작동합니다.
-
----
 
 ## Phase 4 AI 시장분석 엔진 — 초기(Mock) 구현 완료 ✅
 
@@ -582,7 +554,7 @@ Phase 3 연동에 따라 `KisBrokerClient.GetOhlcvAsync()`가 KIS [해외주식]
 
 #### CombineSignals() 판단 흐름
 
-```
+```text
 퀀트 신호 (quantSignal) + AI 신호 (aiResult)
     │
     ├── AI ConfidenceScore < 0.7? → 퀀트 신호 우선 (AI 확신도 부족)
@@ -600,8 +572,6 @@ Phase 3 연동에 따라 `KisBrokerClient.GetOhlcvAsync()`가 KIS [해외주식]
 | 그 외 | **HOLD** | 0.30 ~ 0.50 (랜덤) |
 
 > ⚠️ **현재 AI가 항상 HOLD를 반환하는 이유**: 대부분의 종목은 RSI 30 미만이면서 동시에 Position 0.20 미만인 조건(과매도 + 가격 하단 10-20% 이내)을 **동시에** 충족하기 매우 어렵습니다. 따라서 현실적으로는 대부분 `else` 분기(HOLD, 확신도 0.3~0.5)로 떨어집니다. 이 Mock 확신도(최대 0.5)는 `CombineSignals()`의 임계값 0.7보다 낮으므로 AI 신호가 최종 결과에 영향을 주지 않고 **퀀트 신호만 최종 판단**에 사용됩니다.
-
----
 
 ## Phase 4-b 실물 연동 (Gemini) 및 퀀트 조건 완화 완료 ✅
 
@@ -635,11 +605,9 @@ Mock 환경에서 벗어나 실제 Google Gemini API 연동을 완료하고, 퀀
 
 > 비용/토큰 분석 참고: `Documents/worklog/[2026-06-02] 01_AI엔진 도입 비용 분석.md`
 
----
-
 ## AI 학습 데이터 축적 구조 (Phase 2.5에서 준비 완료)
 
-```
+```text
 매매 시점 → SmartOrderEngine
   → MarketSnapshotDAO.Insert()
     → TB_MARKET_SNAPSHOT에 저장
@@ -650,8 +618,6 @@ Phase 4에서 이 데이터를 AI 모델의 Feature로 활용:
   → 성공한 매수 패턴 학습
 ```
 
----
-
 ## 전략 유형 (Phase 2.5에서 추가)
 
 | 전략 유형 | 설명 | 매수 조건 |
@@ -659,8 +625,6 @@ Phase 4에서 이 데이터를 AI 모델의 Feature로 활용:
 | `MEAN_REVERSION` | 평균회귀 (기본) | Position ≤ 0.10 AND RSI ≤ 30 AND BB 하단 근접 |
 | `MOMENTUM` | 모멘텀 | RSI ≥ 50 AND MACD Histogram > 0 AND MACD Line > 0 |
 | `MIXED` | 혼합 | Position ≤ 0.10 AND RSI < 70 |
-
----
 
 ## 리밸런싱 설정 (Phase 2.5에서 추가)
 
@@ -670,8 +634,6 @@ Phase 4에서 이 데이터를 AI 모델의 Feature로 활용:
 | `REBALANCE_PERIOD` | `MONTHLY` | WEEKLY 또는 MONTHLY |
 | `REBALANCE_THRESHOLD` | `0.05` | 편차 5% 초과 시 리밸런싱 |
 | `LAST_REBALANCE_DATE` | (빈값) | 마지막 리밸런싱 실행일 |
-
----
 
 ## 파일 변경 이력 요약
 
