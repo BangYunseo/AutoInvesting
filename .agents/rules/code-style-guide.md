@@ -2,15 +2,18 @@
 
 ## 네이밍 규칙
 
+> 예시는 현재 코드베이스에 실제로 존재하는 심볼만 씁니다. Phase 6에서 제거된 판단 레이어
+> (`SmartOrderEngine`·`QuantFilter`·`Core/Quant/`·`Core/Advisors/` 등)를 예시로 되살리지 마세요.
+
 | 대상 | 규칙 | 예시 |
 |------|------|------|
-| 클래스/구조체 | PascalCase | `SmartOrderEngine`, `StrategyDto` |
+| 클래스/구조체 | PascalCase | `DcaAccumulationEngine`, `DcaTemplate` |
 | 인터페이스 | `I` + PascalCase | `IBrokerClient` |
 | public 메서드/프로퍼티 | PascalCase | `GetCurrentPriceAsync()`, `IsLoggedIn` |
 | private 필드 | `_camelCase` | `_broker`, `_rangeDays` |
 | 지역 변수/파라미터 | camelCase | `exchangeRate`, `investAmount` |
-| 상수 / static readonly | PascalCase | `AppTheme.BgMain` |
-| enum 값 | UPPER_SNAKE_CASE | `SmartOrderSignal.BUY` |
+| 상수 / static readonly | PascalCase | `DcaSettings.TemplatesKey` |
+| enum 값 | UPPER_SNAKE_CASE | `ORDER_TYPE_BUY` |
 | 비동기 메서드 | `~Async` 접미사 | `LoginAsync()`, `PlaceBuyOrderAsync()` |
 
 ## 파일 배치 규칙 (MUST)
@@ -18,16 +21,15 @@
 | 분류 | 경로 | 예시 |
 |------|------|------|
 | DTO (데이터 전송 객체) | `Data/DTO/` | `HoldingDto.cs` |
-| DAO (DB 접근) | `Data/DAO/` | `StrategyDAO.cs` |
-| 비즈니스 로직/엔진 | `Core/` | `SmartOrderEngine.cs` |
-| 퀀트 모듈 | `Core/Quant/` | `QuantFilter.cs` |
+| DAO (DB 접근) | `Data/DAO/` | `TradeHistoryDAO.cs` |
+| 비즈니스 로직/엔진 | `Core/` | `DcaAccumulationEngine.cs` |
 | REST API 컨트롤러 | `Controllers/` | `OrderController.cs` |
 | 일일 실행 진입점 | `Core/` | `DailyExecutionService.cs` |
 | 유틸리티 / 통신 | `Utils/` | `Logger.cs`, `NotificationService.cs` |
 
 ## 파일 구조
 - 파일당 하나의 public 클래스/인터페이스
-- 파일명 = 클래스명 (예: `SmartOrderEngine.cs`)
+- 파일명 = 클래스명 (예: `DcaAccumulationEngine.cs`)
 - 네임스페이스는 폴더 구조를 반영 (예: `AutoInvest.Controllers`)
 - `using` 문은 네임스페이스 밖에 배치
 
@@ -45,23 +47,24 @@
 
 ```csharp
 /// <summary>
-/// 특정 전략의 조건을 검증하고 조건 충족 시 주문을 실행합니다.
+/// 설정한 종목별 고정 수량을 매수하고 체결분을 거래이력에 기록합니다.
 /// </summary>
-/// <param name="ticker">종목 코드</param>
-public async Task<SmartOrderResult> ExecuteOrderAsync(string ticker)
+/// <param name="quantities">종목별 매수 수량 맵</param>
+/// <param name="budgetKrw">이번 사이클 예산 (원, 초과 경고용 상한)</param>
+public async Task<DcaCycleResult> AccumulateAsync(Dictionary<string, int> quantities, decimal budgetKrw)
 ```
 
 ### 인라인 주석
 코드 블록의 목적을 설명할 때 `// ── 제목 ──` 형식을 사용합니다.
 
 ```csharp
-// ── 퀀트 필터 적용 ──
-var signal = QuantFilter.CheckBuyCondition(indicators, strategyType);
+// ── 순수 매수 계획 산출 (고정 수량) ──
+var plan = PlanPurchases(quantities, exchangeRate, priceUsd, out decimal totalCostKrw);
 ```
 
 ### TODO 주석
 ```csharp
-// TODO [Phase 4] AI 기반 종목 분석 및 감성 점수 반영 로직 추가
+// TODO [운영] 실거래 전환 시 KIS Server를 실전으로 변경
 ```
 
 ## DTO 작성 규칙
@@ -84,14 +87,29 @@ public class HoldingDto
 - SQL 파라미터 바인딩 필수 (SQL Injection 방지)
 
 ```csharp
-public static List<StrategyDto> GetStrategy(string strategyName)
+public static List<TradeHistoryDto> GetRecent(int count = 50)
 {
+    var list = new List<TradeHistoryDto>();
     using (var conn = DBManager.Instance.GetConnection())
-    using (var cmd = new NpgsqlCommand(sql, conn))
+    using (var cmd = new NpgsqlCommand(
+        "SELECT TRADE_ID, TRADE_DATE, TICKER, ORDER_TYPE, QTY, PRICE, STATUS " +
+        "FROM TB_TRADE_HISTORY ORDER BY TRADE_DATE DESC LIMIT @count", conn))
     {
-        cmd.Parameters.AddWithValue("@name", strategyName);
-        // ...
+        cmd.Parameters.AddWithValue("@count", count);
+        using (var rdr = cmd.ExecuteReader())
+            while (rdr.Read())
+                list.Add(new TradeHistoryDto
+                {
+                    TradeId = rdr.GetInt32(0),
+                    TradeDate = DateTime.Parse(rdr.GetString(1)),
+                    Ticker = rdr.GetString(2),
+                    OrderType = rdr.GetString(3),
+                    Qty = rdr.GetInt32(4),
+                    Price = rdr.GetDecimal(5),
+                    Status = rdr.GetString(6)
+                });
     }
+    return list;
 }
 ```
 

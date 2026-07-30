@@ -19,7 +19,7 @@
 | 언어 | C# |
 | 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
 | 통신/내결함성 | HttpClient, Polly (Phase B/C 적용) |
-| 알림/이메일 | MailKit, MimeKit (Phase B/C 적용) |
+| 알림/이메일 | Resend HTTP API (Render의 SMTP 포트 차단 대응) |
 | DB | PostgreSQL (`Npgsql`) — 로컬: localhost, 배포: `DATABASE_URL` 환경변수(Render.com URI) |
 | 증권사 API | 한국투자증권 KIS Developers REST API |
 | 빌드 | MSBuild / Visual Studio 2022 |
@@ -49,7 +49,7 @@ AutoInvesting/
 │   ├── ConfigController.cs
 │   ├── PortfolioController.cs
 │   ├── HistoryController.cs
-│   └── TestController.cs              # buy / send-test-email (점검용 — 실주문 우회 경로, 실거래 전 봉인 검토)
+│   └── TestController.cs              # send-test-email (메일 발송 점검용 — 실주문 경로 없음)
 │
 ├── Data/                               # 데이터 액세스 (DTO/DAO)
 │   ├── DBManager.cs                    # PostgreSQL 연결 (Npgsql, DATABASE_URL 지원)

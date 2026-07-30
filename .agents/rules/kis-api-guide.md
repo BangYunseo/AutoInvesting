@@ -30,12 +30,17 @@ tr_id: {TR_CODE}
 |--------|------|---------------|-------------------|
 | LoginAsync | POST | /oauth2/tokenP | — |
 | GetCurrentPriceAsync | GET | /uapi/overseas-price/v1/quotations/price | HHDFS00000300 |
-| GetPriceRangeAsync | GET | /uapi/overseas-price/v1/quotations/dailyprice | HHDFS76240000 |
-| GetOhlcvAsync | GET | /uapi/overseas-price/v1/quotations/dailyprice | HHDFS76240000 |
-| GetExchangeRateAsync | — | Frankfurter API 유지 (ExchangeRateService) | — |
+| GetExchangeRateAsync | — | Frankfurter API → ExchangeRate-API 폴백 (ExchangeRateService) | — |
 | GetHoldingsAsync | GET | /uapi/overseas-stock/v1/trading/inquire-balance | TTTS3012R/VTTS3012R |
+| GetCashBalanceAsync | GET | /uapi/overseas-stock/v1/trading/inquire-balance | TTTS3012R (모의는 미지원 → $0) |
 | PlaceBuyOrderAsync | POST | /uapi/overseas-stock/v1/trading/order | TTTT1002U/VTTT1002U |
 | PlaceSellOrderAsync | POST | /uapi/overseas-stock/v1/trading/order | TTTT1006U/VTTT1006U |
+
+> 시세 조회용 `GetOhlcvAsync`·`GetPriceRangeAsync`(일봉 `HHDFS76240000`)는 판단 레이어 전용이었고
+> Phase 6에서 인터페이스·구현체 모두에서 제거되었습니다. 다시 추가하지 마세요.
+>
+> 주문 시 거래소 코드는 하드코딩하지 않습니다. 현재가 조회에서 확인된 `EXCD`(NAS/NYS/AMS)를
+> 주문용 `OVRS_EXCG_CD`(NASD/NYSE/AMEX)로 매핑합니다 — 매핑을 건너뛰면 "해당종목정보가 없습니다"로 거부됩니다.
 
 ## 실전 vs 모의투자 분기
 `SessionManager`에서 `IS_PAPER_TRADING` 설정으로 분기:

@@ -22,10 +22,10 @@
 | `style` | 코드 스타일 | `style: 코드 포맷팅 정리` |
 | `design` | UI 디자인 변경 | `design: 대시보드 카드 레이아웃 수정` |
 | `chore` | 빌드/설정 | `chore: gitignore 시크릿 파일 제외 추가` |
-| `test` | 테스트 | `test: QuantFilter 단위 테스트 추가` |
+| `test` | 테스트 | `test: PlanPurchases 배분 시나리오 단위 테스트 추가` |
 | `perf` | 성능 개선 | `perf: 환율 조회 캐싱 적용` |
 | `ci` | CI 설정 | `ci: GitHub Actions 빌드 워크플로우 추가` |
-| `rename` | 파일/폴더 이름 변경만 | `rename: SmartOrder → SmartOrderEngine 파일명 변경` |
+| `rename` | 파일/폴더 이름 변경만 | `rename: DcaEngine → DcaAccumulationEngine 파일명 변경` |
 | `remove` | 파일 삭제만 | `remove: 미사용 LegacyBroker.cs 삭제` |
 | `build` | 빌드 파일 수정 | `build: .NET 8.0 타겟 프레임워크 명시` |
 

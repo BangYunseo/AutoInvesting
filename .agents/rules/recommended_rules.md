@@ -5,7 +5,9 @@
 ### 하위 호환성 유지 (MUST)
 - 새 Phase 기능이 기존 기능을 깨뜨리면 안 됨
 - `IBrokerClient` 인터페이스에 메서드 추가 시, `SimBrokerClient`와 `KisBrokerClient` 모두에 구현
-- DB 스키마 변경 시 기존 데이터가 보존되도록 ALTER TABLE 마이그레이션 스크립트를 작성하여 반영
+- DB 스키마 변경 시 기존 데이터가 보존되도록 ALTER TABLE만 사용한다. 단 **마이그레이션 자동 실행 경로는 없다**
+  (`DBManager.RunMigration`은 2026-07-30에 제거됨 — 기동 시 `create_tables.sql`만 실행). ALTER는 `Data/sql/`에
+  별도 스크립트로 남기고 수동 적용 절차를 문서화한다.
 
 ## 백그라운드 서비스 및 API 개발 규칙
  
@@ -55,7 +57,8 @@
   `40 14 1-31 * *` = 매일 KST 23:40)은 **그대로 두어도 안전하다**(매월 1일로 변경할 필요 없음 —
   월초부터 시도해 처음 성공하는 날 1회만 적립).
 - 전환 시 남는 **운영 작업**: ① 계좌를 실전으로 전환(`Trading:IsPaperTrading=false`, KIS `Server`를 실전으로),
-  ② 실전 자격증명·예수금·체결 검증, ③ `TestController`의 세금/보유검증 없는 실주문 우회 경로 봉인 검토.
+  ② 실전 자격증명·예수금·체결 검증. (③ `TestController`의 실주문 우회 경로 봉인은 **완료** — `POST /api/test/buy`를
+  2026-07-30에 제거해 실주문 경로는 가드가 있는 `/api/order/manual` 하나만 남았다.)
 - 상세 이력: `Documents/reference/DEVELOPMENT.md`의 "실거래 전환" 섹션(과매수 방지 구현 완료 기록).
 ---
  

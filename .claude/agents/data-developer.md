@@ -26,10 +26,12 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 ## 절대 금지
 - 레이어 역방향 의존 (Data → Core 참조 금지)
 - SQL 문자열 직접 결합 (파라미터 바인딩으로만)
-- **`TB_MARKET_SNAPSHOT` 임의 수정·삭제** — AI 학습용 축적 데이터, 연속성 유지 필수
+- **`TB_MARKET_SNAPSHOT` 임의 수정·삭제** — 레거시 누적 데이터(과거 분석·회귀 검증용), 연속성 유지 필수
 
 ## 스키마 변경 규칙
 - 기존 데이터 보존 — 기존 컬럼 유지 + 신규 컬럼 추가(ALTER TABLE)만 허용
-- 마이그레이션 스크립트 작성하여 반영
+- **마이그레이션 자동 실행 경로는 없다** — `DBManager`의 `RunMigration` 헬퍼는 2026-07-30에 제거되었고,
+  기동 시 실행되는 것은 `Data/sql/create_tables.sql`(`CREATE TABLE IF NOT EXISTS`)뿐이다.
+  ALTER가 필요하면 `Data/sql/`에 별도 스크립트로 남기고 수동 적용 절차를 문서화한다.
 
 > 동기화: 이 역할 정의는 `.agents/rules/persona.md`와 일치해야 합니다. 역할/책임 변경 시 두 파일을 같은 커밋에서 함께 수정하세요.
