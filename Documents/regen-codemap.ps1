@@ -12,7 +12,7 @@
 
 .USAGE
     Documents 폴더 기준 또는 리포 루트에서:
-        pwsh Documents/regen-codemap.ps1
+        powershell -File Documents/regen-codemap.ps1
     결과: Documents/reference/CODE_MAP.md 덮어쓰기
 #>
 
@@ -26,8 +26,6 @@ $OutFile  = Join-Path $PSScriptRoot 'reference\CODE_MAP.md'
 $Sections = [ordered]@{
     'Program.cs'      = @{ Title = '진입점 (Entry Point)';        Path = $RepoRoot;                    Recurse = $false; Filter = 'Program.cs' }
     'Core'            = @{ Title = 'Core — 비즈니스 로직';        Path = (Join-Path $RepoRoot 'Core');           Recurse = $false }
-    'Core/Quant'      = @{ Title = 'Core/Quant — 퀀트 분석';      Path = (Join-Path $RepoRoot 'Core\Quant');     Recurse = $false }
-    'Core/Advisors'   = @{ Title = 'Core/Advisors — 컨텍스트 조언'; Path = (Join-Path $RepoRoot 'Core\Advisors'); Recurse = $false }
     'Controllers'     = @{ Title = 'Controllers — REST API';      Path = (Join-Path $RepoRoot 'Controllers');    Recurse = $false }
     'Data/DTO'        = @{ Title = 'Data/DTO — 데이터 전송 객체';  Path = (Join-Path $RepoRoot 'Data\DTO');       Recurse = $false }
     'Data/DAO'        = @{ Title = 'Data/DAO — DB 접근';          Path = (Join-Path $RepoRoot 'Data\DAO');       Recurse = $false }
@@ -124,7 +122,7 @@ $null = $sb.AppendLine()
 $null = $sb.AppendLine('# AutoInvesting 코드 맵')
 $null = $sb.AppendLine()
 $null = $sb.AppendLine('## 개요')
-$null = $sb.AppendLine('> "어느 파일에 어느 코드가 있는지" 한눈에 찾는 자동 생성 색인이다. 각 소스 파일의 XML `<summary>` 주석이 진실 원천이며, `pwsh Documents/regen-codemap.ps1` 실행으로 재생성된다. **이 파일을 직접 수정하지 마세요.** (⚠️ 표시 = 클래스 `<summary>` 주석이 없는 파일)')
+$null = $sb.AppendLine('> "어느 파일에 어느 코드가 있는지" 한눈에 찾는 자동 생성 색인이다. 각 소스 파일의 XML `<summary>` 주석이 진실 원천이며, `powershell -File Documents/regen-codemap.ps1` 실행으로 재생성된다. **이 파일을 직접 수정하지 마세요.** (⚠️ 표시 = 클래스 `<summary>` 주석이 없는 파일)')
 $null = $sb.AppendLine()
 $null = $sb.AppendLine('## 본문')
 $null = $sb.AppendLine()
@@ -173,7 +171,7 @@ if ($missing.Count -gt 0) {
 }
 $null = $sb.AppendLine()
 $null = $sb.AppendLine('## 참고')
-$null = $sb.AppendLine('- 재생성: `pwsh Documents/regen-codemap.ps1`')
+$null = $sb.AppendLine('- 재생성: `powershell -File Documents/regen-codemap.ps1`')
 $null = $sb.AppendLine('- 요약 원천: 각 .cs 파일 클래스 선언 위의 XML `<summary>` 주석 (code-style-guide.md)')
 
 # UTF-8 (BOM 없이) 저장 — 한글 깨짐 방지
