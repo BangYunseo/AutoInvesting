@@ -37,7 +37,7 @@ jobs:
           echo "❌ 5분 내에 서버가 깨어나지 않았습니다. (Render 상태 확인 필요)"
           exit 1
 
-      # ── 2) 적립식(DCA) 매수 사이클 트리거 (목표비중 향한 정수 매수 + 적립 리포트 메일) ──
+      # ── 2) 적립식(DCA) 매수 사이클 트리거 (현재 월 템플릿의 종목별 고정 수량 매수 + 적립 리포트 메일) ──
       - name: Trigger DCA cycle
         env:
           API_KEY: ${{ secrets.CRON_API_KEY }}

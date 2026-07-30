@@ -9,7 +9,7 @@ status: draft
 # AutoInvesting API 정의서
 
 ## 개요
-> `Controllers/`의 실제 구현(Phase 6 — DCA 적립 코어)을 기준으로 한 REST API 레퍼런스다. 판단 레이어(전략/퀀트/AI/모니터링/분할매도/백테스트/시뮬)는 Phase 6에서 제거되어 관련 엔드포인트는 **더 이상 존재하지 않는다.** 실행 중 자동 생성되는 OpenAPI 명세는 `/swagger`에서도 볼 수 있다.
+> `Controllers/`의 실제 구현(Phase 6 — DCA 적립 코어)을 기준으로 한 REST API 레퍼런스다. 판단 레이어(전략/퀀트/AI/모니터링/분할매도/백테스트/시뮬)는 Phase 6에서 제거되어 관련 엔드포인트는 **더 이상 존재하지 않는다.** 거시 브리핑(`/api/macro/briefing`)과 점검용 매수(`POST /api/test/buy`)도 2026-07-30에 제거되었다(각각 화면 미배선으로 소비자 0 / `manual`과 중복). 실행 중 자동 생성되는 OpenAPI 명세는 `/swagger`에서도 볼 수 있다.
 
 ## 공통 사항
 
@@ -42,7 +42,6 @@ status: draft
 | `202` | 비동기 접수(백그라운드 시작) |
 | `400` | 잘못된 요청(필수 파라미터/검증 실패) |
 | `401` | 인증 실패(세션토큰·x-api-key 모두 없음/불일치) |
-| `403` | 금지(실전 모드에서 점검용 매수 차단) |
 | `404` | 리소스 없음(티커 현재가 없음 등) |
 | `409` | 충돌(과세 매도 미확인, 관리자 계정 중복 설정) |
 | `500` | 서버 내부 오류 |
@@ -68,8 +67,6 @@ status: draft
 | 포트폴리오 | GET | `/api/portfolio/summary` | 필요 |
 | 이력 | GET | `/api/history/trades` | 필요 |
 | 이력 | GET | `/api/history/logs` | 필요 |
-| 거시 | GET | `/api/macro/briefing` | 필요 |
-| 점검 | POST | `/api/test/buy` | 필요 |
 | 점검 | GET | `/api/test/send-test-email` | 필요 |
 | 헬스 | GET | `/api/health` | 면제 |
 
@@ -203,23 +200,12 @@ status: draft
 - 응답 `200`(없음): `{ "message": "... 로그가 없습니다.", "availableDates": [ ... ] }`
 - 오류: `500`
 
-### 거시 브리핑 (`MacroController`, `/api/macro`)
-
-**`GET /api/macro/briefing`** — 거시 지표(물가·유가·금리·고용)+환율을 모은 국면 해설. ⚠️ **정보/보고 전용 — 적립 매수 로직에 사용되지 않는다**(판단 레이어 재도입 아님).
-- 응답 `200`: `MacroBriefingDto`(지표 묶음 + 국면 해설, 지표 1시간 캐싱, 개별 지표 실패는 각 항목 `error` 필드)
-- 오류: `500`
-
 ### 점검 (`TestController`, `/api/test`)
-⚠️ 진단 전용. 실주문/메일을 발생시킨다.
+⚠️ 진단 전용. 실제 메일을 발송한다. 실주문 경로는 두지 않는다 — 매수/매도는 가드가 있는 `/api/order/manual`만 사용한다.
 
-**`POST /api/test/buy`** — 지정 종목 현재가 매수(기본 QQQM 1주). ⚠️ **보유·세금·이력 검증이 없는** 진단 경로라 **실전 모드(`IS_PAPER_TRADING="0"`)에서는 403으로 차단**(모의 전용). 실주문은 `/api/order/manual` 사용.
-- 쿼리: `ticker`(기본 QQQM), `qty`(기본 1)
-- 응답 `200`: `{ "message": "매수 주문 성공", "orderNo": "...", "ticker": "QQQM", "qty": 1, "price": 180.25 }`
-- 오류: `400`(현재가 조회 실패), `403`(실전 모드 차단), `500`
-
-**`GET /api/test/send-test-email`** — 테스트 이메일 발송(Resend).
-- 응답 `200`: 평문 문자열 `"테스트 이메일 발송 시도 완료. ..."`
-- 오류: `500`(발송 예외)
+**`GET /api/test/send-test-email`** — 이메일 발송 설정(Resend)이 동작하는지 확인 메일 1통 발송. 실패 원인을 응답으로 확인해야 하므로 예외를 삼키지 않는다.
+- 응답 `200`: 평문 문자열 `"테스트 이메일 발송 완료. 수신 여부를 확인하세요."`
+- 오류: `500`(발송 실패 — 본문에 실패 원인 포함)
 
 ### 헬스체크 (`/api/health`)
 
@@ -228,7 +214,7 @@ status: draft
 
 ## 참고
 - 인터랙티브 명세/시도: 서버 실행 후 `/swagger`
-- 응답 스키마는 구현 기준 요약이며, 실제 DTO 필드는 `Data/DTO/`(`HoldingDto`·`TradeHistoryDto`·`SellTaxEstimateDto`·`MacroBriefingDto`·`DcaTemplate`) 참조.
+- 응답 스키마는 구현 기준 요약이며, 실제 DTO 필드는 `Data/DTO/`(`HoldingDto`·`TradeHistoryDto`·`SellTaxEstimateDto`·`DcaTemplate`) 참조.
 - 인증 필터: `Utils/ApiKeyAuthAttribute.cs`, 면제 마커: `Utils/PublicEndpointAttribute.cs`.
 - 한눈에 보는 평면 표: `Documents/reference/API_REFERENCE_TABLE.md`
 - 본 문서는 `Controllers/` 변경 시 함께 갱신한다.

@@ -46,7 +46,7 @@ function Get-FileInfo {
     $lines = Get-Content -LiteralPath $FilePath -Encoding UTF8
 
     # 모든 타입 선언을 수집한 뒤, 파일명과 같은 타입을 우선 선택
-    # (헬퍼 enum/class가 주 클래스보다 먼저 나오는 파일 대응 — 예: SmartOrderEngine.cs)
+    # (헬퍼 enum/class가 주 클래스보다 먼저 나오는 파일 대응 — 예: OrderController.cs의 ManualOrderRequest)
     $baseName = [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
     $candidates = New-Object System.Collections.Generic.List[object]
     for ($i = 0; $i -lt $lines.Count; $i++) {

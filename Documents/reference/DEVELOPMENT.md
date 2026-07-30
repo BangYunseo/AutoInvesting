@@ -23,7 +23,7 @@ status: draft
 - **Phase 4-a~e** (AI 시장분석 엔진 / 확률 기반 합의 스코어링): ✅ 완료 → ⚠️ **Phase 6에서 제거**
 - **Phase 5-a~d** (적응형 임계값 / AI 성과·토큰 모니터링 / 성과 피드백 루프): ✅ 완료 → ⚠️ **Phase 6에서 제거**
 - **Phase 6** (판단 레이어 제거, DCA 적립 코어 전환): ✅ **완료**
-- **Phase 6+** (이후 추가된 정보·보조 기능): **Auth**(단일 관리자 인증·전역 필터), **Tax**(매도 양도세 추정 — `sell-preview`), **Macro**(FRED 거시지표 국면 브리핑 — 표시 전용), **Price**(현재가 조회·티커 검증). ⚠️ Tax·Macro는 매수 의사결정에 값을 넘기지 않음(판단 레이어 아님).
+- **Phase 6+** (이후 추가된 정보·보조 기능): **Auth**(단일 관리자 인증·전역 필터), **Tax**(매도 양도세 추정 — `sell-preview`), **Price**(현재가 조회·티커 검증). ⚠️ Tax는 매수 의사결정에 값을 넘기지 않음(판단 레이어 아님). **Macro**(FRED 거시지표 브리핑)는 화면에 배선되지 않아 소비자가 0이어서 2026-07-30 정리에서 제거됨.
 
 > ⚠️ **Phase 4~5의 판단(타이밍) 기능은 Phase 6에서 전부 제거되었습니다.** 아래 Phase 4~5 변경 이력은
 > **역사적 기록(과거에 그렇게 구현되었음)**으로 보존된 것이며, 현재 코드베이스에는 해당 클래스·엔드포인트·화면이
@@ -92,7 +92,7 @@ status: draft
 |------|----------|
 | `Core/DailyExecutionService.cs` | `RunDcaCycleAsync`만 유지 — 월 1회 멱등 가드(`DCA_LAST_RUN_MONTH`) → 로그인 → `DcaSettings.Load` → `AccumulateAsync` → 이메일 보고서. (구 `RunDailyCycleAsync`/AI 평가/일일 보고서 제거) |
 | `Controllers/OrderController.cs` | `POST /api/order/dca-run`(적립 사이클, 202 즉시 반환) + `POST /api/order/manual`(판단 없는 수동 매수/매도, SELL 시 보유수량·절세 서버 가드) + `GET /api/order/sell-preview`(매도 양도세 프리뷰)만 남김. (구 `execute`/`analyze`/`daily-run` 제거) |
-| `appsettings.json` | `Trading`/`Smtp`/`Resend`/`Kis`/`Security`/`Dca`/`Tax` 섹션 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { Enabled, MonthlyBudgetKrw, Quantities:{SPLG:3,QQQM:2,SCHD:5,GLD:1} }` (레거시 폴백용 — 실동작은 DB의 `DCA_TEMPLATES`/`DCA_MONTH_MAP`) |
+| `appsettings.json` | `Trading`/`Smtp`/`Resend`/`Kis`/`Security`/`Dca`/`Tax` 섹션 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { MonthlyBudgetKrw, Quantities:{SPLG:3,QQQM:2,SCHD:5,GLD:1} }` (레거시 폴백용 — 실동작은 DB의 `DCA_TEMPLATES`/`DCA_MONTH_MAP`). `Smtp`는 `SenderName`/`AdminEmail` 폴백 2개만 유지(발송은 Resend HTTP API) |
 
 ### 6-3. 제거된 파일·개념
 
@@ -110,7 +110,7 @@ status: draft
 
 `IBrokerClient`/`KisBrokerClient`/`SimBrokerClient`, `SessionManager`(이제 브로커 생명주기만 — AI analyzer 분기 제거),
 `TradeHistoryDAO`, `NotificationService`(Resend HTTP API — Render의 SMTP 포트 차단 우회), `ExchangeRateService`, `DBManager`/`AppConfigManager`,
-`ConfigController`, `PortfolioController`, `HistoryController`, `TestController`(buy/send-test-email만). 외부 크론잡이 `dca-run`을 호출하는 구조.
+`ConfigController`, `PortfolioController`, `HistoryController`, `TestController`(send-test-email만 — 실주문 경로 없음). 외부 크론잡이 `dca-run`을 호출하는 구조.
 
 ### 6-5. 프론트엔드 재구성
 
@@ -126,9 +126,12 @@ status: draft
 
 ### 6-6. 참고 — 레거시 데이터 보존
 
-`TB_MARKET_SNAPSHOT` 테이블과 `DBManager`의 관련 마이그레이션 코드는 **과거 데이터 보존을 위해 DB 스키마에는
-남아 있으나, `MarketSnapshotDAO` 제거에 따라 현재는 어디서도 기록·조회하지 않습니다.** 기존 문서의
+`TB_MARKET_SNAPSHOT` 테이블은 **과거 데이터 보존을 위해 `Data/sql/create_tables.sql`의 DDL로만 남아 있고,
+`MarketSnapshotDAO` 제거에 따라 현재는 어디서도 기록·조회하지 않습니다.** 기존 문서의
 "AI 학습용 누적 데이터" 설명은 모두 **"과거(레거시) 데이터, 현재 미사용"**으로 해석하면 됩니다.
+
+`DBManager`의 관련 ALTER 마이그레이션 코드는 2026-07-30 정리에서 제거되었습니다(`create_tables.sql`이
+컬럼을 이미 정의해 중복이었음). 현재 마이그레이션 자동 실행 경로는 없습니다.
 
 ### 6-7. 이후 보강 (매수 템플릿 · 실거래 가드 · 단위 테스트)
 
@@ -138,6 +141,7 @@ status: draft
 | 260630 | 수동주문 보유종목 연동(SELL 서버 가드·보유수량 상한), 대시보드 계좌 모드 배지·마스킹 계좌 표시, 요약/보유 새로고침 분리 |
 | 260701 | **실거래 전환 대비 월 1회 멱등 가드**(`DCA_LAST_RUN_MONTH`) + 크론 `40 14 1-31 * *`(매일 시도, 처음 성공하는 날 1회 적립) |
 | 260702 | **단위 테스트 프로젝트 신설**(`Tests/`, xUnit). `PlanPurchases`(7건)·`SelectTemplate`(5건) 순수 함수 검증. 이를 위해 `DcaSettings`의 월→템플릿 선택 로직을 `SelectTemplate` 순수 함수로 분리(동작 불변) |
+| 260730 | **죽은 코드·미배선 기능 정리**. Macro/FRED 스택 일괄 제거(참조 0), `POST /api/test/buy` 제거(`manual`과 중복·실전 자기차단), `Templates/DailyReportTemplate.html`·미사용 프론트 자산(`App.css`·`assets/*`·`icons.svg`) 제거, `DBManager` ALTER 마이그레이션 9건+`RunMigration` 제거, `create_tables.sql`에서 `TB_ASSET_MASTER`·`TB_INVEST_STRATEGY`·죽은 앱설정 시드 제외, 죽은 CSS 클래스 제거, 알림박스 `.alert` 공용 클래스화, `ExchangeRateService` 문자열 파서 2개 → `ParseKrwRate` 순수함수 1개(+테스트 4건, 총 40건). 상세: `Documents/worklog/[2026-07-30] 01_죽은 코드 미배선 기능 정리.md` |
 
 > 테스트 실행: `dotnet test Tests/AutoInvest.Tests.csproj` (net8.0, xUnit). 메인 웹 프로젝트는
 > `AutoInvest.csproj`에서 `Tests\**`를 컴파일 대상에서 제외해 분리되어 있습니다.
@@ -145,6 +149,8 @@ status: draft
 > 📌 **이하 Phase 5-d ~ Phase 4-a 및 그 이전의 변경 이력은 역사적 기록입니다.** 여기서 설명하는
 > 퀀트/AI 판단 관련 클래스·엔드포인트·화면은 **Phase 6에서 모두 제거되어 현재 코드베이스에 존재하지
 > 않습니다.** 과거 어떤 시도를 했고 왜 접었는지를 이해하기 위한 보존용 기록으로만 참고하세요.
+> `DBManager`의 ALTER 마이그레이션 코드도 2026-07-30 정리에서 제거되었으므로, 아래에 등장하는
+> 마이그레이션 기록은 **당시 구현이었을 뿐 현재 코드에는 없습니다.**
 
 ## Phase 5-d 상세 변경 이력 — 성과 기반 피드백 루프 & 합의 가중치 A/B 검증 (⚠️ Phase 6에서 제거됨)
 
@@ -618,7 +624,10 @@ Phase 4에서 이 데이터를 AI 모델의 Feature로 활용:
   → 성공한 매수 패턴 학습
 ```
 
-## 전략 유형 (Phase 2.5에서 추가)
+## 전략 유형 (Phase 2.5에서 추가 — Phase 6에서 퀀트 판단 제거)
+
+> 현재 코드·신규 DB 스키마에 존재하지 않는다. `STRATEGY_TYPE` 앱설정 시드와 `TB_INVEST_STRATEGY` DDL은
+> 2026-07-30에 `create_tables.sql`에서 제외되었다. 아래 표는 이력 보존용이다.
 
 | 전략 유형 | 설명 | 매수 조건 |
 |-----------|------|-----------|
@@ -626,7 +635,10 @@ Phase 4에서 이 데이터를 AI 모델의 Feature로 활용:
 | `MOMENTUM` | 모멘텀 | RSI ≥ 50 AND MACD Histogram > 0 AND MACD Line > 0 |
 | `MIXED` | 혼합 | Position ≤ 0.10 AND RSI < 70 |
 
-## 리밸런싱 설정 (Phase 2.5에서 추가)
+## 리밸런싱 설정 (Phase 2.5에서 추가 — Phase 6에서 리밸런싱 제거)
+
+> 현재 코드·신규 DB 스키마에 존재하지 않는다. 아래 시드 키들은 2026-07-30에 `create_tables.sql`에서
+> 제외되었고 읽는 코드도 없다. 표는 이력 보존용이다.
 
 | 설정 KEY | 기본값 | 설명 |
 |----------|--------|------|

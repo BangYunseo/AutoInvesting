@@ -43,7 +43,7 @@ status: draft
 ```
 AutoInvesting/
 ├── Program.cs                          # 앱 진입점 (DI 등록, SPA fallback, 전역 예외 처리)
-├── appsettings.json                    # 통합 설정 파일 (Trading / Smtp / Resend / Kis / Security / Dca)
+├── appsettings.json                    # 통합 설정 파일 (Trading / Smtp / Resend / Kis / Security / Dca / Tax)
 ├── Dockerfile                          # 단일 컨테이너 (백엔드 + React 정적 서빙)
 │
 ├── Core/                               # 핵심 비즈니스 로직
@@ -54,23 +54,21 @@ AutoInvesting/
 │   ├── SessionManager.cs               # IBrokerClient(브로커) 생명주기 관리
 │   ├── DcaAccumulationEngine.cs        # 적립식 매수 엔진 (판단/타이밍 없음, 정수 매수)
 │   ├── DcaSettings.cs                  # 매수 템플릿·월배정·예산의 단일 읽기/쓰기 지점 (DB → appsettings 폴백)
-│   └── DailyExecutionService.cs        # 적립 사이클 실행 진입점 (RunDcaCycleAsync)
+│   ├── DailyExecutionService.cs        # 적립 사이클 실행 진입점 (RunDcaCycleAsync)
+│   └── TaxEstimator.cs                 # 매도 양도소득세 추정 (순수함수 / 정보·확인용)
 │
 ├── Data/                               # 데이터 액세스 계층
-│   ├── DBManager.cs                    # PostgreSQL 연결 관리 (Npgsql, Singleton + 마이그레이션)
+│   ├── DBManager.cs                    # PostgreSQL 연결 관리 (Npgsql, Singleton + 기동 시 create_tables.sql 적용)
 │   ├── AppConfigManager.cs             # appsettings.json + 환경변수 + DB 우선순위 설정
 │   ├── sql/
-│   │   └── create_tables.sql           # DDL + 초기 마스터 데이터
+│   │   └── create_tables.sql           # DDL(TB_TRADE_HISTORY/TB_APP_CONFIG/TB_MARKET_SNAPSHOT/TB_SYSTEM_LOG) + IS_PAPER_TRADING 기본값
 │   ├── DTO/                            # Data Transfer Objects
 │   │   ├── DcaTemplate.cs              # 매수 템플릿 DTO (Id, Name, BudgetKrw, Quantities)
-│   │   ├── AssetMasterDto.cs           # 자산 마스터
+│   │   ├── DcaCycleResult.cs           # 적립 사이클 결과 (체결·실패·예산경고)
+│   │   ├── DcaBuyFailure.cs            # 적립 매수 실패 1건 (종목·수량·사유)
 │   │   ├── TradeHistoryDto.cs          # 거래 내역
 │   │   ├── HoldingDto.cs               # 보유 종목 (잔고)
-│   │   ├── PriceRangeDto.cs            # N일 가격 범위
-│   │   ├── OhlcvDto.cs                 # OHLCV 일봉 데이터
-│   │   ├── StrategySummaryDto.cs       # (레거시) 전략 요약 — 판단 레이어 잔재, 미사용
-│   │   ├── AdaptiveThresholdStatusDto.cs # (레거시) 적응형 임계값 상태 — Phase 5 잔재, 미사용
-│   │   └── DailyTokenUsageDto.cs       # (레거시) AI 토큰 사용량 — Phase 5 잔재, 미사용
+│   │   └── SellTaxEstimateDto.cs       # 매도 양도세 추정 결과
 │   └── DAO/                            # Data Access Objects
 │       ├── TradeHistoryDAO.cs          # TB_TRADE_HISTORY CRUD
 │       └── SystemLogDAO.cs             # TB_SYSTEM_LOG 조회 (시스템 로그)
@@ -83,12 +81,12 @@ AutoInvesting/
 │   ├── PriceController.cs              # 현재가 조회 겸 티커 검증 (/api/price/{ticker})
 │   ├── DcaController.cs                # 적립 설정(매수 템플릿·월배정) 조회·저장 API
 │   ├── OrderController.cs              # 적립 사이클 실행 + 수동 주문 API
-│   └── TestController.cs               # 개발/테스트 전용 API (buy / send-test-email)
+│   └── TestController.cs               # 개발/테스트 전용 API (send-test-email — 실주문 경로 없음)
 │
 ├── Utils/                              # 유틸리티 (모든 레이어 접근 가능)
 │   ├── Logger.cs                       # Serilog 래퍼 (Info/Warn/Error/Fatal)
 │   ├── NotificationService.cs          # 이메일 알림 (Resend HTTP API — Render의 SMTP 포트 차단 대응)
-│   ├── ExchangeRateService.cs          # 환율 API (Frankfurter + fallback, 1시간 캐싱)
+│   ├── ExchangeRateService.cs          # 환율 API (Frankfurter → ExchangeRate-API 폴백, 1시간 캐싱)
 │   ├── CryptoUtil.cs                   # 시크릿 AES-256-GCM 암복호화 · 비밀번호 PBKDF2 해시 · 세션 토큰
 │   ├── ApiKeyAuthAttribute.cs          # 전역 x-api-key 인증 필터
 │   └── PublicEndpointAttribute.cs      # 전역 인증 필터 면제 표시 (로그인 등 공개 엔드포인트)
@@ -96,7 +94,7 @@ AutoInvesting/
 ├── Frontend/                           # React SPA (Vite, Glassmorphism 디자인)
 │   └── src/
 │       ├── pages/                      # Login, Dashboard, DcaConfig, Order, History, Settings
-│       └── components/                 # HoldingsTable, ProgressLoader
+│       └── components/                 # HoldingsTable
 │
 └── Documents/                          # 단일 문서 홈 (프로젝트 문서 전부)
     ├── reference/                      # 상시 참조 문서 (고정 이름)
@@ -111,9 +109,9 @@ AutoInvesting/
     └── worklog/                        # 기능 단위 작업 인계 보고서
 ```
 
-> **참고 (레거시 데이터)**: `TB_MARKET_SNAPSHOT` 테이블과 `DBManager`의 관련 마이그레이션 코드는
-> 과거 데이터 보존을 위해 DB 스키마에는 남아 있으나, 판단 레이어 제거에 따라 **현재는 어디서도
-> 기록·조회하지 않습니다** (과거 레거시 데이터, 미사용).
+> **참고 (레거시 데이터)**: `TB_MARKET_SNAPSHOT` 테이블은 과거 데이터 보존을 위해 DB 스키마에는
+> 남아 있으나, 판단 레이어 제거에 따라 **현재는 어디서도 기록·조회하지 않습니다** (과거 레거시
+> 데이터, 미사용). `DBManager`의 관련 ALTER 마이그레이션 코드는 중복이라 제거되었습니다.
 
 ---
 
@@ -309,7 +307,6 @@ docker run --rm -p 5000:5000 \
 | `KIS_SERVER` | KIS 서버 구분 (기본 `vps`) | 선택 |
 | `RESEND_API_KEY` | 이메일 알림(Resend) API 키 | 선택 (알림 사용 시) |
 | `ADMIN_EMAIL` | 알림 수신자 이메일 (개인정보 — 소스 금지) | 선택 (알림 사용 시) |
-| `FRED_API_KEY` | FRED 거시지표 브리핑 조회 키 (표시 전용) | 선택 |
 
 > `x-api-key` 값은 GitHub Actions에서 시크릿 `CRON_API_KEY`로 보관해 헤더로 전송하며, 서버는 이를 위 `API_ACCESS_KEY`와 비교합니다(두 값이 같아야 통과).
 
