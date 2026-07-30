@@ -59,20 +59,16 @@ const History = () => {
     if (activeTab === 'logs') fetchLogs();
   }, [activeTab, fetchLogs]);
 
-  const getStatusBadge = (status) => {
-    const map = {
-      FILLED: { className: 'badge completed', label: '체결' },
-      PENDING: { className: 'badge active', label: '대기' },
-      FAILED: { className: 'badge cancelled', label: '실패' }
-    };
-    const info = map[status] || { className: 'badge cancelled', label: status };
-    return <span className={info.className}>{info.label}</span>;
-  };
+  // 상태 라벨. 배지 색상 modifier(completed/active/cancelled)는 CSS에 정의된 적이 없어
+  // 어차피 .badge 단일 스타일로 렌더링되므로 클래스 분기를 두지 않는다.
+  const STATUS_LABEL = { FILLED: '체결', PENDING: '대기', FAILED: '실패' };
+
+  const getStatusBadge = (status) => <span className="badge">{STATUS_LABEL[status] ?? status}</span>;
 
   const getOrderTypeBadge = (type) => {
     if (type === 'BUY') return <span className="badge-profit badge-profit--up">매수</span>;
     if (type === 'SELL') return <span className="badge-profit badge-profit--down">매도</span>;
-    return <span className="badge cancelled">{type}</span>;
+    return <span className="badge">{type}</span>;
   };
 
   // ── 로그 라인 색상 ──
