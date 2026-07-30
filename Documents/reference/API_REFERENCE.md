@@ -216,5 +216,5 @@ status: draft
 - 인터랙티브 명세/시도: 서버 실행 후 `/swagger`
 - 응답 스키마는 구현 기준 요약이며, 실제 DTO 필드는 `Data/DTO/`(`HoldingDto`·`TradeHistoryDto`·`SellTaxEstimateDto`·`DcaTemplate`) 참조.
 - 인증 필터: `Utils/ApiKeyAuthAttribute.cs`, 면제 마커: `Utils/PublicEndpointAttribute.cs`.
-- 한눈에 보는 평면 표: `Documents/reference/API_REFERENCE_TABLE.md`
+- 한눈에 보는 평면 표는 별도 유지하지 않는다(2026-07-30 `API_REFERENCE_TABLE.md` 삭제 — 이 문서의 진부분집합이라 손으로 정합을 맞추다 드리프트가 반복됨). 요약 조회는 위 "엔드포인트 목록" 표 또는 `/swagger`를 쓴다.
 - 본 문서는 `Controllers/` 변경 시 함께 갱신한다.

@@ -80,7 +80,7 @@ AutoInvesting/
     │   ├── ONBOARDING_GUIDE.md     # 신규 개발자용 아키텍처 가이드
     │   ├── CODE_READING_GUIDE.md   # DCA 적립 코어 코드 흐름 가이드
     │   ├── CODE_MAP.md             # 코드 색인 (regen-codemap.ps1로 재생성)
-    │   └── API_REFERENCE.md / API_REFERENCE_TABLE.md  # REST API 레퍼런스
+    │   └── API_REFERENCE.md         # REST API 레퍼런스 (인터랙티브 명세는 /swagger)
     ├── [YYYY-MM-DD] NN_*.md        # 분석·진단 문서 (프로젝트 개요/아키텍처 등)
     ├── modules/                    # 모듈별 이해 문서
     ├── analysis/                   # 백테스트·절세 분석 산출물
