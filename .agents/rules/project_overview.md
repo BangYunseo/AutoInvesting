@@ -39,15 +39,13 @@ AutoInvesting/
 │   ├── DcaAccumulationEngine.cs        # 적립식 매수 엔진 (판단 없음 / PlanPurchases 순수함수)
 │   ├── DcaSettings.cs                  # 매수 템플릿·월배정·예산 읽기/쓰기 (DB 우선 → appsettings 폴백)
 │   ├── DailyExecutionService.cs        # 적립 사이클 진입점 (RunDcaCycleAsync)
-│   ├── TaxEstimator.cs                 # 매도 양도소득세 추정 (순수함수 / 정보·확인용 — 판단 레이어 아님)
-│   └── MacroBriefingService.cs         # FRED 거시지표 국면 브리핑 (표시 전용 / 매수 로직 미연결 — 판단 레이어 아님)
+│   └── TaxEstimator.cs                 # 매도 양도소득세 추정 (순수함수 / 정보·확인용 — 판단 레이어 아님)
 │
 ├── Controllers/                        # 외부 제어용 REST API 엔드포인트
 │   ├── OrderController.cs              # dca-run(적립 사이클), manual(수동 주문), sell-preview(매도 양도세 프리뷰)
 │   ├── DcaController.cs               # /api/dca/config 매수 템플릿·월배정 조회·저장 (GET: {templates, monthMap, currentMonth, activeTemplateId} / PUT: {templates, monthMap})
 │   ├── PriceController.cs             # /api/price/{ticker} 현재가 조회 겸 티커 검증
 │   ├── AuthController.cs              # /api/auth status/setup/login (단일 관리자 인증, 서명 세션 토큰) [PublicEndpoint]
-│   ├── MacroController.cs             # /api/macro/briefing 거시지표 국면 브리핑 (표시 전용)
 │   ├── ConfigController.cs
 │   ├── PortfolioController.cs
 │   ├── HistoryController.cs
@@ -60,8 +58,7 @@ AutoInvesting/
 │   │   ├── DcaTemplate.cs              # 매수 템플릿 DTO (Id, Name, BudgetKrw, Quantities)
 │   │   ├── TradeHistoryDto.cs          # 거래내역 DTO
 │   │   ├── HoldingDto.cs               # 보유종목 DTO
-│   │   ├── SellTaxEstimateDto.cs       # 매도 양도세 추정 결과 DTO
-│   │   └── MacroBriefingDto/MacroIndicatorDto.cs  # 거시 브리핑·지표 DTO (표시 전용)
+│   │   └── SellTaxEstimateDto.cs       # 매도 양도세 추정 결과 DTO
 │   └── DAO/                            # Data Access Objects
 │       ├── TradeHistoryDAO.cs          # TB_TRADE_HISTORY 기록·조회
 │       └── SystemLogDAO.cs             # TB_SYSTEM_LOG 로그 영구 적재 (Logger.DbSink)
@@ -70,7 +67,6 @@ AutoInvesting/
 │   ├── Logger.cs                       # Serilog 로깅 래퍼 (콘솔+파일+DB 싱크)
 │   ├── ExchangeRateService.cs          # 환율 API (Frankfurter / ExchangeRate-API 폴백)
 │   ├── NotificationService.cs          # 이메일 알림 발송 (Resend HTTP API)
-│   ├── FredClient.cs                   # FRED 거시지표 조회 클라이언트 (MacroBriefingService 전용)
 │   ├── CryptoUtil.cs                   # 시크릿 AES-GCM 암복호화 + 비밀번호 해시 + 세션 토큰 서명
 │   ├── ApiKeyAuthAttribute.cs          # 전역 인증 필터 (Bearer 세션토큰 또는 x-api-key)
 │   └── PublicEndpointAttribute.cs      # 인증 면제 마커 (로그인/초기설정용)
@@ -93,13 +89,17 @@ AutoInvesting/
 
 > Phase 6에서 판단 레이어(SmartOrderEngine, Core/Quant/*, Core/Advisors/*, AI MarketAnalyzer,
 > AllocationEngine, RebalancingEngine, 관련 DAO/DTO/Controller·프론트 페이지)는 모두 제거되었습니다.
-> `TB_MARKET_SNAPSHOT` 테이블과 DBManager의 관련 마이그레이션은 과거 데이터 보존 목적으로
-> 스키마에만 남아 있으며 더 이상 기록되지 않습니다(레거시).
+> `TB_MARKET_SNAPSHOT` 테이블은 과거 데이터 보존 목적으로 스키마에만 남아 있으며 더 이상
+> 기록되지 않습니다(레거시). 관련 ALTER 마이그레이션은 중복이라 제거되었습니다.
 >
 > Phase 6 이후 추가된 보조 기능: **Auth**(단일 관리자 인증 — 전역 필터로 모든 엔드포인트 보호),
-> **Tax**(매도 양도세 추정 — 수동 매도 확인용), **Macro**(FRED 거시지표 국면 브리핑 — 표시 전용).
-> ⚠️ **Macro·Tax는 정보/보고 전용으로, `DcaAccumulationEngine`·`DailyExecutionService`의 매수 의사결정에
+> **Tax**(매도 양도세 추정 — 수동 매도 확인용).
+> ⚠️ **Tax는 정보/보고 전용으로, `DcaAccumulationEngine`·`DailyExecutionService`의 매수 의사결정에
 > 어떤 값도 흘려보내지 않습니다(판단 레이어 재도입 아님).** 이 경계를 깨는 배선은 금지됩니다.
+>
+> **Macro**(FRED 거시지표 국면 브리핑)는 프론트에 배선되지 않아 소비자가 0이었으므로 2026-07-30에
+> 코드째 제거했습니다(`MacroController`/`MacroBriefingService`/`FredClient`/DTO 2종/테스트). 다시
+> 필요해지면 화면과 함께 도입하고, 그때도 매수 의사결정에 값을 흘려보내지 않는 경계를 지킵니다.
  
 ## 핵심 인터페이스: IBrokerClient
  

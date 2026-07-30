@@ -36,7 +36,7 @@ Data (Data/, Data/DTO/, Data/DAO/)
 - `DailyExecutionService` — 적립 사이클 실행 진입점 (`RunDcaCycleAsync`, Scoped, `IServiceScopeFactory` 패턴)
 - `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (Resend HTTP API, 443 포트 — Render SMTP 차단 우회)
 - `ApiKeyAuthAttribute` — 전역 인증 필터. 모든 컨트롤러에 적용되며 Bearer 세션 토큰(사람) 또는 `x-api-key`(크론) 중 하나로 통과. `[PublicEndpoint]` 표시 액션(로그인/초기설정/상태)만 면제
-- `TaxEstimator` / `MacroBriefingService` — **정보·확인 전용 보조 기능**. 매도 양도세 추정(수동 매도 확인용)·FRED 거시지표 국면 브리핑(표시 전용). ⚠️ 둘 다 `DcaAccumulationEngine`/`DailyExecutionService`의 매수 의사결정에 값을 흘려보내지 않는다(판단 레이어 재도입 아님)
+- `TaxEstimator` — **정보·확인 전용 보조 기능**. 매도 양도세 추정(수동 매도 확인용). ⚠️ `DcaAccumulationEngine`/`DailyExecutionService`의 매수 의사결정에 값을 흘려보내지 않는다(판단 레이어 재도입 아님)
 
 ## 아키텍처 흐름
 ```
