@@ -167,7 +167,8 @@ const History = () => {
                       <td>${t.price.toFixed(2)}</td>
                       <td>{getStatusBadge(t.status)}</td>
                       <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        {t.orderNo}
+                        {/* 2026-07-30 주문번호 저장 배선 이전 행은 값이 없다 — 빈칸이 렌더 오류로 보이지 않게 표시 */}
+                        {t.orderNo || '—'}
                       </td>
                     </tr>
                   ))}

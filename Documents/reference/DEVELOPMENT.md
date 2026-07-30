@@ -142,6 +142,7 @@ status: draft
 | 260701 | **실거래 전환 대비 월 1회 멱등 가드**(`DCA_LAST_RUN_MONTH`) + 크론 `40 14 1-31 * *`(매일 시도, 처음 성공하는 날 1회 적립) |
 | 260702 | **단위 테스트 프로젝트 신설**(`Tests/`, xUnit). `PlanPurchases`(7건)·`SelectTemplate`(5건) 순수 함수 검증. 이를 위해 `DcaSettings`의 월→템플릿 선택 로직을 `SelectTemplate` 순수 함수로 분리(동작 불변) |
 | 260730 | **죽은 코드·미배선 기능 정리**. Macro/FRED 스택 일괄 제거(참조 0), `POST /api/test/buy` 제거(`manual`과 중복·실전 자기차단), `Templates/DailyReportTemplate.html`·미사용 프론트 자산(`App.css`·`assets/*`·`icons.svg`) 제거, `DBManager` ALTER 마이그레이션 9건+`RunMigration` 제거, `create_tables.sql`에서 `TB_ASSET_MASTER`·`TB_INVEST_STRATEGY`·죽은 앱설정 시드 제외, 죽은 CSS 클래스 제거, 알림박스 `.alert` 공용 클래스화, `ExchangeRateService` 문자열 파서 2개 → `ParseKrwRate` 순수함수 1개(+테스트 4건, 총 40건). 상세: `Documents/worklog/[2026-07-30] 01_죽은 코드 미배선 기능 정리.md` |
+| 260730 | **거래이력 주문번호(`ORDER_NO`) 저장 배선**. 브로커가 준 주문번호(KIS `ODNO`)가 DTO까지 채워졌는데 `TradeHistoryDAO`의 INSERT/SELECT 컬럼에 없어 DB에 저장되지 않고 History 화면 주문번호 칼럼이 항상 빈칸이었다. 컬럼은 스키마에 이미 있어 변경 없이 배선만 추가. 증권사 계좌와 우리 기록을 잇는 유일한 키이며, 지정가 주문(`ORD_DVSN=00`)을 접수 시점에 `FILLED`로 기록하는 현 구조에서 미체결 추적의 실마리이기도 하다 |
 
 > 테스트 실행: `dotnet test Tests/AutoInvest.Tests.csproj` (net8.0, xUnit). 메인 웹 프로젝트는
 > `AutoInvest.csproj`에서 `Tests\**`를 컴파일 대상에서 제외해 분리되어 있습니다.
