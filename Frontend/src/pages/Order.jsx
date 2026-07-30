@@ -131,15 +131,8 @@ const OrderConfirmModal = ({ ctx, ordering, onCancel, onConfirm }) => {
             </div>
             {e.maxTaxFreeQty >= 0 && (
               <div
-                style={{
-                  fontSize: "0.82rem",
-                  background: "var(--profit-green-bg)",
-                  color: "var(--profit-green)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: "8px 12px",
-                  lineHeight: 1.5,
-                  wordBreak: "keep-all",
-                }}
+                className="alert alert--ok"
+                style={{ padding: "8px 12px", fontSize: "0.82rem", lineHeight: 1.5 }}
               >
                 💡 지금 조건에선 <strong>{e.maxTaxFreeQty}주</strong>까지 세금
                 없이 매도할 수 있습니다.
@@ -149,17 +142,7 @@ const OrderConfirmModal = ({ ctx, ordering, onCancel, onConfirm }) => {
         )}
 
         {ctx.kind === "sell-free" && e && (
-          <div
-            style={{
-              fontSize: "0.85rem",
-              background: "var(--profit-green-bg)",
-              color: "var(--profit-green)",
-              borderRadius: "var(--radius-sm)",
-              padding: "10px 14px",
-              lineHeight: 1.6,
-              wordBreak: "keep-all",
-            }}
-          >
+          <div className="alert alert--ok">
             ✅ 예상 세금이 없습니다(기본공제 이내).
             <br />
             예상 양도차익 {won(e.gainKrw)}원 · 남은 공제{" "}
@@ -513,19 +496,7 @@ const Order = () => {
       <div className="card fade-in fade-in-delay-1">
         <h2>적립식 매수 실행</h2>
 
-        <div
-          style={{
-            padding: "14px 16px",
-            background: "rgba(59, 130, 246, 0.08)",
-            border: "1px solid rgba(59, 130, 246, 0.25)",
-            borderRadius: "var(--radius-sm)",
-            marginBottom: 20,
-            fontSize: "0.85rem",
-            color: "var(--text-secondary)",
-            lineHeight: 1.6,
-            wordBreak: "keep-all",
-          }}
-        >
+        <div className="alert alert--info" style={{ marginBottom: 20 }}>
           ℹ️ 타이밍을 판단하지 않고, 이번 달에 배정된{" "}
           <strong>매수 템플릿의 종목별 고정 수량</strong>대로 매수합니다. 1주를
           채우지 못한 잔돈은 다음 사이클로 이월됩니다. 수량·예산·월별 배정은 상단{" "}
@@ -542,34 +513,14 @@ const Order = () => {
         </button>
 
         {dcaError && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: "10px 14px",
-              background: "var(--loss-red-bg)",
-              color: "var(--loss-red)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "0.85rem",
-            }}
-          >
+          <div className="alert alert--err" style={{ marginTop: 16 }}>
             ❌ {dcaError}
           </div>
         )}
 
         {dcaResult && (
           <div className="fade-in" style={{ marginTop: 20 }}>
-            <div
-              style={{
-                padding: "12px 16px",
-                background: "var(--profit-green-bg)",
-                color: "var(--profit-green)",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "0.85rem",
-                lineHeight: 1.6,
-              }}
-            >
-              ✅ {dcaResult.message}
-            </div>
+            <div className="alert alert--ok">✅ {dcaResult.message}</div>
             <p
               style={{
                 marginTop: 10,
@@ -588,18 +539,7 @@ const Order = () => {
       <div className="card fade-in fade-in-delay-2">
         <h2>수동 주문</h2>
 
-        <div
-          style={{
-            padding: "14px 16px",
-            background: "rgba(245, 158, 11, 0.08)",
-            border: "1px solid rgba(245, 158, 11, 0.2)",
-            borderRadius: "var(--radius-sm)",
-            marginBottom: 20,
-            fontSize: "0.82rem",
-            color: "var(--warn-amber)",
-            wordBreak: "keep-all",
-          }}
-        >
+        <div className="alert alert--warn" style={{ marginBottom: 20 }}>
           ⚠️ 판단 없이 즉시 주문이 실행됩니다. 매도는 보유 종목·보유수량
           내에서만 가능하며, 매수는 보유 종목 또는 검증된 신규 종목만
           주문됩니다.
@@ -845,32 +785,14 @@ const Order = () => {
         </button>
 
         {orderError && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: "10px 14px",
-              background: "var(--loss-red-bg)",
-              color: "var(--loss-red)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "0.85rem",
-            }}
-          >
+          <div className="alert alert--err" style={{ marginTop: 16 }}>
             ❌ {orderError}
           </div>
         )}
 
         {orderResult && (
           <div className="fade-in" style={{ marginTop: 20 }}>
-            <div
-              style={{
-                padding: "12px 16px",
-                background: "var(--profit-green-bg)",
-                color: "var(--profit-green)",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "0.85rem",
-                marginBottom: 12,
-              }}
-            >
+            <div className="alert alert--ok" style={{ marginBottom: 12 }}>
               ✅ {orderResult.message}
             </div>
             <div

@@ -142,7 +142,7 @@ const Dashboard = () => {
       </div>
 
       {summaryError && (
-        <div style={{ marginBottom: 12, padding: '8px 14px', background: 'var(--loss-red-bg)', color: 'var(--loss-red)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem' }}>
+        <div className="alert alert--err" style={{ marginBottom: 12 }}>
           ❌ 요약 갱신 실패: {summaryError}
         </div>
       )}

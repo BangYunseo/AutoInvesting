@@ -134,11 +134,10 @@ const SecretManagerModal = ({ open, onClose, configs, onSaved }) => {
         </p>
 
         {msg && (
-          <div style={{
-            padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: 14, fontSize: '0.82rem',
-            background: msg.startsWith('✅') ? 'var(--profit-green-bg)' : 'var(--loss-red-bg)',
-            color: msg.startsWith('✅') ? 'var(--profit-green)' : 'var(--loss-red)'
-          }}>
+          <div
+            className={`alert ${msg.startsWith('✅') ? 'alert--ok' : 'alert--err'}`}
+            style={{ marginBottom: 14 }}
+          >
             {msg}
           </div>
         )}
@@ -291,14 +290,10 @@ const Settings = () => {
       </div>
 
       {message && (
-        <div className="fade-in" style={{
-          padding: '10px 14px',
-          borderRadius: 'var(--radius-sm)',
-          background: message.startsWith('✅') ? 'var(--profit-green-bg)' : 'var(--loss-red-bg)',
-          color: message.startsWith('✅') ? 'var(--profit-green)' : 'var(--loss-red)',
-          fontSize: '0.85rem',
-          marginBottom: 16
-        }}>
+        <div
+          className={`fade-in alert ${message.startsWith('✅') ? 'alert--ok' : 'alert--err'}`}
+          style={{ marginBottom: 16 }}
+        >
           {message}
         </div>
       )}

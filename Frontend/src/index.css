@@ -542,6 +542,40 @@ a:hover {
   background: #dc2626;
 }
 
+/* ── 알림 박스 ── 성공·실패·경고·안내 4종. 여백은 쓰는 쪽에서 지정한다. */
+.alert {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.alert--ok {
+  background: var(--profit-green-bg);
+  color: var(--profit-green);
+}
+
+.alert--err {
+  background: var(--loss-red-bg);
+  color: var(--loss-red);
+}
+
+.alert--warn {
+  padding: 14px 16px;
+  font-size: 0.82rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: var(--warn-amber);
+}
+
+.alert--info {
+  padding: 14px 16px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: var(--text-secondary);
+}
+
 /* ── 섹션 헤더 ── */
 .section-header {
   display: flex;

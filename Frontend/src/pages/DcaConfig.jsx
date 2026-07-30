@@ -231,7 +231,6 @@ const DcaConfig = () => {
     );
   }
 
-  const tName = (id) => templates.find(t => t.id === id)?.name || '(삭제됨)';
   const scheduleEmpty = Object.keys(monthMap).length === 0;
 
   const statusLine = (r) => {
@@ -258,12 +257,8 @@ const DcaConfig = () => {
         해당 템플릿대로 매수합니다. 매달 다른 구성·예산으로 적립할 수 있습니다.
       </p>
 
-      {error && (
-        <div style={{ padding: '10px 14px', background: 'var(--loss-red-bg)', color: 'var(--loss-red)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: 16 }}>❌ {error}</div>
-      )}
-      {notice && (
-        <div style={{ padding: '10px 14px', background: 'var(--profit-green-bg)', color: 'var(--profit-green)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: 16 }}>✅ {notice}</div>
-      )}
+      {error && <div className="alert alert--err" style={{ marginBottom: 16 }}>❌ {error}</div>}
+      {notice && <div className="alert alert--ok" style={{ marginBottom: 16 }}>✅ {notice}</div>}
 
       {/* 템플릿 목록 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

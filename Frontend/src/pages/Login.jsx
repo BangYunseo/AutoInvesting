@@ -95,20 +95,8 @@ const Login = () => {
           </p>
         </div>
 
-        {notice && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 'var(--radius-sm)',
-            background: 'var(--profit-green-bg)', color: 'var(--profit-green)',
-            fontSize: '0.82rem', marginBottom: 14
-          }}>{notice}</div>
-        )}
-        {error && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 'var(--radius-sm)',
-            background: 'var(--loss-red-bg)', color: 'var(--loss-red)',
-            fontSize: '0.82rem', marginBottom: 14
-          }}>❌ {error}</div>
-        )}
+        {notice && <div className="alert alert--ok" style={{ marginBottom: 14 }}>{notice}</div>}
+        {error && <div className="alert alert--err" style={{ marginBottom: 14 }}>❌ {error}</div>}
 
         <form onSubmit={submit}>
           <div className="form-group">
