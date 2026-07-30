@@ -1,23 +1,5 @@
 -- Data/sql/create_tables.sql (PostgreSQL Version)
 
-CREATE TABLE IF NOT EXISTS TB_ASSET_MASTER (
-    TICKER        VARCHAR(20) PRIMARY KEY,
-    NAME          VARCHAR(255) NOT NULL,
-    CURRENCY      VARCHAR(10) NOT NULL DEFAULT 'USD',
-    IS_ACTIVE     INTEGER NOT NULL DEFAULT 1,
-    CREATED_AT    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS TB_INVEST_STRATEGY (
-    STRATEGY_ID   SERIAL PRIMARY KEY,
-    STRATEGY_NAME VARCHAR(100) NOT NULL,
-    TICKER        VARCHAR(20) NOT NULL,
-    WEIGHT        INTEGER NOT NULL DEFAULT 1,
-    STRATEGY_TYPE VARCHAR(50) DEFAULT 'MEAN_REVERSION',
-    FOREIGN KEY (TICKER) REFERENCES TB_ASSET_MASTER(TICKER),
-    UNIQUE (STRATEGY_NAME, TICKER)
-);
-
 CREATE TABLE IF NOT EXISTS TB_TRADE_HISTORY (
     TRADE_ID      SERIAL PRIMARY KEY,
     TRADE_DATE    VARCHAR(20) NOT NULL,
@@ -36,33 +18,9 @@ CREATE TABLE IF NOT EXISTS TB_APP_CONFIG (
     DESCRIPTION   TEXT
 );
 
--- 초기 마스터 데이터
-INSERT INTO TB_ASSET_MASTER (TICKER, NAME, CURRENCY) VALUES
-    ('SCHD',  'Schwab US Dividend Equity ETF', 'USD'),
-    ('QQQM',  'Invesco NASDAQ 100 ETF',        'USD'),
-    ('GLD',   'SPDR Gold Shares',              'USD'),
-    ('JEPI',  'JPMorgan Equity Premium Income','USD'),
-    ('SPLG',  'SPDR Portfolio S&P 500 ETF',    'USD')
-ON CONFLICT (TICKER) DO NOTHING;
-
--- 초기 전략 데이터 (사용자정의)
-INSERT INTO TB_INVEST_STRATEGY (STRATEGY_NAME, TICKER, WEIGHT) VALUES
-    ('사용자정의', 'QQQM', 2),
-    ('사용자정의', 'SPLG', 1),
-    ('사용자정의', 'GLD',  1)
-ON CONFLICT (STRATEGY_NAME, TICKER) DO NOTHING;
-
--- 앱 기본 설정
+-- 앱 기본 설정 (적립 설정은 UI에서 DCA_TEMPLATES/DCA_MONTH_MAP으로 저장됨)
 INSERT INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE, DESCRIPTION) VALUES
-    ('IS_PAPER_TRADING', '1',        '1=모의투자 0=실거래'),
-    ('INVEST_AMOUNT_KRW','1000000',  '월 투자금액(원)'),
-    ('ACTIVE_STRATEGY',  '사용자정의',   '현재 활성 전략'),
-    ('STRATEGY_TYPE',    'MEAN_REVERSION', '퀀트 전략 유형 (MEAN_REVERSION/MOMENTUM/MIXED)'),
-    ('ORDER_SCHEDULE',   '22:30',    '주문 실행 시각(KST)'),
-    ('REBALANCE_ENABLED','0',        '리밸런싱 활성화 여부'),
-    ('REBALANCE_PERIOD', 'MONTHLY',  '리밸런싱 주기 (WEEKLY/MONTHLY)'),
-    ('REBALANCE_THRESHOLD','0.05',   '리밸런싱 편차 임계값'),
-    ('LAST_REBALANCE_DATE','',       '마지막 리밸런싱 실행일')
+    ('IS_PAPER_TRADING', '1', '1=모의투자 0=실거래')
 ON CONFLICT (CONFIG_KEY) DO NOTHING;
 
 -- 매수/매도 시점 시장 지표 스냅샷
@@ -89,11 +47,14 @@ CREATE TABLE IF NOT EXISTS TB_MARKET_SNAPSHOT (
     CREATED_AT      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- (Phase 6 정리, 2026-07-23) 판단 레이어(AI 성과·토큰 모니터링·분할매도) 전용 테이블
---   TB_SELL_PLAN · TB_TOKEN_USAGE · TB_AI_PERFORMANCE 는 코드에서 더 이상 참조하지 않아
---   신규 DB 생성 대상에서 제외했다. 기존 운영 DB의 물리 DROP은 백업·건수 확인 후 별도로 수행한다.
---   보존 유지: TB_MARKET_SNAPSHOT, TB_INVEST_STRATEGY/TB_ASSET_MASTER
---   (DBManager 주석의 '과거 데이터 보존' 방침 — 임의 삭제 금지).
+-- (Phase 6 정리) 판단 레이어 제거 잔재는 신규 DB 생성 대상에서 제외했다.
+--   · 제외 완료: TB_SELL_PLAN · TB_TOKEN_USAGE · TB_AI_PERFORMANCE (2026-07-23)
+--   · 제외 완료: TB_ASSET_MASTER · TB_INVEST_STRATEGY 및 초기 전략/자산 시드 (2026-07-30)
+--     — 코드 참조 0건(해당 DAO 없음). 죽은 앱설정 시드(INVEST_AMOUNT_KRW·ACTIVE_STRATEGY·
+--       STRATEGY_TYPE·ORDER_SCHEDULE·REBALANCE_*)도 읽는 코드가 없어 함께 제외.
+--   · 보존: TB_MARKET_SNAPSHOT (과거 누적 데이터 — 임의 삭제·수정 금지, recommended_rules.md)
+--   이 파일에서 빠진 것은 "신규 DB에 더 만들지 않는다"는 의미일 뿐, 기존 운영 DB의 테이블·데이터는
+--   무변경이다. 물리 DROP은 백업·건수 확인 후 별도 작업으로만 수행한다.
 
 -- 시스템 로그 영구 저장 테이블 (Render 휘발성 파일시스템 대체 — 재시작에도 보존)
 CREATE TABLE IF NOT EXISTS TB_SYSTEM_LOG (

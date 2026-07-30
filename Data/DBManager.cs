@@ -59,36 +59,6 @@ namespace AutoInvest.Data
                     var sql = File.ReadAllText(sqlPath);
                     using (var cmd = new NpgsqlCommand(sql, conn))
                         cmd.ExecuteNonQuery();
-
-                    // ⚠️ 아래 ALTER 마이그레이션은 모두 Phase 6에서 제거된 판단 레이어(퀀트/AI)의 레거시 스키마다.
-                    //    TB_MARKET_SNAPSHOT/TB_INVEST_STRATEGY는 더 이상 기록되지 않으나(과거 데이터 보존용),
-                    //    create_tables.sql이 신규 DB에 컬럼을 이미 정의하므로 이 마이그레이션은 사실상 중복(구 운영 DB 호환용)이다.
-                    //    임의 삭제·DROP 금지 (recommended_rules: 누적 데이터 보호).
-                    // Phase 2.5 마이그레이션: STRATEGY_TYPE 컬럼 추가
-                    RunMigration(conn,
-                        "ALTER TABLE TB_INVEST_STRATEGY ADD COLUMN STRATEGY_TYPE TEXT DEFAULT 'MEAN_REVERSION'");
-
-                    // Phase 4-e 마이그레이션: 확률 기반 합의 점수 컬럼 추가
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN BUY_PROBABILITY REAL DEFAULT 0");
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN SELL_PROBABILITY REAL DEFAULT 0");
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN CHART_AI_SCORE REAL DEFAULT 0");
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN FUND_AI_SCORE REAL DEFAULT 0");
-
-                    // Phase 5-d 마이그레이션: 에이전트별 방향 신호 컬럼 추가 (적중률/가중치 A/B 분석용)
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN QUANT_SIGNAL TEXT DEFAULT ''");
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN CHART_AI_SIGNAL TEXT DEFAULT ''");
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN FUND_AI_SIGNAL TEXT DEFAULT ''");
-
-                    // Phase 6-a 마이그레이션: 데이터 출처 구분 컬럼 추가 (REAL=실데이터 / SIM=시뮬레이션 학습데이터)
-                    RunMigration(conn,
-                        "ALTER TABLE TB_MARKET_SNAPSHOT ADD COLUMN DATA_SOURCE TEXT DEFAULT 'REAL'");
                 }
                 Logger.Info("DB 초기화 완료");
             }
@@ -96,22 +66,6 @@ namespace AutoInvest.Data
             {
                 Logger.Fatal($"DB 초기화 실패: {ex.Message}");
                 throw;
-            }
-        }
-
-        /// <summary>
-        /// DB 마이그레이션 쿼리를 실행합니다. 이미 적용된 경우 무시합니다.
-        /// </summary>
-        private void RunMigration(NpgsqlConnection conn, string sql)
-        {
-            try
-            {
-                using (var cmd = new NpgsqlCommand(sql, conn))
-                    cmd.ExecuteNonQuery();
-            }
-            catch (PostgresException)
-            {
-                // 이미 컬럼이 존재하는 경우 등 — 무시
             }
         }
     }
