@@ -50,7 +50,7 @@ status: draft
 
 | 키 | 읽는 곳 | 없으면 |
 |---|---|---|
-| `DATABASE_URL` | `Data/DBManager.cs` | 로컬 기본 접속 문자열로 폴백 |
+| `DATABASE_URL` | `Data/DBManager.cs` | 로컬 기본 접속 문자열로 폴백 (배포 DB는 **Neon**, `*.neon.tech`) |
 | `MASTER_KEY` | `Utils/CryptoUtil.cs` | 시크릿을 평문 저장하고 경고만 남김. 기동은 계속 |
 | `AUTH_TOKEN_SECRET` | `Utils/CryptoUtil.cs` | `MASTER_KEY` 파생으로 대체. 둘 다 없으면 세션 토큰 서명 불가 → 로그인 불가 |
 
@@ -165,6 +165,19 @@ IS_PAPER_TRADING = 0
 로컬 시크릿은 `appsettings.local.json`에 둔다. `.gitignore`와 `.dockerignore` 양쪽에서 제외된다. 템플릿은 `appsettings.example.json`을 복사해 쓴다.
 
 **로컬에 `DATABASE_URL`을 운영 DB 주소로 넣지 않는다.** 넣으면 DB에서 `IS_PAPER_TRADING="0"`과 실전 KIS 키를 읽어 **로컬 실행이 실계좌에 주문**할 수 있다. 로컬 개발용 `MASTER_KEY`는 운영 값과 다른 값을 쓴다.
+
+### 배포 DB는 Neon — 특유 제약 4개
+
+`DATABASE_URL`이 가리키는 배포 DB는 **Neon**이다. Render Postgres가 아니므로 아래가 운영 판단에 직접 영향을 준다.
+
+| 특성 | 영향 |
+|---|---|
+| **autosuspend (scale to zero)** | idle이면 컴퓨트가 정지하고 첫 쿼리에 콜드 스타트가 붙는다. 조회 실패 시 `TryGetFromDb`가 `Logger.Warn`으로 삼키고 `null`을 반환해 **폴백 경로로 조용히 넘어간다** |
+| **DB 브랜치** | SQL Editor에서 브랜치를 잘못 고르면 다른 데이터를 본다. 운영 브랜치를 확인할 것 |
+| **웹 SQL Editor** | `console.neon.tech` → SQL Editor. `psql` 없이 브라우저에서 쿼리 가능 |
+| **브랜치 스냅샷** | `DELETE`·`ALTER` 전에 브랜치를 떠두면 완전한 롤백 수단이 된다 |
+
+첫 번째가 실제 사고로 이어질 수 있었다. `DCA_TEMPLATES` 조회가 실패하면 레거시 폴백을 타고 의도하지 않은 종목·수량으로 실계좌 매수가 나갈 수 있었다. 2026-07-31에 DB 레거시 키(`DCA_QTYS`·`DCA_BUDGET_KRW`·`DCA_TARGETS`)를 삭제하고 `appsettings.json`의 `Dca:Quantities`를 비워 **폴백이 "잘못 사기"가 아니라 "안 사기"로 끝나게** 바꿨다.
 
 ### 알려진 함정
 

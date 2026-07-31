@@ -20,7 +20,7 @@
 | 프레임워크 | ASP.NET Core Web API (.NET 8.0) |
 | 통신/내결함성 | HttpClient, Polly (Phase B/C 적용) |
 | 알림/이메일 | Resend HTTP API (Render의 SMTP 포트 차단 대응) |
-| DB | PostgreSQL (`Npgsql`) — 로컬: localhost, 배포: `DATABASE_URL` 환경변수(Render.com URI) |
+| DB | PostgreSQL (`Npgsql`) — 로컬: localhost, 배포: **Neon**(`DATABASE_URL` 환경변수, `*.neon.tech`, SSL 필수) |
 | 증권사 API | 한국투자증권 KIS Developers REST API |
 | 빌드 | MSBuild / Visual Studio 2022 |
  
@@ -52,7 +52,7 @@ AutoInvesting/
 │   └── TestController.cs              # send-test-email (메일 발송 점검용 — 실주문 경로 없음)
 │
 ├── Data/                               # 데이터 액세스 (DTO/DAO)
-│   ├── DBManager.cs                    # PostgreSQL 연결 (Npgsql, DATABASE_URL 지원)
+│   ├── DBManager.cs                    # PostgreSQL 연결 (Npgsql, DATABASE_URL 지원 / 배포는 Neon)
 │   ├── AppConfigManager.cs             # 설정값 관리 (TB_APP_CONFIG: DCA_TEMPLATES/DCA_MONTH_MAP 등, 시크릿 암복호화)
 │   ├── DTO/                            # Data Transfer Objects
 │   │   ├── DcaTemplate.cs              # 매수 템플릿 DTO (Id, Name, BudgetKrw, Quantities)
