@@ -127,6 +127,33 @@ namespace AutoInvest.Core
             {
                 var body = new StringBuilder();
 
+                // ── 헤더: 계좌 모드·시각·환율·집계 ──
+                // 메일만 보고 "이게 실계좌인가"를 판별할 수 있어야 한다(실전 전환 후 필수).
+                // 계좌번호는 개인정보이므로 모드만 쓰고 마스킹 계좌번호는 버린다.
+                var (accountMode, _) = _session.GetAccountInfo();
+                string modeLabel = accountMode switch
+                {
+                    "LIVE" => "🔴 실전(LIVE)",
+                    "PAPER" => "🟡 모의(PAPER)",
+                    _ => "⚪ 시뮬레이션(SIM)"
+                };
+
+                body.Append("<p style='color:#555555; font-size:13px; margin:0 0 4px 0;'>"
+                    + $"<strong>{modeLabel}</strong> &nbsp;&middot;&nbsp; {DateTime.UtcNow.AddHours(9):yyyy-MM-dd HH:mm} KST");
+                if (result.ExchangeRate > 0)
+                    body.Append($" &nbsp;&middot;&nbsp; 환율 {result.ExchangeRate:N0}원");
+                body.Append("</p>");
+
+                // 계획에 도달한 사이클만 집계를 표시한다(로그인 실패·설정 없음·예외는 0이므로 생략).
+                if (result.TotalCostKrw > 0)
+                {
+                    int filledQty = result.Filled.Sum(f => f.Qty);
+                    int failedQty = result.Failures.Sum(f => f.Qty);
+                    body.Append("<p style='color:#555555; font-size:13px; margin:0 0 12px 0;'>"
+                        + $"계획 {filledQty + failedQty}주 / {result.TotalCostKrw:N0}원 "
+                        + $"&nbsp;&middot;&nbsp; 체결 {filledQty}주 &nbsp;&middot;&nbsp; 실패 {failedQty}주</p>");
+                }
+
                 // ── 안내(조기 종료/오류 사유) ──
                 if (!string.IsNullOrEmpty(statusNote))
                     body.Append($"<p style='color:#b8860b;'><strong>ℹ️ 안내:</strong> {statusNote}</p>");
@@ -143,10 +170,14 @@ namespace AutoInvest.Core
                 else
                 {
                     // 이메일 클라이언트 호환을 위해 카드는 인라인 스타일 div로 구성한다(head 스타일·flex 미지원 대비).
+                    // 단가는 체결가가 아니라 주문 지정가다(접수 시점 기록) — 라벨을 "주문가"로 둔다.
                     var cards = result.Filled
                         .GroupBy(f => f.Ticker)
                         .Select(g => BuildCard("매수", "#1e8e3e", "#f4faf6", "#d7e3ef", g.Key,
-                            $"단가 : ${g.First().Price:N2}", $"수량 : {g.Sum(x => x.Qty)}주"));
+                            $"주문가 : ${g.First().Price:N2}",
+                            $"수량 : {g.Sum(x => x.Qty)}주",
+                            $"소계 : {g.Sum(x => x.Qty * x.Price) * result.ExchangeRate:N0}원",
+                            $"주문번호 : {string.Join(", ", g.Select(x => x.OrderNo))}"));
                     body.Append("<p>✅ <strong>오늘의 적립식 매수 내역:</strong></p>" + string.Join("", cards));
                 }
 
@@ -176,16 +207,15 @@ namespace AutoInvest.Core
         /// <param name="bg">카드 배경색</param>
         /// <param name="border">카드 테두리색</param>
         /// <param name="ticker">종목 코드</param>
-        /// <param name="detail1">첫째 상세 문구 (예: "단가 : $185.30")</param>
-        /// <param name="detail2">둘째 상세 문구 (예: "수량 : 2주")</param>
+        /// <param name="details">상세 문구들 (예: "주문가 : $185.30", "수량 : 2주"). 가운뎃점으로 이어 붙입니다.</param>
         private static string BuildCard(string label, string accent, string bg, string border,
-            string ticker, string detail1, string detail2)
+            string ticker, params string[] details)
         {
             return
                 $"<div style='border:1px solid {border}; border-left:4px solid {accent}; border-radius:8px; padding:12px 16px; margin:8px 0; background:{bg};'>"
                 + $"<span style='display:inline-block; background:{accent}; color:#ffffff; font-size:12px; font-weight:700; border-radius:4px; padding:2px 8px; margin-right:8px;'>{label}</span>"
                 + $"<strong style='font-size:15px;'>{ticker}</strong>"
-                + $"<div style='margin-top:6px; color:#333333; font-size:14px;'>{detail1} &nbsp;&middot;&nbsp; {detail2}</div>"
+                + $"<div style='margin-top:6px; color:#333333; font-size:14px;'>{string.Join(" &nbsp;&middot;&nbsp; ", details)}</div>"
                 + "</div>";
         }
     }

@@ -112,6 +112,10 @@ namespace AutoInvest.Core
             // ── 순수 매수 계획 산출 (고정 수량) ──
             var plan = PlanPurchases(quantities, exchangeRate, priceUsd, out decimal totalCostKrw);
 
+            // 보고서 표시용으로만 결과에 담는다(주문 결정에는 관여하지 않음).
+            result.TotalCostKrw = totalCostKrw;
+            result.ExchangeRate = exchangeRate;
+
             Logger.Info($"[DCA] === 적립식(고정수량) 매수 시작 (예산 {budgetKrw:N0}원, 환율 {exchangeRate:N0}, 종목 {plan.Count}개) ===");
 
             // 예산 초과 시 경고만 (수량은 그대로 진행) — 개별 메일 대신 사이클 보고서에 종합

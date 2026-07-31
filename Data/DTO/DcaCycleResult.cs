@@ -17,5 +17,17 @@ namespace AutoInvest.Data.DTO
 
         /// <summary>예산 초과 경고 문구 (초과 시에만 채워짐, 없으면 빈 문자열).</summary>
         public string BudgetWarning { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 이번 사이클 매수 계획 전체의 금액 합계 (원). 사이클이 계획 산출에 도달하지 못하면 0입니다.
+        /// 보고서 표시 전용 — 매수 의사결정에는 쓰이지 않습니다.
+        /// </summary>
+        public decimal TotalCostKrw { get; set; }
+
+        /// <summary>
+        /// 계획 산출에 사용한 USD→KRW 환율. 조회 실패 또는 미도달 시 0입니다.
+        /// 보고서 표시 전용 — 매수 의사결정에는 쓰이지 않습니다.
+        /// </summary>
+        public decimal ExchangeRate { get; set; }
     }
 }
