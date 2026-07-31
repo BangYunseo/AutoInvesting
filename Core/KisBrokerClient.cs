@@ -5,6 +5,7 @@ using Polly.Retry;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -135,9 +136,11 @@ namespace AutoInvest.Core
                     var responseString = await response.Content.ReadAsStringAsync();
                     var json = JsonSerializer.Deserialize<JsonElement>(responseString);
 
+                    // KIS 응답의 숫자는 항상 "293.42" 형식 문자열이다. 소수점이 쉼표인 로케일에서
+                    // CurrentCulture로 파싱하면 29342로 읽히므로 InvariantCulture를 반드시 명시한다.
                     if (json.TryGetProperty("output", out var output) &&
                         output.TryGetProperty("last", out var lastStr) &&
-                        decimal.TryParse(lastStr.GetString(), out decimal price) && price > 0)
+                        decimal.TryParse(lastStr.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal price) && price > 0)
                     {
                         // 이 종목이 확인된 거래소(EXCD)를 캐시해 두어, 주문 시 올바른 OVRS_EXCG_CD로 매핑한다.
                         _tickerPriceExchange[ticker] = excd;
@@ -187,12 +190,12 @@ namespace AutoInvest.Core
                     // (기존 ccld_qty_smtl1은 '체결기준현재잔고'(CTRP6504R) 전용 필드라 이 응답엔 없어 항상 0건으로 조회되었다)
                     var ticker = item.TryGetProperty("ovrs_pdno", out var tk) ? (tk.GetString() ?? "") : "";
                     if (item.TryGetProperty("ovrs_cblc_qty", out var qtyProp)
-                        && int.TryParse(qtyProp.GetString(), out int qty) && qty > 0)
+                        && int.TryParse(qtyProp.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int qty) && qty > 0)
                     {
                         decimal avgPrice = 0m, currentPrice = 0m, profitRate = 0m;
-                        if (item.TryGetProperty("pchs_avg_pric", out var ap)) decimal.TryParse(ap.GetString(), out avgPrice);
-                        if (item.TryGetProperty("now_pric2", out var cp)) decimal.TryParse(cp.GetString(), out currentPrice);
-                        if (item.TryGetProperty("evlu_pfls_rt", out var pr)) decimal.TryParse(pr.GetString(), out profitRate);
+                        if (item.TryGetProperty("pchs_avg_pric", out var ap)) decimal.TryParse(ap.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out avgPrice);
+                        if (item.TryGetProperty("now_pric2", out var cp)) decimal.TryParse(cp.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out currentPrice);
+                        if (item.TryGetProperty("evlu_pfls_rt", out var pr)) decimal.TryParse(pr.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out profitRate);
 
                         list.Add(new HoldingDto
                         {
@@ -252,7 +255,7 @@ namespace AutoInvest.Core
 
                 if (target.TryGetProperty("frcr_dncl_amt_2", out var cashProp))
                 {
-                    if (decimal.TryParse(cashProp.GetString(), out decimal cash))
+                    if (decimal.TryParse(cashProp.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal cash))
                     {
                         Logger.Info($"[KisBroker] 예수금 조회: ${cash:N2}");
                         return cash;
@@ -320,7 +323,7 @@ namespace AutoInvest.Core
                 OVRS_EXCG_CD = ovrsExcgCd,
                 PDNO = ticker,
                 ORD_QTY = qty.ToString(),
-                OVRS_ORD_UNPR = price.ToString("0.00"),
+                OVRS_ORD_UNPR = price.ToString("0.00", CultureInfo.InvariantCulture),
                 ORD_SVR_DVSN_CD = "0",
                 ORD_DVSN = "00"
             };
