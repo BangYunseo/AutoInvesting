@@ -406,7 +406,11 @@ appsettings.*.local.json
 *.local.json
 *.secrets.json
 *.env
+.env*
 *.key
+*.pem
+*.pfx
+*.p12
 *.db
 
 # ── 분석용 외부 데이터 캐시 (일회성, 재다운로드 가능) ──
