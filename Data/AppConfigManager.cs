@@ -154,11 +154,10 @@ namespace AutoInvest.Data
                     }
                 }
 
-                // 민감 키 : 키 이름만 기록
-                if (SensitiveKeys.Contains(key))
-                    Logger.Info($"[AppConfig] 저장: {key} = ****...");
-                else
-                    Logger.Info($"[AppConfig] 저장: {key} = {value}");
+                // 값은 로그에 남기지 않는다. TB_SYSTEM_LOG는 영구 저장소이므로 여기에 값을 찍으면
+                // 계정(ADMIN_USERNAME)·자격증명 해시가 평문으로 영구 적재된다(조직 보안정책 위반).
+                // 저장 여부 진단에는 키 이름과 값 길이로 충분하고, 값 확인은 GET /api/config로 한다.
+                Logger.Info($"[AppConfig] 저장: {key} (길이 {value?.Length ?? 0})");
             }
             catch (Exception ex)
             {
