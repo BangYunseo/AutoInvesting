@@ -1,6 +1,6 @@
 ---
 title: AutoInvesting 설정 레퍼런스
-date: 2026-07-31
+date: 2026-08-03
 company: [개인]
 tags: [설정, 환경변수, 레퍼런스, 보안, 실전전환]
 status: draft
@@ -115,7 +115,7 @@ status: draft
 |---|---|
 | `KIS_SERVER` / `Kis:Server` | `ConfigController`에서 화면 표시용으로만 읽힘. 도메인 분기는 `IS_PAPER_TRADING` 단독. **`prod`로 바꿔도 실전으로 가지 않는다** |
 | `DCA_QTYS` / `DCA_BUDGET_KRW` | 레거시 폴백. `DCA_TEMPLATES`가 있으면 도달 불가 |
-| `AI_PROVIDER` / `GEMINI_API_KEY` | Phase 6에서 판단 레이어 제거 시 코드 참조 0건. 2026-07-31에 Render에서 삭제 |
+| `AI_PROVIDER` / `GEMINI_API_KEY` | Phase 6에서 판단 레이어 제거 시 코드 참조 0건. 2026-08-03에 Render 환경변수·DB에서 삭제 |
 
 ### 실전 전환 절차
 
@@ -177,7 +177,7 @@ IS_PAPER_TRADING = 0
 | **웹 SQL Editor** | `console.neon.tech` → SQL Editor. `psql` 없이 브라우저에서 쿼리 가능 |
 | **브랜치 스냅샷** | `DELETE`·`ALTER` 전에 브랜치를 떠두면 완전한 롤백 수단이 된다 |
 
-첫 번째가 실제 사고로 이어질 수 있었다. `DCA_TEMPLATES` 조회가 실패하면 레거시 폴백을 타고 의도하지 않은 종목·수량으로 실계좌 매수가 나갈 수 있었다. 2026-07-31에 DB 레거시 키(`DCA_QTYS`·`DCA_BUDGET_KRW`·`DCA_TARGETS`)를 삭제하고 `appsettings.json`의 `Dca:Quantities`를 비워 **폴백이 "잘못 사기"가 아니라 "안 사기"로 끝나게** 바꿨다.
+첫 번째가 실제 사고로 이어질 수 있었다. `DCA_TEMPLATES` 조회가 실패하면 레거시 폴백을 타고 의도하지 않은 종목·수량으로 실계좌 매수가 나갈 수 있었다. 2026-08-03에 DB 레거시 키(`DCA_QTYS`·`DCA_BUDGET_KRW`·`DCA_TARGETS`)를 삭제하고 `appsettings.json`의 `Dca:Quantities`를 비워 **폴백이 "잘못 사기"가 아니라 "안 사기"로 끝나게** 바꿨다. 삭제 직전 실측한 `DCA_QTYS` 값은 `{"GLD":1,"SCHD":1,"SPYM":1}`로 당월 템플릿과 종목·수량이 전부 달랐다 — 폴백이 발동했다면 의도와 다른 바스켓을 샀을 것이다.
 
 ### 알려진 함정
 
@@ -209,4 +209,5 @@ DB 스키마 변경은 자동 적용 경로가 없다. `DBManager.RunMigration`�
 - `Frontend/src/pages/Settings.jsx`
 - `appsettings.json`, `appsettings.example.json`, `Dockerfile`, `.gitignore`, `.dockerignore`
 - `.agents/rules/security.md`, `.agents/rules/recommended_rules.md`
-- `Documents/worklog/[2026-07-31] 01_실전 전환 첫날 준비와 설정 표면 정리.md`
+- `Documents/worklog/[2026-08-03] 01_실전 전환 첫날 준비와 설정 표면 정리.md`
+- `Documents/worklog/[2026-08-03] 02_크론 지연으로 월 경계를 넘긴 첫 적립 집행.md`

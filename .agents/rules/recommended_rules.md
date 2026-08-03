@@ -50,7 +50,7 @@
 - `TB_MARKET_SNAPSHOT` 등 과거 누적 테이블은 레거시 데이터로 더 이상 기록하지 않으나,
   **임의 삭제·수정 금지**(과거 분석/회귀 검증용). 스키마 변경 시 ALTER TABLE만 허용.
 
-### 실거래 전환 (2026-07-31 전환 완료 — 현재 실전)
+### 실거래 전환 (2026-08-01 첫 실집행 — 현재 실전)
 - 과매수 방지(월 예산 매일 소진 시 ~30배)는 **코드로 이미 해결됨** — `DailyExecutionService.RunDcaCycleAsync`의
   월 1회 멱등 가드(`TB_APP_CONFIG`의 `DCA_LAST_RUN_MONTH`, KST)가 당월 1회만 집행하고, 체결 0건인 날은
   마커를 남기지 않아 다음 날 자동 재시도한다. 따라서 크론(`.github/workflows/daily-run.yml`,
@@ -61,7 +61,7 @@
   앞뒤 공백은 전부 **모의**로 떨어진다. `bool` → `"1"`/`"0"` 변환은 appsettings 경로에만 있고 환경변수 경로에는 없다.
 - 🚫 **`KIS_SERVER` / `Kis:Server`를 바꿔도 실전으로 전환되지 않는다.** 이 값을 읽는 코드는
   `ConfigController`의 화면 표시 한 곳뿐이며 도메인 분기에 쓰이지 않는다(죽은 설정). 과거 이 문서가
-  "KIS `Server`를 실전으로"를 요구했으나 무효한 지시였다(2026-07-31 정정).
+  "KIS `Server`를 실전으로"를 요구했으나 무효한 지시였다(2026-08-03 정정).
 - 전환 후 검증: 기동 로그 `[Session] KIS API 클라이언트 생성 (모드: 실전(prod))`, 대시보드 배지 `LIVE`,
   실전 자격증명(`KIS_APP_KEY`/`_SECRET`/`_ACCOUNT_NO` — 모의 앱키는 실전망에서 인증 실패)·예수금·체결.
   (`TestController`의 실주문 우회 경로 봉인은 **완료** — `POST /api/test/buy`를 2026-07-30에 제거해
