@@ -12,8 +12,34 @@ export default defineConfig({
       injectRegister: 'auto',
       // 기존 favicon.svg 하나로 iOS·안드로이드·마스커블 아이콘을 자동 생성하고
       // apple-touch-icon 등 head 링크를 index.html에 자동 주입한다
+      //
+      // ⚠️ preset을 직접 지정하는 이유 (2026-08-03):
+      //   @vite-pwa/assets-generator 기본값이 maskable/apple 에 padding 0.3 + background 'white' 다.
+      //   favicon.svg 는 이미 512x512 풀블리드 다크 배경이고 콘텐츠(동전 스택)가
+      //   중심에서 최대 171.8px(마스커블 안전원 반지름 204.8px)에 들어와 잘릴 위험이 없다.
+      //   그런데 기본 padding 이 그림을 70%로 줄이고 바깥 30%를 흰색으로 칠해서,
+      //   안드로이드(One UI) 런처가 squircle 마스크를 씌우면 흰 테두리에 작은 아이콘이 떠 보였다.
+      //   → padding 0 + 배경을 앱 테마색으로 지정해 풀블리드를 유지한다.
+      //   참고: 모서리가 둥근 것 자체는 런처가 씌우는 마스크이므로 앱에서 정사각형으로 만들 수 없다.
       pwaAssets: {
-        image: 'public/favicon.svg'
+        image: 'public/favicon.svg',
+        preset: {
+          transparent: {
+            sizes: [64, 192, 512],
+            favicons: [[48, 'favicon.ico']],
+            padding: 0
+          },
+          maskable: {
+            sizes: [512],
+            padding: 0,
+            resizeOptions: { background: '#0b0e14' }
+          },
+          apple: {
+            sizes: [180],
+            padding: 0,
+            resizeOptions: { background: '#0b0e14' }
+          }
+        }
       },
       manifest: {
         name: 'ETF 자동적립',
