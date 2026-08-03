@@ -147,6 +147,8 @@ namespace AutoInvest.Controllers
                     return StatusCode(502, new { error = "주문이 거부되었거나 주문번호를 받지 못했습니다. 서버 로그를 확인하세요." });
                 }
 
+                // 접수 성공까지만 확인된 상태다(지정가 주문이므로 미체결로 끝날 수 있다).
+                // 체결 확인 후 FILLED로 갱신하는 것은 별도 대사 경로가 담당한다.
                 TradeHistoryDAO.Insert(new TradeHistoryDto
                 {
                     TradeDate = DateTime.Now,
@@ -154,11 +156,11 @@ namespace AutoInvest.Controllers
                     OrderType = orderType,
                     Qty = req.Qty,
                     Price = price,
-                    Status = "FILLED",
+                    Status = "PENDING",
                     OrderNo = orderNo
                 });
 
-                Logger.Info($"[Order] 수동 {orderType} 주문 실행: {ticker} {req.Qty}주 @ ${price} (주문번호: {orderNo})");
+                Logger.Info($"[Order] 수동 {orderType} 주문 접수: {ticker} {req.Qty}주 @ ${price} (주문번호: {orderNo})");
                 return Ok(new
                 {
                     message = $"수동 {orderType} 주문이 실행되었습니다.",

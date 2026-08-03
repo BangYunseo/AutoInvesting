@@ -24,10 +24,13 @@ namespace AutoInvest.Data.DTO
         // 주문 수량 (주)
         public int Qty { get; set; }
 
-        // 체결 가격 (USD)
+        // 주문 지정가 (USD) — 접수 시점에 기록된다. 체결가가 아니다.
+        // 실제 체결가는 증권사 체결 조회로 확인하며, 취득단가의 단일 진실 원천은 KIS 매입평단이다.
         public decimal Price { get; set; }
 
-        // 주문 상태 ("PENDING"=대기, "FILLED"=체결, "FAILED"=실패)
+        // 주문 상태
+        //   "PENDING" = 접수됨, 체결 미확인 (지정가 주문이라 미체결로 끝날 수 있다)
+        //   "PARTIAL" = 일부 체결 / "FILLED" = 전량 체결 확인 / "FAILED" = 실패
         public string Status { get; set; } = string.Empty;
 
         // 증권사 주문번호 (LS증권 or 시뮬레이션 UUID)

@@ -63,8 +63,9 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 설정한 종목별 고정 수량을 매수합니다.
-        /// 주문 체결분은 TB_TRADE_HISTORY에 기록되며, 성공/실패/예산경고를 하나의 결과 객체로 반환합니다.
+        /// 설정한 종목별 고정 수량을 매수 주문합니다.
+        /// 접수된 주문은 TB_TRADE_HISTORY에 <c>PENDING</c>으로 기록되며(접수 ≠ 체결),
+        /// 접수/실패/예산경고를 하나의 결과 객체로 반환합니다.
         /// 실패·경고를 개별 메일로 즉시 보내지 않고 결과에 모으는 이유: 사이클 종료 시 호출부에서
         /// 한 통의 종합 보고서로 발송하기 위함입니다(종목별 실패 메일 난발 방지).
         /// </summary>
@@ -135,6 +136,8 @@ namespace AutoInvest.Core
                 {
                     var orderNo = await _broker.PlaceBuyOrderAsync(ticker, qty, price);
 
+                    // 접수 성공(rt_cd=="0")까지만 확인된 상태다. 지정가 주문이므로 미체결로 끝날 수 있어
+                    // PENDING으로 기록한다. 체결 확인 후 FILLED로 갱신하는 것은 별도 대사 경로가 담당한다.
                     var trade = new TradeHistoryDto
                     {
                         TradeDate = DateTime.Now,
@@ -142,13 +145,19 @@ namespace AutoInvest.Core
                         OrderType = "BUY",
                         Qty = qty,
                         Price = price,
-                        Status = "FILLED",
+                        Status = "PENDING",
                         OrderNo = orderNo
                     };
                     TradeHistoryDAO.Insert(trade);
-                    result.Filled.Add(trade);
 
-                    Logger.Info($"[DCA] 매수 완료: {ticker} {qty}주 @ ${price} (주문번호: {orderNo})");
+                    // ODNO 미수신이어도 접수는 된 상태다. 실패로 돌리면 다음 날 재시도해 중복 매수가 되므로
+                    // 접수 목록에 넣어 당월 멱등 마커가 찍히게 한다(대사는 증권사 앱에서 사람이 확인).
+                    result.Accepted.Add(trade);
+
+                    if (string.IsNullOrEmpty(orderNo))
+                        Logger.Warn($"[DCA] 주문 접수: {ticker} {qty}주 @ ${price} — 주문번호 미수신, 체결 대사 불가");
+                    else
+                        Logger.Info($"[DCA] 주문 접수: {ticker} {qty}주 @ ${price} (주문번호: {orderNo})");
                 }
                 catch (Exception ex)
                 {

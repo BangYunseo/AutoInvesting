@@ -61,7 +61,9 @@ const History = () => {
 
   // 상태 라벨. 배지 색상 modifier(completed/active/cancelled)는 CSS에 정의된 적이 없어
   // 어차피 .badge 단일 스타일로 렌더링되므로 클래스 분기를 두지 않는다.
-  const STATUS_LABEL = { FILLED: '체결', PENDING: '대기', FAILED: '실패' };
+  // PENDING = 접수됐으나 체결 미확인 (지정가 주문이라 미체결로 끝날 수 있다)
+  // PARTIAL = 일부만 체결 / FILLED = 전량 체결 확인
+  const STATUS_LABEL = { FILLED: '체결', PARTIAL: '부분체결', PENDING: '접수', FAILED: '실패' };
 
   const getStatusBadge = (status) => <span className="badge">{STATUS_LABEL[status] ?? status}</span>;
 
@@ -150,7 +152,8 @@ const History = () => {
                     <th>종목</th>
                     <th>유형</th>
                     <th>수량</th>
-                    <th>체결가 (USD)</th>
+                    {/* 접수 시점에 기록되는 주문 지정가다 — 체결가가 아니다 */}
+                    <th>주문가 (USD)</th>
                     <th>상태</th>
                     <th>주문번호</th>
                   </tr>

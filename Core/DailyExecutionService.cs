@@ -41,7 +41,7 @@ namespace AutoInvest.Core
         ///
         /// 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 매수하지 않고 스킵합니다.
         /// 크론이 매일(월초부터) 호출해도 처음 성공하는 날 1회만 적립되고, 성공 후 그 달 남은
-        /// 호출은 모두 스킵되며, 실패(체결 0건)한 날은 마커가 남지 않아 다음 날 자동 재시도됩니다.
+        /// 호출은 모두 스킵되며, 실패(접수 0건)한 날은 마커가 남지 않아 다음 날 자동 재시도됩니다.
         /// </summary>
         public async Task<string> RunDcaCycleAsync()
         {
@@ -85,19 +85,20 @@ namespace AutoInvest.Core
                 {
                     var engine = new DcaAccumulationEngine(client);
                     result = await engine.AccumulateAsync(quantities, budget);
-                    Logger.Info($"[DcaCycle] ✔ 적립식 매수 완료 — {result.Filled.Count}개 종목 체결");
+                    Logger.Info($"[DcaCycle] ✔ 적립식 주문 접수 완료 — {result.Accepted.Count}개 종목");
 
-                    // 체결이 1건이라도 있으면 이번 달 적립 완료로 표시 → 남은 날 재실행 스킵.
-                    // 체결 0건(전량 실패/장마감 등)이면 마커를 남기지 않아 다음 날 자동 재시도.
-                    if (result.Filled.Count > 0)
+                    // 접수가 1건이라도 있으면 이번 달 적립 완료로 표시 → 남은 날 재실행 스킵.
+                    // 접수 0건(전량 실패/장마감 등)이면 마커를 남기지 않아 다음 날 자동 재시도.
+                    // 기준을 체결이 아니라 접수로 두는 이유: 접수된 주문을 재시도하면 중복 매수가 된다.
+                    if (result.Accepted.Count > 0)
                     {
                         AppConfigManager.Set(LastRunMonthKey, thisMonth);
                         Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 표시 저장");
                     }
                     else
                     {
-                        statusNote = "체결된 종목이 없어 이번 달 적립 완료로 표시하지 않았습니다 (다음 호출 시 재시도).";
-                        Logger.Warn("[DcaCycle] 체결 0건 — 적립 완료 미표시, 다음 날 재시도 예정");
+                        statusNote = "접수된 주문이 없어 이번 달 적립 완료로 표시하지 않았습니다 (다음 호출 시 재시도).";
+                        Logger.Warn("[DcaCycle] 접수 0건 — 적립 완료 미표시, 다음 날 재시도 예정");
                     }
                 }
             }
@@ -112,14 +113,14 @@ namespace AutoInvest.Core
             }
 
             Logger.Info("[DcaCycle] ✔ 적립식 매수 사이클이 종료되었습니다.");
-            return string.IsNullOrEmpty(statusNote) ? $"적립식 매수 완료: {result.Filled.Count}개 종목 체결" : statusNote;
+            return string.IsNullOrEmpty(statusNote) ? $"적립식 주문 접수: {result.Accepted.Count}개 종목" : statusNote;
         }
 
         /// <summary>
-        /// 적립식 매수 결과(성공·실패·예산경고)를 <b>한 통</b>의 종합 이메일로 발송합니다.
+        /// 적립식 주문 결과(접수·실패·예산경고)를 <b>한 통</b>의 종합 이메일로 발송합니다.
         /// 조기 종료/오류 시에도 항상 발송하며, 종목별 개별 메일은 보내지 않습니다.
         /// </summary>
-        /// <param name="result">사이클 실행 결과 (체결·실패·예산경고)</param>
+        /// <param name="result">사이클 실행 결과 (접수·실패·예산경고)</param>
         /// <param name="statusNote">조기 종료·오류 등 안내 문구 (없으면 빈 문자열)</param>
         private async Task SendDcaReportAsync(DcaCycleResult result, string statusNote = "")
         {
@@ -147,11 +148,11 @@ namespace AutoInvest.Core
                 // 계획에 도달한 사이클만 집계를 표시한다(로그인 실패·설정 없음·예외는 0이므로 생략).
                 if (result.TotalCostKrw > 0)
                 {
-                    int filledQty = result.Filled.Sum(f => f.Qty);
+                    int acceptedQty = result.Accepted.Sum(f => f.Qty);
                     int failedQty = result.Failures.Sum(f => f.Qty);
                     body.Append("<p style='color:#555555; font-size:13px; margin:0 0 12px 0;'>"
-                        + $"계획 {filledQty + failedQty}주 / {result.TotalCostKrw:N0}원 "
-                        + $"&nbsp;&middot;&nbsp; 체결 {filledQty}주 &nbsp;&middot;&nbsp; 실패 {failedQty}주</p>");
+                        + $"계획 {acceptedQty + failedQty}주 / {result.TotalCostKrw:N0}원 "
+                        + $"&nbsp;&middot;&nbsp; 접수 {acceptedQty}주 &nbsp;&middot;&nbsp; 실패 {failedQty}주</p>");
                 }
 
                 // ── 안내(조기 종료/오류 사유) ──
@@ -162,23 +163,25 @@ namespace AutoInvest.Core
                 if (!string.IsNullOrEmpty(result.BudgetWarning))
                     body.Append($"<p style='color:#b8860b;'><strong>⚠️ 예산 초과:</strong> {result.BudgetWarning}</p>");
 
-                // ── 매수 성공 내역 (종목별 수량 합산, 종목당 카드 1장) ──
-                if (result.Filled.Count == 0)
+                // ── 주문 접수 내역 (종목별 수량 합산, 종목당 카드 1장) ──
+                if (result.Accepted.Count == 0)
                 {
-                    body.Append("<p>✅ <strong>매수 성공:</strong> 없음 (예산 부족·설정 없음·전량 실패 등)</p>");
+                    body.Append("<p>✅ <strong>주문 접수:</strong> 없음 (예산 부족·설정 없음·전량 실패 등)</p>");
                 }
                 else
                 {
                     // 이메일 클라이언트 호환을 위해 카드는 인라인 스타일 div로 구성한다(head 스타일·flex 미지원 대비).
                     // 단가는 체결가가 아니라 주문 지정가다(접수 시점 기록) — 라벨을 "주문가"로 둔다.
-                    var cards = result.Filled
+                    var cards = result.Accepted
                         .GroupBy(f => f.Ticker)
-                        .Select(g => BuildCard("매수", "#1e8e3e", "#f4faf6", "#d7e3ef", g.Key,
+                        .Select(g => BuildCard("접수", "#1e8e3e", "#f4faf6", "#d7e3ef", g.Key,
                             $"주문가 : ${g.First().Price:N2}",
                             $"수량 : {g.Sum(x => x.Qty)}주",
                             $"소계 : {g.Sum(x => x.Qty * x.Price) * result.ExchangeRate:N0}원",
-                            $"주문번호 : {string.Join(", ", g.Select(x => x.OrderNo))}"));
-                    body.Append("<p>✅ <strong>오늘의 적립식 매수 내역:</strong></p>" + string.Join("", cards));
+                            $"주문번호 : {string.Join(", ", g.Select(x => string.IsNullOrEmpty(x.OrderNo) ? "미수신" : x.OrderNo))}"));
+                    body.Append("<p>✅ <strong>오늘의 적립식 주문 접수 내역:</strong></p>" + string.Join("", cards)
+                        + "<p style='color:#8a8a8a; font-size:12px; margin:4px 0 12px 0;'>"
+                        + "지정가 주문이므로 접수 ≠ 체결입니다. 실제 체결 여부는 증권사 앱의 체결내역에서 확인하세요.</p>");
                 }
 
                 // ── 매수 실패 내역 (종목별 개별 메일 대신 여기에 카드로 종합) ──

@@ -348,14 +348,27 @@ namespace AutoInvest.Core
                 throw new Exception($"주문 에러: {msg}");
             }
 
+            // ODNO(증권사 주문번호)는 체결 대사의 유일한 매칭 키다.
+            // 과거에는 추출 실패 시 Guid로 가짜 번호를 만들어 넣었으나, 그 번호는 KIS 조회 결과에
+            // 존재하지 않아 대사가 영구히 "미체결"로 오판한다. 없으면 없다고 빈 문자열을 반환하고
+            // 판단은 호출부에 맡긴다(rt_cd=="0"이므로 주문 자체는 접수된 상태다 — 실패로 치면 중복 주문 위험).
             string orderNo = "";
-            if (json.TryGetProperty("output", out var output))
+            if (json.TryGetProperty("output", out var output)
+                && output.TryGetProperty("ODNO", out var odno))
             {
-                orderNo = output.GetProperty("ODNO").GetString() ?? Guid.NewGuid().ToString("N").Substring(0, 12);
+                orderNo = odno.GetString() ?? "";
             }
 
             string orderType = isBuy ? "매수" : "매도";
-            Logger.Info($"[KisBroker] {orderType} 주문 체결: {ticker} {qty}주 @ ${price} (주문번호: {orderNo})");
+            if (string.IsNullOrEmpty(orderNo))
+            {
+                Logger.Warn($"[KisBroker] {orderType} 주문 접수됐으나 ODNO 미수신: {ticker} {qty}주 @ ${price} " +
+                    "— 체결 대사가 불가하므로 증권사 앱에서 직접 확인이 필요하다");
+            }
+            else
+            {
+                Logger.Info($"[KisBroker] {orderType} 주문 접수: {ticker} {qty}주 @ ${price} (주문번호: {orderNo})");
+            }
             return orderNo;
         }
     }

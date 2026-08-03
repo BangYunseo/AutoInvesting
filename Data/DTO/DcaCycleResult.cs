@@ -9,8 +9,12 @@ namespace AutoInvest.Data.DTO
     /// </summary>
     public class DcaCycleResult
     {
-        /// <summary>체결에 성공한 매수 내역 (종목별 1건).</summary>
-        public List<TradeHistoryDto> Filled { get; set; } = new List<TradeHistoryDto>();
+        /// <summary>
+        /// 주문 <b>접수</b>에 성공한 매수 내역 (종목별 1건).
+        /// ⚠️ 접수는 체결이 아니다 — 지정가 주문이므로 접수 후 미체결로 끝날 수 있다.
+        /// 체결 여부는 <c>TradeHistoryDto.Status</c>가 <c>FILLED</c>로 갱신되었는지로 판단한다.
+        /// </summary>
+        public List<TradeHistoryDto> Accepted { get; set; } = new List<TradeHistoryDto>();
 
         /// <summary>매수에 실패한 종목별 사유 목록.</summary>
         public List<DcaBuyFailure> Failures { get; set; } = new List<DcaBuyFailure>();
