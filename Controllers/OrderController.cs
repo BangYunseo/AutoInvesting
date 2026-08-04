@@ -33,8 +33,12 @@ namespace AutoInvest.Controllers
         /// 외부 크론잡에서 매수 주기(예: 매월 첫 거래일)에 호출합니다.
         /// 백그라운드에서 실행하고 즉시 202를 반환합니다.
         /// </summary>
+        /// <param name="force">
+        /// true면 당월 1회 가드를 무시하고 추가 적립합니다 (사람이 화면에서 명시적으로 요청할 때).
+        /// 크론은 이 값을 붙이지 않으므로 매일 재호출해도 당월 1회로 수렴합니다.
+        /// </param>
         [HttpPost("dca-run")]
-        public IActionResult RunDcaCycle()
+        public IActionResult RunDcaCycle([FromQuery] bool force = false)
         {
             _ = Task.Run(async () =>
             {
@@ -42,7 +46,7 @@ namespace AutoInvest.Controllers
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var dailyService = scope.ServiceProvider.GetRequiredService<DailyExecutionService>();
-                    await dailyService.RunDcaCycleAsync();
+                    await dailyService.RunDcaCycleAsync(force);
                 }
                 catch (Exception ex)
                 {
@@ -50,8 +54,13 @@ namespace AutoInvest.Controllers
                 }
             });
 
-            Logger.Info("[Order] 적립식 매수 사이클을 백그라운드로 시작했습니다 (즉시 202 반환).");
-            return Accepted(new { message = "적립식 매수 사이클을 시작했습니다. 처리 결과는 서버 로그와 이메일로 확인하세요." });
+            Logger.Info($"[Order] 적립식 매수 사이클을 백그라운드로 시작했습니다 (즉시 202 반환, force={force}).");
+            return Accepted(new
+            {
+                message = force
+                    ? "적립식 매수 사이클을 강제로 시작했습니다 (당월 중복 여부와 무관). 처리 결과는 서버 로그와 이메일로 확인하세요."
+                    : "적립식 매수 사이클을 시작했습니다. 처리 결과는 서버 로그와 이메일로 확인하세요."
+            });
         }
 
         /// <summary>

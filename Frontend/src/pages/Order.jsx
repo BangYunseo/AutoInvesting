@@ -273,7 +273,9 @@ const Order = () => {
   const handleDcaRun = async () => {
     if (
       !confirm(
-        "이번 달에 배정된 매수 템플릿의 종목별 고정 수량대로 적립식 매수 사이클을 실행합니다.\n정말 진행하시겠습니까?",
+        "이번 달에 배정된 매수 템플릿의 종목별 고정 수량대로 적립식 매수 사이클을 실행합니다.\n" +
+          "⚠️ 이번 달에 이미 적립했더라도 그만큼 추가로 매수됩니다 (중복 실행 = 중복 매수).\n" +
+          "정말 진행하시겠습니까?",
       )
     )
       return;
@@ -281,7 +283,10 @@ const Order = () => {
       setDcaRunning(true);
       setDcaError(null);
       setDcaResult(null);
-      const res = await fetch("/api/order/dca-run", { method: "POST" });
+      // force=true: 당월 1회 가드는 크론 재호출용이다. 사람이 버튼을 눌렀다면 의도된 추가 매수로 본다.
+      const res = await fetch("/api/order/dca-run?force=true", {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`적립 실행 실패 (${res.status})`);
       const data = await res.json();
       setDcaResult(data);

@@ -43,7 +43,11 @@ namespace AutoInvest.Core
         /// 크론이 매일(월초부터) 호출해도 처음 성공하는 날 1회만 적립되고, 성공 후 그 달 남은
         /// 호출은 모두 스킵되며, 실패(접수 0건)한 날은 마커가 남지 않아 다음 날 자동 재시도됩니다.
         /// </summary>
-        public async Task<string> RunDcaCycleAsync()
+        /// <param name="force">
+        /// true면 당월 가드를 무시하고 한 번 더 적립합니다 (사람이 화면에서 명시적으로 추가 매수할 때).
+        /// 가드는 크론의 매일 재호출을 막기 위한 것이므로, 크론 경로는 이 값을 넘기지 않습니다.
+        /// </param>
+        public async Task<string> RunDcaCycleAsync(bool force = false)
         {
             Logger.Info("[DcaCycle] ▶ 적립식 자동 매수 사이클이 시작되었습니다.");
             var result = new DcaCycleResult();
@@ -52,12 +56,14 @@ namespace AutoInvest.Core
             // ── 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 스킵 ──
             string thisMonth = CurrentKstMonth();
             string lastRunMonth = AppConfigManager.Get(LastRunMonthKey, "");
-            if (lastRunMonth == thisMonth)
+            if (lastRunMonth == thisMonth && !force)
             {
                 statusNote = $"이번 달({thisMonth}) 적립이 이미 완료되어 매수를 건너뜁니다.";
                 Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 상태 — 매수 스킵");
                 return statusNote;
             }
+            if (lastRunMonth == thisMonth)
+                Logger.Warn($"[DcaCycle] 강제 실행 — 이번 달({thisMonth}) 적립 완료 상태에서 추가 매수를 진행합니다.");
 
             try
             {
