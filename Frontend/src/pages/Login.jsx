@@ -20,6 +20,12 @@ const Login = () => {
     (async () => {
       try {
         const res = await fetch('/api/auth/status');
+        // 200이 아니면(예: DB 조회 실패 503) 계정 유무를 알 수 없는 것이다.
+        // 이때 설정 폼으로 넘기면 일시 장애를 "계정이 사라졌다"로 오진하게 만든다.
+        if (!res.ok) {
+          setError('서버 상태를 확인하지 못했습니다. 잠시 후 다시 시도하세요.');
+          return;
+        }
         const data = await res.json();
         setNeedsSetup(!!data.needsSetup);
       } catch {
@@ -51,6 +57,11 @@ const Login = () => {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        // 최초 관리자 설정은 아무나 선점하지 못하도록 서버에서 인증을 요구한다(브라우저로는 불가).
+        if (needsSetup && res.status === 401) {
+          setError('최초 관리자 설정은 보안상 화면에서 할 수 없습니다. 서버의 API 키(x-api-key)를 붙여 POST /api/auth/setup 을 호출하세요.');
+          return;
+        }
         setError(data.error || `요청 실패 (${res.status})`);
         return;
       }
