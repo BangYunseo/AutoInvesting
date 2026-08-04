@@ -730,16 +730,28 @@ const Order = () => {
         {/* 주문 유형 */}
         <div className="form-group">
           <label>주문 유형</label>
-          <select
-            value={orderType}
-            onChange={(e) => {
-              setOrderType(e.target.value);
-              setOrderError(null);
-            }}
-          >
-            <option value="BUY">매수 (BUY)</option>
-            <option value="SELL">매도 (SELL)</option>
-          </select>
+          <div className="chip-row" role="radiogroup" aria-label="주문 유형">
+            {[
+              { id: "BUY", name: "매수 (BUY)" },
+              { id: "SELL", name: "매도 (SELL)" },
+            ].map((o) => (
+              <label
+                key={o.id}
+                className={`chip ${orderType === o.id ? "chip--on" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="order-type"
+                  checked={orderType === o.id}
+                  onChange={() => {
+                    setOrderType(o.id);
+                    setOrderError(null);
+                  }}
+                />
+                {o.name}
+              </label>
+            ))}
+          </div>
         </div>
 
         {/* 매수 종목 소스 토글 (매수 전용) */}
@@ -805,20 +817,36 @@ const Order = () => {
                 {orderType === "BUY" && "신규 직접입력으로 매수하세요."}
               </div>
             ) : (
-              <select
-                value={selectedTicker}
-                onChange={(e) => {
-                  setSelectedTicker(e.target.value);
-                  setOrderError(null);
-                }}
-              >
+              <div className="chip-row" role="radiogroup" aria-label="보유 종목">
                 {holdings.map((h) => (
-                  <option key={h.ticker} value={h.ticker}>
-                    {h.ticker} · {h.qty}주 보유 · $
-                    {h.currentPrice?.toFixed?.(2) ?? h.currentPrice}
-                  </option>
+                  <label
+                    key={h.ticker}
+                    className={`chip ${selectedTicker === h.ticker ? "chip--on" : ""}`}
+                    title={`${h.ticker} · ${h.qty}주 보유 · $${h.currentPrice?.toFixed?.(2) ?? h.currentPrice}`}
+                  >
+                    <input
+                      type="radio"
+                      name="holding-ticker"
+                      checked={selectedTicker === h.ticker}
+                      onChange={() => {
+                        setSelectedTicker(h.ticker);
+                        setOrderError(null);
+                      }}
+                    />
+                    {h.ticker}
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        opacity: 0.7,
+                        fontWeight: 400,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {h.qty}주
+                    </span>
+                  </label>
                 ))}
-              </select>
+              </div>
             )}
           </div>
         )}

@@ -658,6 +658,66 @@ select.input-field option {
   color: var(--text-primary);
 }
 
+/* ── 선택 칩 (네이티브 select 대체) ──
+   펼침 목록은 OS가 그려서 테마가 안 먹으므로, 선택지가 적은 곳은 팝업 없이 칩으로 늘어놓는다.
+   라디오 input을 시각적으로만 숨기므로 화살표 이동·스크린리더 낭독은 그대로 남는다. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.chip:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+}
+
+.chip--on {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-glow);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+/* 키보드 포커스가 어디 있는지 보이게 (마우스 클릭 잔상은 제외) */
+.chip:focus-within {
+  box-shadow: 0 0 0 2px var(--accent-blue-glow);
+}
+
+.chip:has(input:focus:not(:focus-visible)) {
+  box-shadow: none;
+}
+
+/* 라디오는 시각적으로만 감춘다 — display:none이면 키보드 접근까지 사라진다 */
+.chip input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
 /* ── 통화 토글(세그먼트) ── */
 .ccy-toggle {
   display: inline-flex;

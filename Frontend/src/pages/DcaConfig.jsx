@@ -472,16 +472,31 @@ const DcaConfig = () => {
                   {runCount === 0 ? '○' : runCount === 1 ? '●' : `●${runCount}`}
                 </span>
                 <span style={{ width: 34, fontSize: '0.8rem', color: isCur ? 'var(--accent, #6ea8fe)' : 'var(--text-secondary)' }}>{label}</span>
-                <select
-                  className="input-field"
-                  value={monthMap[String(m)] || ''}
+
+                {/* 배정 선택 — 네이티브 select의 펼침 목록은 OS가 그려서 테마가 안 먹는다.
+                    라디오를 숨기고 라벨만 칩으로 그리면 팝업 자체가 없어지고,
+                    같은 name의 라디오 그룹이라 화살표 이동·스크린리더 낭독은 그대로 남는다. */}
+                <div
+                  className="chip-row"
                   onClick={e => e.stopPropagation()}
-                  onChange={e => assignMonth(m, e.target.value)}
-                  style={{ flex: 1, fontSize: '0.8rem' }}
+                  role="radiogroup"
+                  aria-label={`${label} 배정 템플릿`}
                 >
-                  <option value="">— 미배정</option>
-                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                  {[{ id: '', name: '미배정' }, ...templates].map(t => {
+                    const on = (monthMap[String(m)] || '') === t.id;
+                    return (
+                      <label key={t.id || '_none'} className={`chip ${on ? 'chip--on' : ''}`}>
+                        <input
+                          type="radio"
+                          name={`month-${m}`}
+                          checked={on}
+                          onChange={() => assignMonth(m, t.id)}
+                        />
+                        {t.name}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
