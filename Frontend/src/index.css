@@ -718,15 +718,6 @@ select.input-field option {
   pointer-events: none;
 }
 
-/* 표 한 칸 안의 보조 표기(원화 환산 등) — 주 값 아래에 작게 붙인다 */
-.cell-sub {
-  margin-top: 2px;
-  font-size: 0.74rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 /* 확인 모달에서 "실수하면 돈이 나가는" 사실만 눈에 박히게. 남발하면 강조가 죽는다. */
 .confirm-em {
   color: var(--loss-red);
