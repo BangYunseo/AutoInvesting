@@ -155,6 +155,29 @@ const DcaConfig = () => {
   const buysByMonth = buysByYearMonth[logYear] || {};
   const yearIdx = logYears.indexOf(logYear);
 
+  // ── 주문을 "집행 회차"로 묶기 ──
+  // 거래이력 1행 = 주문 1건이라, 한 사이클이 2종목을 사면 행이 2개다. 그 수를 그대로 세면
+  // "2번 실행"으로 읽힌다. 한 사이클의 주문들은 Rate limit 간격을 두고 연달아 접수되므로,
+  // 앞 주문과의 간격이 벌어지는 지점에서 회차를 끊는다.
+  //
+  // ponytail: 시간 간격 휴리스틱이다. 거래이력에 사이클 식별자 컬럼이 없어서 쓰는 방법이고,
+  // 같은 회차가 10분 넘게 걸리거나 서로 다른 회차가 10분 안에 겹치면 어긋난다.
+  // 정확히 세야 할 일이 생기면 TB_TRADE_HISTORY에 실행 ID 컬럼을 추가하는 쪽이 맞다.
+  const RUN_GAP_MS = 10 * 60 * 1000;
+  const groupRuns = (rows) => {
+    if (!rows || rows.length === 0) return [];
+    const asc = [...rows].sort((a, b) => a.at - b.at);
+    const runs = [[asc[0]]];
+    for (let i = 1; i < asc.length; i++) {
+      const prev = asc[i - 1];
+      if (asc[i].at - prev.at > RUN_GAP_MS) runs.push([asc[i]]);
+      else runs[runs.length - 1].push(asc[i]);
+    }
+    return runs.reverse(); // 최신 회차가 위로
+  };
+
+  const runCountOf = (m) => groupRuns(buysByMonth[m]).length;
+
   const selected = templates.find(t => t.id === selectedId) || null;
   const budgetNum = selected ? Number(selected.budget) || 0 : 0;
 
@@ -422,7 +445,8 @@ const DcaConfig = () => {
             const m = i + 1;
             const isCur = m === currentMonth && logYear === new Date().getFullYear();
             const isLogSel = m === logMonth;
-            const runCount = (buysByMonth[m] || []).length;
+            const runCount = runCountOf(m);
+            const orderCount = (buysByMonth[m] || []).length;
             return (
               <div
                 key={m}
@@ -435,13 +459,17 @@ const DcaConfig = () => {
                 }}
               >
                 <span
-                  title={runCount > 0 ? `${logYear}년 ${m}월 매수 기록 ${runCount}건` : `${logYear}년 ${m}월 매수 기록 없음`}
+                  title={
+                    runCount > 0
+                      ? `${logYear}년 ${m}월 ${runCount}회 집행 · 주문 ${orderCount}건`
+                      : `${logYear}년 ${m}월 매수 기록 없음`
+                  }
                   style={{
                     minWidth: 22, textAlign: 'center', flexShrink: 0, fontSize: '0.7rem',
                     color: runCount > 0 ? 'var(--profit-green)' : 'var(--text-muted)',
                   }}
                 >
-                  {runCount > 0 ? `●${runCount}` : '○'}
+                  {runCount === 0 ? '○' : runCount === 1 ? '●' : `●${runCount}`}
                 </span>
                 <span style={{ width: 34, fontSize: '0.8rem', color: isCur ? 'var(--accent, #6ea8fe)' : 'var(--text-secondary)' }}>{label}</span>
                 <select
@@ -482,8 +510,9 @@ const DcaConfig = () => {
             <button className="btn btn--outline" onClick={loadTrades} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>🔄 새로고침</button>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginBottom: 10, wordBreak: 'keep-all' }}>
-            거래이력의 매수 기록입니다. 이 표에는 주문 출처 컬럼이 없어 <strong>적립 사이클과 수동 매수를 구분하지 않습니다</strong>.
-            지정가 주문이므로 접수(PENDING)가 곧 체결은 아닙니다.
+            거래이력의 매수 기록을 <strong>집행 회차</strong>로 묶은 것입니다. 한 회차가 여러 종목을 사면 주문은 여러 건입니다.
+            회차는 주문 시각 간격(10분)으로 추정하며, 이 표에는 주문 출처 컬럼이 없어
+            <strong>적립 사이클과 수동 매수를 구분하지 않습니다</strong>. 지정가 주문이므로 접수(PENDING)가 곧 체결은 아닙니다.
           </p>
 
           {(() => {
@@ -495,24 +524,45 @@ const DcaConfig = () => {
                 </div>
               );
             }
+            const runs = groupRuns(rows);
             const totalQty = rows.reduce((s, r) => s + (r.qty || 0), 0);
             const totalUsd = rows.reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
+            const stamp = (d) =>
+              `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ` +
+              `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
             return (
               <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
-                  {rows.map(r => (
-                    <div key={r.tradeId} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                      <span style={{ color: 'var(--text-muted)', width: 88, flexShrink: 0 }}>
-                        {String(r.at.getMonth() + 1).padStart(2, '0')}-{String(r.at.getDate()).padStart(2, '0')} {String(r.at.getHours()).padStart(2, '0')}:{String(r.at.getMinutes()).padStart(2, '0')}
-                      </span>
-                      <span style={{ fontWeight: 600, width: 58, flexShrink: 0 }}>{r.ticker}</span>
-                      <span style={{ flex: 1 }}>{r.qty}주 · ${Number(r.price).toFixed(2)}</span>
-                      <span style={{ color: r.status === 'FILLED' ? 'var(--profit-green)' : 'var(--warn-amber)', flexShrink: 0 }}>{r.status}</span>
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 360, overflowY: 'auto' }}>
+                  {runs.map((run, ri) => {
+                    const runUsd = run.reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
+                    return (
+                      <div key={run[0].tradeId} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {/* 회차 머리글 — 주문 여러 건이 한 번의 집행임을 드러낸다 */}
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                          <strong style={{ color: 'var(--text-secondary)' }}>
+                            {runs.length - ri}회차
+                          </strong>
+                          <span>{stamp(run[0].at)}</span>
+                          <span style={{ marginLeft: 'auto' }}>
+                            주문 {run.length}건 · ${runUsd.toFixed(2)}
+                          </span>
+                        </div>
+                        {run.map(r => (
+                          <div key={r.tradeId} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                            <span style={{ color: 'var(--text-muted)', width: 40, flexShrink: 0 }}>
+                              {String(r.at.getHours()).padStart(2, '0')}:{String(r.at.getMinutes()).padStart(2, '0')}
+                            </span>
+                            <span style={{ fontWeight: 600, width: 58, flexShrink: 0 }}>{r.ticker}</span>
+                            <span style={{ flex: 1 }}>{r.qty}주 · ${Number(r.price).toFixed(2)}</span>
+                            <span style={{ color: r.status === 'FILLED' ? 'var(--profit-green)' : 'var(--warn-amber)', flexShrink: 0 }}>{r.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  합계 <strong>{rows.length}건</strong> · {totalQty}주 · ${totalUsd.toFixed(2)}
+                  <strong>{runs.length}회 집행</strong> · 주문 {rows.length}건 · {totalQty}주 · ${totalUsd.toFixed(2)}
                   {exchangeRate > 0 && ` (${won(totalUsd * exchangeRate)})`}
                 </div>
               </>
