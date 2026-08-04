@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { groupRuns, toBuyRows } from '../utils/dcaRuns';
 
 /**
  * 적립 설정 페이지.
@@ -134,14 +135,9 @@ const DcaConfig = () => {
   // 연도로 나눠 담는다. 해가 바뀌어도 지난해 기록이 사라지지 않고 연도를 넘겨 보면 그대로 남는다.
   const buysByYearMonth = useMemo(() => {
     const map = {};
-    for (const t of trades) {
-      if ((t.orderType || '').toUpperCase() !== 'BUY') continue;
-      const d = new Date(t.tradeDate);
-      if (Number.isNaN(d.getTime())) continue;
-      ((map[d.getFullYear()] ??= {})[d.getMonth() + 1] ??= []).push({ ...t, at: d });
+    for (const r of toBuyRows(trades)) {
+      ((map[r.at.getFullYear()] ??= {})[r.at.getMonth() + 1] ??= []).push(r);
     }
-    for (const y of Object.keys(map))
-      for (const m of Object.keys(map[y])) map[y][m].sort((a, b) => b.at - a.at);
     return map;
   }, [trades]);
 
@@ -155,27 +151,7 @@ const DcaConfig = () => {
   const buysByMonth = buysByYearMonth[logYear] || {};
   const yearIdx = logYears.indexOf(logYear);
 
-  // ── 주문을 "집행 회차"로 묶기 ──
-  // 거래이력 1행 = 주문 1건이라, 한 사이클이 2종목을 사면 행이 2개다. 그 수를 그대로 세면
-  // "2번 실행"으로 읽힌다. 한 사이클의 주문들은 Rate limit 간격을 두고 연달아 접수되므로,
-  // 앞 주문과의 간격이 벌어지는 지점에서 회차를 끊는다.
-  //
-  // ponytail: 시간 간격 휴리스틱이다. 거래이력에 사이클 식별자 컬럼이 없어서 쓰는 방법이고,
-  // 같은 회차가 10분 넘게 걸리거나 서로 다른 회차가 10분 안에 겹치면 어긋난다.
-  // 정확히 세야 할 일이 생기면 TB_TRADE_HISTORY에 실행 ID 컬럼을 추가하는 쪽이 맞다.
-  const RUN_GAP_MS = 10 * 60 * 1000;
-  const groupRuns = (rows) => {
-    if (!rows || rows.length === 0) return [];
-    const asc = [...rows].sort((a, b) => a.at - b.at);
-    const runs = [[asc[0]]];
-    for (let i = 1; i < asc.length; i++) {
-      const prev = asc[i - 1];
-      if (asc[i].at - prev.at > RUN_GAP_MS) runs.push([asc[i]]);
-      else runs[runs.length - 1].push(asc[i]);
-    }
-    return runs.reverse(); // 최신 회차가 위로
-  };
-
+  // 집행 회차 묶음은 주문·적립 화면과 같은 숫자를 보여야 하므로 utils/dcaRuns로 모아 두었다.
   const runCountOf = (m) => groupRuns(buysByMonth[m]).length;
 
   const selected = templates.find(t => t.id === selectedId) || null;
@@ -196,7 +172,10 @@ const DcaConfig = () => {
   const addRow = () => updateSelected(t => ({ ...t, rows: [...t.rows, { ticker: '', qty: '1', status: 'idle', price: 0, error: null }] }));
   const removeRow = (rowIdx) => updateSelected(t => ({ ...t, rows: t.rows.filter((_, i) => i !== rowIdx) }));
   const setName = (val) => updateSelected(t => ({ ...t, name: val }));
-  const setBudget = (val) => updateSelected(t => ({ ...t, budget: val }));
+  // 예산은 숫자만 저장하고 화면에는 천 단위 구분을 넣어 보여준다.
+  // type="number"로는 콤마를 넣을 수 없어 text + inputMode="numeric"으로 둔다.
+  const setBudget = (val) => updateSelected(t => ({ ...t, budget: (val || '').replace(/[^\d]/g, '') }));
+  const budgetDisplay = selected?.budget ? Number(selected.budget).toLocaleString('ko-KR') : '';
 
   // ── 템플릿 목록 조작 ──
   const selectTemplate = (id) => {
@@ -248,7 +227,17 @@ const DcaConfig = () => {
     setNotice(null);
 
     const payloadTemplates = [];
+    const skipped = []; // 아직 종목을 하나도 안 채운 템플릿 (만들다 만 껍데기)
+
     for (const t of templates) {
+      // 종목을 아직 하나도 안 넣은 템플릿은 저장에서 뺀다.
+      // 예전에는 여기서 전체 저장을 막아, '+ 새 템플릿'을 눌러두기만 해도 다른 템플릿의
+      // 수정분까지 저장되지 않았다. 만들다 만 껍데기가 나머지를 인질로 잡는 구조였다.
+      if (t.rows.every(r => !r.ticker.trim())) {
+        skipped.push(t.name);
+        continue;
+      }
+
       const quantities = {};
       for (const r of t.rows) {
         const ticker = r.ticker.trim().toUpperCase();
@@ -260,10 +249,14 @@ const DcaConfig = () => {
         if (quantities[ticker]) { setError(`'${t.name}' 템플릿에 중복 종목: ${ticker}`); return; }
         quantities[ticker] = qty;
       }
-      if (Object.keys(quantities).length === 0) { setError(`'${t.name}' 템플릿에 유효 종목이 최소 1개 필요합니다.`); return; }
       const b = Number(t.budget);
       if (!(b > 0)) { setError(`'${t.name}' 템플릿의 예산은 0보다 커야 합니다.`); return; }
       payloadTemplates.push({ id: t.id, name: t.name.trim() || t.id, budgetKrw: b, quantities });
+    }
+
+    if (payloadTemplates.length === 0) {
+      setError('저장할 템플릿이 없습니다. 템플릿에 종목을 최소 1개 넣으세요.');
+      return;
     }
 
     try {
@@ -275,7 +268,11 @@ const DcaConfig = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `저장 실패 (${res.status})`);
-      setNotice(data.message || '저장되었습니다.');
+      // 빠진 템플릿을 조용히 삭제하면 "내가 만든 게 사라졌다"가 된다. 무엇이 왜 빠졌는지 남긴다.
+      setNotice(
+        (data.message || '저장되었습니다.')
+        + (skipped.length ? ` (종목이 없는 템플릿 ${skipped.length}개는 저장하지 않았습니다: ${skipped.join(', ')})` : ''),
+      );
       await loadConfig();
     } catch (err) {
       setError(err.message);
@@ -372,7 +369,13 @@ const DcaConfig = () => {
           </div>
           <div className="form-group">
             <label>월 예산 (원)</label>
-            <input type="number" min="0" step="10000" value={selected.budget} onChange={e => setBudget(e.target.value)} placeholder="예: 1000000" />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={budgetDisplay}
+              onChange={e => setBudget(e.target.value)}
+              placeholder="예: 1,000,000"
+            />
           </div>
 
           <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: '0.9rem' }}>ETF 설정</label>
