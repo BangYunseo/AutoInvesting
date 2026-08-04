@@ -98,8 +98,19 @@ namespace AutoInvest.Core
                     // 기준을 체결이 아니라 접수로 두는 이유: 접수된 주문을 재시도하면 중복 매수가 된다.
                     if (result.Accepted.Count > 0)
                     {
-                        AppConfigManager.Set(LastRunMonthKey, thisMonth);
-                        Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 표시 저장");
+                        // 마커 저장이 조용히 실패하면 다음 날 크론이 같은 달에 또 매수한다(실자금 중복 집행).
+                        // 저장 실패는 반드시 보고서에 실어 사람이 알아채게 한다.
+                        if (AppConfigManager.Set(LastRunMonthKey, thisMonth))
+                        {
+                            Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 표시 저장");
+                        }
+                        else
+                        {
+                            statusNote = $"⚠️ 이번 달({thisMonth}) 적립 완료 표시를 저장하지 못했습니다. "
+                                + "이 상태로 두면 다음 크론 실행이 같은 달에 다시 매수합니다 — "
+                                + $"TB_APP_CONFIG의 {LastRunMonthKey}를 '{thisMonth}'로 직접 넣거나 크론을 멈추세요.";
+                            Logger.Error($"[DcaCycle] {LastRunMonthKey} 저장 실패 — 중복 매수 위험");
+                        }
                     }
                     else
                     {

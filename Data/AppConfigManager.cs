@@ -83,11 +83,26 @@ namespace AutoInvest.Data
         /// <summary>
         /// TB_APP_CONFIG 설정값 조회
         /// 특정 상황[(1), (2)] 발생 시 null 반환 -> appsettings.json 기본값으로 폴백
-        /// (1) 행 없음 
+        /// (1) 행 없음
         /// (2) DB 오류
         /// </summary>
         private static string? TryGetFromDb(string key)
+            => TryReadDb(key, out string? value) ? value : null;
+
+        /// <summary>
+        /// TB_APP_CONFIG에서 값을 읽고 <b>"조회 성공 여부"</b>를 반환합니다.
+        /// 행이 없으면 성공(true) + <paramref name="value"/>=null 이며, DB 오류일 때만 false입니다.
+        ///
+        /// <see cref="Get"/>은 조회 실패와 값 없음을 모두 기본값으로 뭉개므로,
+        /// "설정된 적이 없음"을 근거로 판단하는 보안 분기(최초 관리자 설정 등)에서는
+        /// 반드시 이 메서드로 둘을 구분해 <b>조회 실패 시 거부(fail-closed)</b> 해야 합니다.
+        /// </summary>
+        /// <param name="key">설정 키</param>
+        /// <param name="value">조회된 값 (행이 없으면 null)</param>
+        /// <returns>DB 조회에 성공했으면 true, DB 오류면 false</returns>
+        public static bool TryReadDb(string key, out string? value)
         {
+            value = null;
             try
             {
                 using (var conn = DBManager.Instance.GetConnection())
@@ -95,29 +110,35 @@ namespace AutoInvest.Data
                     "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
                 {
                     cmd.Parameters.AddWithValue("@k", key);
-                    string? value = cmd.ExecuteScalar()?.ToString();
+                    string? raw = cmd.ExecuteScalar()?.ToString();
 
-                    // (1) 암호문(enc:v1:...) -> 복호화 
+                    // (1) 암호문(enc:v1:...) -> 복호화
                     // (2) 평문/비민감 키 -> 통과
-                    if (CryptoUtil.IsEncrypted(value ?? string.Empty)) 
-                    { 
-                        return CryptoUtil.DecryptSecret(value!);
-                    }
+                    value = CryptoUtil.IsEncrypted(raw ?? string.Empty)
+                        ? CryptoUtil.DecryptSecret(raw!)
+                        : raw;
 
-                    return value;
+                    return true;
                 }
             }
             catch (Exception ex)
             {
                 Logger.Warn($"[AppConfig] DB 조회 실패 -> 기본 설정 폴백 [{key}]: {ex.Message}");
-                return null;
+                return false;
             }
         }
 
         /// <summary>
         /// 설정값 저장 (TB_APP_CONFIG)
+        ///
+        /// 저장 실패를 예외로 올리지 않고 <b>false</b>로 돌려줍니다. 호출부가 결과를 무시하면
+        /// "저장했다"는 로그와 성공 응답만 남고 값은 바뀌지 않는 조용한 거짓 성공이 됩니다 —
+        /// 관리자 계정 설정이나 월 1회 적립 마커처럼 되돌리기 어려운 값은 반드시 반환값을 확인하세요.
         /// </summary>
-        public static void Set(string key, string value)
+        /// <param name="key">설정 키</param>
+        /// <param name="value">저장할 값 (민감 키는 저장 직전 암호화)</param>
+        /// <returns>저장에 성공하면 true</returns>
+        public static bool Set(string key, string value)
         {
             try
             {
@@ -158,10 +179,12 @@ namespace AutoInvest.Data
                 // 계정(ADMIN_USERNAME)·자격증명 해시가 평문으로 영구 적재된다(조직 보안정책 위반).
                 // 저장 여부 진단에는 키 이름과 값 길이로 충분하고, 값 확인은 GET /api/config로 한다.
                 Logger.Info($"[AppConfig] 저장: {key} (길이 {value?.Length ?? 0})");
+                return true;
             }
             catch (Exception ex)
             {
                 Logger.Error($"[AppConfig] 저장 실패 [{key}]: {ex.Message}");
+                return false;
             }
         }
 
