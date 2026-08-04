@@ -90,13 +90,15 @@ const History = () => {
     setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
 
-  // 앞쪽 빈 칸(1일의 요일) + 그 달의 날짜들
+  // 앞쪽 빈 칸(1일의 요일) + 그 달의 날짜들 + 뒤쪽 빈 칸.
+  // 항상 6줄(42칸)로 채운다 — 달마다 줄 수가 달라지면 달을 넘길 때 카드 높이가 출렁인다.
   const leadingBlanks = new Date(calYear, calMon - 1, 1).getDay();
   const daysInMonth = new Date(calYear, calMon, 0).getDate();
   const calCells = [
     ...Array(leadingBlanks).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
+  while (calCells.length < 42) calCells.push(null);
 
   const dayKey = (day) => `${calMonth}-${String(day).padStart(2, '0')}`;
 

@@ -718,6 +718,15 @@ select.input-field option {
   pointer-events: none;
 }
 
+/* 표 한 칸 안의 보조 표기(원화 환산 등) — 주 값 아래에 작게 붙인다 */
+.cell-sub {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 확인 모달에서 "실수하면 돈이 나가는" 사실만 눈에 박히게. 남발하면 강조가 죽는다. */
 .confirm-em {
   color: var(--loss-red);
@@ -732,7 +741,6 @@ select.input-field option {
   padding: 12px;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm);
-  max-width: 320px;
 }
 
 .log-cal__head {
@@ -762,8 +770,10 @@ select.input-field option {
   padding-bottom: 4px;
 }
 
+/* 높이를 칸 너비에 묶지 않는다(aspect-ratio 금지) — 달력을 가로로 늘리면 칸까지 같이 커진다.
+   행 수는 항상 6줄로 그리므로 달 이동 시 카드 높이가 흔들리지 않는다. */
 .log-cal__day {
-  aspect-ratio: 1;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
