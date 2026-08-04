@@ -420,36 +420,6 @@ a:hover {
 .ticker-dot--3 { background: var(--profit-green); }
 .ticker-dot--4 { background: var(--warn-amber); }
 
-/* 비중 바 */
-.weight-bar-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.weight-bar {
-  flex: 1;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-  overflow: hidden;
-  max-width: 80px;
-}
-
-.weight-bar__fill {
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
-  transition: width var(--transition-slow);
-}
-
-.weight-bar__text {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  min-width: 40px;
-  text-align: right;
-}
-
 /* ── 로딩 스피너 ── */
 .loading-container {
   display: flex;

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import HoldingsTable from '../components/HoldingsTable';
+import AllocationDonut from '../components/AllocationDonut';
 
 /**
  * 포트폴리오 대시보드 메인 화면.
@@ -221,6 +222,20 @@ const Dashboard = () => {
 
         <HoldingsTable holdings={summaryHoldings} exchangeRate={exchangeRate} />
       </div>
+
+      {/* ── 비중 (표에서 빼서 전체 100% 기준으로 한눈에) ── */}
+      {summaryHoldings.length > 0 && (
+        <div className="card fade-in" style={{ animationDelay: '0.3s', opacity: 0, marginTop: 20 }}>
+          <div className="section-header">
+            <h2>자산 비중</h2>
+            <span className="section-header__sub">
+              보유 종목 평가금액 기준 · 예수금 제외
+            </span>
+          </div>
+
+          <AllocationDonut holdings={summaryHoldings} format={fmtMoney} />
+        </div>
+      )}
     </div>
   );
 };
