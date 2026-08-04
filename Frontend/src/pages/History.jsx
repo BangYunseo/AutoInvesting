@@ -67,6 +67,13 @@ const History = () => {
 
   const getStatusBadge = (status) => <span className="badge">{STATUS_LABEL[status] ?? status}</span>;
 
+  // ── 로그 날짜 이동 범위 ──
+  // 서버가 준 "로그가 있는 날짜" + 현재 보고 있는 날짜를 합쳐 오름차순으로 둔다.
+  // (보고 있는 날에 로그가 없어도 화살표가 사라지지 않도록 현재 날짜를 끼워 넣는다)
+  const today = new Date().toISOString().split('T')[0];
+  const logDates = [...new Set([...(logData?.availableDates ?? []), logDate])].sort();
+  const dateIdx = logDates.indexOf(logDate);
+
   const getOrderTypeBadge = (type) => {
     if (type === 'BUY') return <span className="badge-profit badge-profit--up">매수</span>;
     if (type === 'SELL') return <span className="badge-profit badge-profit--down">매도</span>;
@@ -112,22 +119,19 @@ const History = () => {
           <div className="section-header">
             <h2>매매 내역</h2>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <select
-                value={tradeLimit}
-                onChange={e => setTradeLimit(Number(e.target.value))}
-                style={{
-                  background: 'var(--bg-input)',
-                  border: '1px solid var(--border-primary)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  padding: '6px 10px',
-                  fontSize: '0.8rem'
-                }}
-              >
-                <option value={20}>최근 20건</option>
-                <option value={50}>최근 50건</option>
-                <option value={100}>최근 100건</option>
-              </select>
+              <div className="chip-row" role="radiogroup" aria-label="조회 건수" style={{ flex: 'none' }}>
+                {[20, 50, 100].map(n => (
+                  <label key={n} className={`chip ${tradeLimit === n ? 'chip--on' : ''}`}>
+                    <input
+                      type="radio"
+                      name="trade-limit"
+                      checked={tradeLimit === n}
+                      onChange={() => setTradeLimit(n)}
+                    />
+                    {n}건
+                  </label>
+                ))}
+              </div>
               <button className="btn btn--outline" onClick={fetchTrades} disabled={tradesLoading}>
                 {tradesLoading ? '조회 중...' : '🔄'}
               </button>
@@ -188,21 +192,45 @@ const History = () => {
           <div className="section-header">
             <h2>시스템 로그</h2>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                type="date"
-                value={logDate}
-                onChange={e => setLogDate(e.target.value)}
-                style={{
-                  background: 'var(--bg-input)',
-                  border: '1px solid var(--border-primary)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  padding: '6px 10px',
-                  fontSize: '0.8rem'
-                }}
-              />
+              {/* 달력 팝업은 브라우저가 그려 테마가 안 먹는다. 게다가 로그는 서비스가 실제로
+                  돈 날에만 있어서, 365칸 중 대부분이 빈 날이다. 서버가 주는 '로그가 있는 날짜'
+                  목록만 앞뒤로 넘기게 해서 팝업도 헛클릭도 없앤다. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  className="btn btn--outline"
+                  onClick={() => setLogDate(logDates[dateIdx - 1])}
+                  disabled={logsLoading || dateIdx <= 0}
+                  style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                  title="이전 기록일"
+                >◀</button>
+                <span
+                  style={{
+                    minWidth: 96, textAlign: 'center', fontSize: '0.82rem',
+                    fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)',
+                  }}
+                >
+                  {logDate}
+                </span>
+                <button
+                  className="btn btn--outline"
+                  onClick={() => setLogDate(logDates[dateIdx + 1])}
+                  disabled={logsLoading || dateIdx < 0 || dateIdx >= logDates.length - 1}
+                  style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                  title="다음 기록일"
+                >▶</button>
+              </div>
+              {logDate !== today && (
+                <button
+                  className="btn btn--outline"
+                  onClick={() => setLogDate(today)}
+                  disabled={logsLoading}
+                  style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                >
+                  오늘
+                </button>
+              )}
               <button className="btn btn--outline" onClick={fetchLogs} disabled={logsLoading}>
-                {logsLoading ? '조회 중...' : '조회'}
+                {logsLoading ? '조회 중...' : '🔄'}
               </button>
             </div>
           </div>

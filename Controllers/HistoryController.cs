@@ -48,13 +48,17 @@ namespace AutoInvest.Controllers
                 string targetDate = date ?? DateTime.Now.ToString("yyyy-MM-dd");
                 var logLines = SystemLogDAO.GetByDate(targetDate, lines);
 
+                // 로그가 남은 날짜 목록은 항상 함께 준다. 프론트가 달력 대신 이 목록을 앞뒤로
+                // 넘기게 해서, 로그가 없는 날을 고르는 헛클릭 자체를 없앤다.
+                var availableDates = SystemLogDAO.GetAvailableDates();
+
                 if (logLines.Count == 0)
                 {
-                    // 해당 날짜 로그가 없으면 사용 가능한 날짜 목록 반환
                     return Ok(new
                     {
+                        date = targetDate,
                         message = $"{targetDate} 날짜의 로그가 없습니다.",
-                        availableDates = SystemLogDAO.GetAvailableDates()
+                        availableDates
                     });
                 }
 
@@ -62,7 +66,8 @@ namespace AutoInvest.Controllers
                 {
                     date = targetDate,
                     totalLines = logLines.Count,
-                    logs = logLines
+                    logs = logLines,
+                    availableDates
                 });
             }
             catch (Exception ex)
