@@ -757,9 +757,13 @@ select.input-field option {
   font-size: 0.75rem;
 }
 
+/* 행 높이를 그리드에서 못 박는다: 요일 줄 1개 + 날짜 줄 6개(항상 6주 분량).
+   칸에만 높이를 주면 날짜가 하나도 없는 줄(빈 div만 있는 줄)이 0으로 접혀
+   달마다 달력 높이가 달라진다 — 최악의 경우인 6주를 기준으로 자리를 먼저 잡는다. */
 .log-cal__grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: auto repeat(6, 32px);
   gap: 2px;
 }
 
@@ -770,10 +774,9 @@ select.input-field option {
   padding-bottom: 4px;
 }
 
-/* 높이를 칸 너비에 묶지 않는다(aspect-ratio 금지) — 달력을 가로로 늘리면 칸까지 같이 커진다.
-   행 수는 항상 6줄로 그리므로 달 이동 시 카드 높이가 흔들리지 않는다. */
+/* 높이는 그리드 행이 정한다(aspect-ratio 금지 — 가로로 늘리면 칸까지 같이 커진다) */
 .log-cal__day {
-  height: 32px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
