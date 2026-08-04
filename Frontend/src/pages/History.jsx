@@ -67,12 +67,38 @@ const History = () => {
 
   const getStatusBadge = (status) => <span className="badge">{STATUS_LABEL[status] ?? status}</span>;
 
-  // ── 로그 날짜 이동 범위 ──
-  // 서버가 준 "로그가 있는 날짜" + 현재 보고 있는 날짜를 합쳐 오름차순으로 둔다.
-  // (보고 있는 날에 로그가 없어도 화살표가 사라지지 않도록 현재 날짜를 끼워 넣는다)
+  // ── 로그 달력 ──
+  // 네이티브 날짜 입력의 달력은 브라우저가 그려 테마가 안 먹고, 로그가 없는 날까지 전부 고를 수
+  // 있어 헛클릭을 부른다. 서버가 주는 "로그가 있는 날짜"만 활성화한 달력을 직접 그린다.
   const today = new Date().toISOString().split('T')[0];
-  const logDates = [...new Set([...(logData?.availableDates ?? []), logDate])].sort();
-  const dateIdx = logDates.indexOf(logDate);
+  const availableSet = new Set([...(logData?.availableDates ?? []), logDate]);
+
+  // 달력이 보여줄 연-월 ('yyyy-MM'). 선택 날짜가 다른 달로 바뀌면 따라 이동한다.
+  // 이펙트로 맞추면 한 번 더 렌더된 뒤에야 따라오므로, 렌더 중에 바로 보정한다(React 권장 패턴).
+  const [calMonth, setCalMonth] = useState(logDate.slice(0, 7));
+  const [calSyncedDate, setCalSyncedDate] = useState(logDate);
+  if (calSyncedDate !== logDate) {
+    setCalSyncedDate(logDate);
+    setCalMonth(logDate.slice(0, 7));
+  }
+
+  const calYear = Number(calMonth.slice(0, 4));
+  const calMon = Number(calMonth.slice(5, 7)); // 1~12
+
+  const shiftMonth = (delta) => {
+    const d = new Date(calYear, calMon - 1 + delta, 1);
+    setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  // 앞쪽 빈 칸(1일의 요일) + 그 달의 날짜들
+  const leadingBlanks = new Date(calYear, calMon - 1, 1).getDay();
+  const daysInMonth = new Date(calYear, calMon, 0).getDate();
+  const calCells = [
+    ...Array(leadingBlanks).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  const dayKey = (day) => `${calMonth}-${String(day).padStart(2, '0')}`;
 
   const getOrderTypeBadge = (type) => {
     if (type === 'BUY') return <span className="badge-profit badge-profit--up">매수</span>;
@@ -192,33 +218,9 @@ const History = () => {
           <div className="section-header">
             <h2>시스템 로그</h2>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {/* 달력 팝업은 브라우저가 그려 테마가 안 먹는다. 게다가 로그는 서비스가 실제로
-                  돈 날에만 있어서, 365칸 중 대부분이 빈 날이다. 서버가 주는 '로그가 있는 날짜'
-                  목록만 앞뒤로 넘기게 해서 팝업도 헛클릭도 없앤다. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button
-                  className="btn btn--outline"
-                  onClick={() => setLogDate(logDates[dateIdx - 1])}
-                  disabled={logsLoading || dateIdx <= 0}
-                  style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                  title="이전 기록일"
-                >◀</button>
-                <span
-                  style={{
-                    minWidth: 96, textAlign: 'center', fontSize: '0.82rem',
-                    fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)',
-                  }}
-                >
-                  {logDate}
-                </span>
-                <button
-                  className="btn btn--outline"
-                  onClick={() => setLogDate(logDates[dateIdx + 1])}
-                  disabled={logsLoading || dateIdx < 0 || dateIdx >= logDates.length - 1}
-                  style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                  title="다음 기록일"
-                >▶</button>
-              </div>
+              <span style={{ fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>
+                {logDate}
+              </span>
               {logDate !== today && (
                 <button
                   className="btn btn--outline"
@@ -232,6 +234,47 @@ const History = () => {
               <button className="btn btn--outline" onClick={fetchLogs} disabled={logsLoading}>
                 {logsLoading ? '조회 중...' : '🔄'}
               </button>
+            </div>
+          </div>
+
+          {/* 로그가 있는 날만 누를 수 있는 달력. 팝업이 아니라 카드 안에 그대로 둔다 —
+              바깥 클릭·포커스 트랩 같은 팝업 처리를 만들 필요가 없다. */}
+          <div className="log-cal">
+            <div className="log-cal__head">
+              <button className="btn btn--outline" onClick={() => shiftMonth(-1)} title="이전 달">◀</button>
+              <strong>{calYear}년 {calMon}월</strong>
+              <button className="btn btn--outline" onClick={() => shiftMonth(1)} title="다음 달">▶</button>
+            </div>
+
+            <div className="log-cal__grid">
+              {['일', '월', '화', '수', '목', '금', '토'].map(d => (
+                <div key={d} className="log-cal__dow">{d}</div>
+              ))}
+
+              {calCells.map((day, i) => {
+                if (day === null) return <div key={`b${i}`} />;
+                const key = dayKey(day);
+                const has = availableSet.has(key);
+                const cls = 'log-cal__day'
+                  + (has ? ' log-cal__day--has' : '')
+                  + (key === logDate ? ' log-cal__day--sel' : '')
+                  + (key === today ? ' log-cal__day--today' : '');
+                return (
+                  <button
+                    key={key}
+                    className={cls}
+                    disabled={!has || logsLoading}
+                    onClick={() => setLogDate(key)}
+                    title={has ? `${key} 로그 보기` : `${key} 로그 없음`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="log-cal__note">
+              로그가 남아 있는 날만 선택할 수 있습니다. 로그는 90일이 지나면 정리됩니다.
             </div>
           </div>
 
