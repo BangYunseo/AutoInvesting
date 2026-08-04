@@ -211,6 +211,68 @@ const OrderConfirmModal = ({ ctx, ordering, onCancel, onConfirm }) => {
 };
 
 /**
+ * 범용 확인 모달 — 브라우저 기본 confirm() 대신 앱 테마를 그대로 쓴다.
+ * 주문 확인(OrderConfirmModal)은 세금 표 등 전용 내용이 많아 따로 두고, 이쪽은
+ * 문구 하나만 보여주면 되는 확인(적립 실행·예약)에 쓴다.
+ */
+const ConfirmDialog = ({ spec, busy, onCancel, onConfirm }) => (
+  <div
+    className="modal-overlay"
+    onClick={() => {
+      if (!busy) onCancel();
+    }}
+  >
+    <div
+      className="modal-content"
+      onClick={(ev) => ev.stopPropagation()}
+      style={{ maxWidth: 440 }}
+    >
+      <h3
+        style={{
+          marginBottom: 14,
+          borderBottom: "1px solid var(--border-primary)",
+          paddingBottom: 12,
+          color:
+            spec.tone === "danger" ? "var(--loss-red)" : "var(--text-primary)",
+        }}
+      >
+        {spec.icon} {spec.title}
+      </h3>
+
+      <p
+        style={{
+          fontSize: "0.9rem",
+          lineHeight: 1.7,
+          color: "var(--text-secondary)",
+          wordBreak: "keep-all",
+        }}
+      >
+        {spec.body}
+      </p>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+        <button
+          className="btn btn--outline"
+          style={{ flex: 1 }}
+          onClick={onCancel}
+          disabled={busy}
+        >
+          취소
+        </button>
+        <button
+          className={`btn ${spec.tone === "danger" ? "btn--danger" : "btn--primary"}`}
+          style={{ flex: 1 }}
+          onClick={onConfirm}
+          disabled={busy}
+        >
+          {busy ? "처리 중..." : spec.confirmLabel}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+/**
  * 주문/적립 페이지.
  * OrderController와 연동하여 적립식(DCA) 매수 사이클과 수동 주문을 실행합니다.
  * 수동 주문은 실제 보유 종목을 끌어와, 매도는 보유 종목·보유수량 범위에서만,
@@ -224,6 +286,8 @@ const Order = () => {
   // 이번 달 적립 상태 { month, alreadyRan, reserved } — 확인 문구와 예약 토글에 함께 쓴다
   const [dcaSchedule, setDcaSchedule] = useState(null);
   const [scheduling, setScheduling] = useState(false);
+  // 적립 실행·예약 확인 모달 키 ('run' | 'run-again' | 'reserve', null = 닫힘)
+  const [dcaConfirm, setDcaConfirm] = useState(null);
 
   // ── 보유 종목 (수동 주문 종목 선택 소스) ──
   const [holdings, setHoldings] = useState([]);
@@ -290,17 +354,54 @@ const Order = () => {
     ? `${Number(dcaSchedule.month.slice(5, 7))}월`
     : "이번 달";
 
-  const handleDcaRun = async () => {
-    // 이미 적립한 달이면 "한 번 더 사는 것"임을 분명히 묻는다.
-    // 아직 안 한 달이면 굳이 중복 경고를 띄우지 않는다(늑대 소년 방지).
-    const message = dcaSchedule?.alreadyRan
-      ? `${scheduleMonthLabel}은 이미 매수가 완료됐습니다.\n` +
-        "지금 실행하면 그만큼 한 번 더 매수합니다.\n\n" +
-        "한 번 더 매수하시겠습니까?"
-      : `${scheduleMonthLabel}에 배정된 매수 템플릿의 종목별 고정 수량대로 적립식 매수 사이클을 실행합니다.\n` +
-        "정말 진행하시겠습니까?";
+  // 실행/예약 확인 모달 컨텍스트 (null = 닫힘)
+  // 이미 적립한 달이면 "한 번 더 사는 것"임을 분명히 묻고, 아직 안 한 달이면
+  // 굳이 중복 경고를 띄우지 않는다(늑대 소년 방지).
+  const dcaConfirmSpec = {
+    "run-again": {
+      icon: "🔁",
+      tone: "danger",
+      title: `${scheduleMonthLabel}은 이미 매수가 완료됐습니다`,
+      body: (
+        <>
+          지금 실행하면 <strong>{scheduleMonthLabel}에 배정된 템플릿의 수량만큼 한 번 더</strong>{" "}
+          매수합니다. 실제 자금이 추가로 집행됩니다.
+        </>
+      ),
+      confirmLabel: "한 번 더 매수",
+    },
+    run: {
+      icon: "🪙",
+      tone: "primary",
+      title: `${scheduleMonthLabel} 적립 실행`,
+      body: (
+        <>
+          {scheduleMonthLabel}에 배정된 매수 템플릿의 <strong>종목별 고정 수량</strong>대로
+          매수합니다. 1주를 채우지 못한 잔돈은 다음 사이클로 이월됩니다.
+        </>
+      ),
+      confirmLabel: "적립 실행",
+    },
+    reserve: {
+      icon: "🗓",
+      tone: "primary",
+      title: "다음 개장 때 추가 적립 예약",
+      body: (
+        <>
+          다음 크론 실행(<strong>매일 KST 23:40</strong>, 미국장 개장 직후)에 추가 적립 1회를
+          예약합니다. 집행 시점의 <strong>{scheduleMonthLabel} 배정 템플릿</strong>을 그대로 사므로,
+          사려는 템플릿이 배정돼 있는지 먼저 확인하세요.
+        </>
+      ),
+      confirmLabel: "예약하기",
+    },
+  };
 
-    if (!confirm(message)) return;
+  const requestDcaRun = () =>
+    setDcaConfirm(dcaSchedule?.alreadyRan ? "run-again" : "run");
+
+  const runDca = async () => {
+    setDcaConfirm(null);
     try {
       setDcaRunning(true);
       setDcaError(null);
@@ -323,18 +424,14 @@ const Order = () => {
   // ── 추가 적립 예약 토글 ──
   // 즉시 실행은 한국 낮에 누르면 미국장이 닫혀 거부된다. 크론은 이미 개장 직후에 도므로
   // 그 실행이 당월 가드를 한 번만 넘도록 예약해 둔다.
-  const handleToggleSchedule = async () => {
-    const next = !dcaSchedule?.reserved;
-    if (
-      next &&
-      !confirm(
-        "다음 크론 실행(매일 KST 23:40, 미국장 개장 직후)에 추가 적립 1회를 예약합니다.\n" +
-          `${scheduleMonthLabel}에 배정된 템플릿대로 매수하므로, 사려는 템플릿이 배정돼 있는지 먼저 확인하세요.\n\n` +
-          "예약하시겠습니까?",
-      )
-    )
-      return;
+  // 예약 설정은 확인을 받고, 해제는 돈이 나가지 않으므로 바로 처리한다.
+  const requestToggleSchedule = () => {
+    if (dcaSchedule?.reserved) setSchedule(false);
+    else setDcaConfirm("reserve");
+  };
 
+  const setSchedule = async (next) => {
+    setDcaConfirm(null);
     try {
       setScheduling(true);
       setDcaError(null);
@@ -572,7 +669,7 @@ const Order = () => {
 
         <button
           className="btn btn--primary"
-          onClick={handleDcaRun}
+          onClick={requestDcaRun}
           disabled={dcaRunning}
           style={{ width: "100%", padding: "14px", fontSize: "1rem" }}
         >
@@ -582,7 +679,7 @@ const Order = () => {
         {/* 미국장이 닫힌 시간에 눌러도 주문이 거부되므로, 개장 직후 도는 크론에 1회 예약해 둔다 */}
         <button
           className="btn btn--outline"
-          onClick={handleToggleSchedule}
+          onClick={requestToggleSchedule}
           disabled={scheduling}
           style={{ width: "100%", padding: "12px", fontSize: "0.9rem", marginTop: 8 }}
         >
@@ -921,6 +1018,15 @@ const Order = () => {
           </div>
         )}
       </div>
+
+      {dcaConfirm && (
+        <ConfirmDialog
+          spec={dcaConfirmSpec[dcaConfirm]}
+          busy={dcaRunning || scheduling}
+          onCancel={() => setDcaConfirm(null)}
+          onConfirm={() => (dcaConfirm === "reserve" ? setSchedule(true) : runDca())}
+        />
+      )}
 
       {confirmModal && (
         <OrderConfirmModal
