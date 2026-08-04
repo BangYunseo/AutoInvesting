@@ -32,12 +32,19 @@ tr_id: {TR_CODE}
 | GetCurrentPriceAsync | GET | /uapi/overseas-price/v1/quotations/price | HHDFS00000300 |
 | GetExchangeRateAsync | — | Frankfurter API → ExchangeRate-API 폴백 (ExchangeRateService) | — |
 | GetHoldingsAsync | GET | /uapi/overseas-stock/v1/trading/inquire-balance | TTTS3012R/VTTS3012R |
-| GetCashBalanceAsync | GET | /uapi/overseas-stock/v1/trading/inquire-balance | TTTS3012R (모의는 미지원 → $0) |
+| GetCashBalanceAsync | GET | /uapi/overseas-stock/v1/trading/inquire-present-balance | CTRP6504R (모의는 미지원 → $0) |
 | PlaceBuyOrderAsync | POST | /uapi/overseas-stock/v1/trading/order | TTTT1002U/VTTT1002U |
 | PlaceSellOrderAsync | POST | /uapi/overseas-stock/v1/trading/order | TTTT1006U/VTTT1006U |
 
 > 시세 조회용 `GetOhlcvAsync`·`GetPriceRangeAsync`(일봉 `HHDFS76240000`)는 판단 레이어 전용이었고
 > Phase 6에서 인터페이스·구현체 모두에서 제거되었습니다. 다시 추가하지 마세요.
+>
+> **예수금은 잔고조회에 없습니다.** 외화 예수금 `frcr_dncl_amt_2`는 체결기준현재잔고
+> (`inquire-present-balance`, `CTRP6504R`)의 `output2`에만 있습니다. 잔고조회
+> (`inquire-balance`, `TTTS3012R`)의 `output2`는 평가 요약(매입금액·손익·수익률)이라 이 필드가 없어,
+> 거기서 찾으면 조용히 $0이 됩니다(2026-08-04 수정). `output2`는 통화별 배열이므로 `crcy_cd`로
+> USD 행을 골라야 합니다. 매수가능금액이 필요하면 `inquire-psamount`(`TTTS3007R`)로, 예수금과는
+> 미체결 주문에 묶인 금액만큼 다릅니다.
 >
 > 주문 시 거래소 코드는 하드코딩하지 않습니다. 현재가 조회에서 확인된 `EXCD`(NAS/NYS/AMS)를
 > 주문용 `OVRS_EXCG_CD`(NASD/NYSE/AMEX)로 매핑합니다 — 매핑을 건너뛰면 "해당종목정보가 없습니다"로 거부됩니다.

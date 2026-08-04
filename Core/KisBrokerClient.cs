@@ -218,8 +218,7 @@ namespace AutoInvest.Core
             await _tokenManager.EnsureValidTokenAsync();
             await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
 
-            // KIS API는 모의투자 환경에서 해외주식 예수금 조회(VTTS3014R)를 미지원하며,
-            // 잔고 조회(VTTS3012R)에서도 예수금 필드를 반환하지 않습니다.
+            // KIS 모의투자는 해외주식 예수금 조회를 지원하지 않습니다(체결기준현재잔고 미제공).
             // 가상 잔고로 우회하지 않고, 모의투자 시에는 항상 예수금 $0을 반환합니다.
             if (_isPaperTrading)
             {
@@ -227,8 +226,16 @@ namespace AutoInvest.Core
                 return 0m;
             }
 
-            string trId = "TTTS3012R";
-            string path = $"/uapi/overseas-stock/v1/trading/inquire-balance?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}&OVRS_EXCG_CD=NASD&TR_CRCY_CD=USD&CTX_AREA_FK200=&CTX_AREA_NK200=";
+            // 외화 예수금(frcr_dncl_amt_2)은 '체결기준현재잔고'(CTRP6504R)의 output2에만 있다.
+            // 잔고조회(TTTS3012R)의 output2는 평가 요약(매입금액·손익·수익률)이라 이 필드가 없어
+            // 2026-08-04까지 매번 "예수금 조회 실패"로 떨어지며 $0을 반환하고 있었다.
+            //
+            // output2는 통화별 배열이므로 crcy_cd로 USD 행을 골라야 한다(원화 행이 섞여 온다).
+            // WCRC_FRCR_DVSN_CD=02(외화), NATN_CD=000(전체), TR_MKET_CD=00(전체), INQR_DVSN_CD=00(전체).
+            string trId = "CTRP6504R";
+            string path = $"/uapi/overseas-stock/v1/trading/inquire-present-balance"
+                + $"?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}"
+                + "&WCRC_FRCR_DVSN_CD=02&NATN_CD=000&TR_MKET_CD=00&INQR_DVSN_CD=00";
 
             var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
             response.EnsureSuccessStatusCode();
@@ -236,34 +243,29 @@ namespace AutoInvest.Core
             var responseString = await response.Content.ReadAsStringAsync();
             var json = JsonSerializer.Deserialize<JsonElement>(responseString);
 
-            // output2에서 외화 예수금액 파싱
-            if (json.TryGetProperty("output2", out var output2))
+            if (json.TryGetProperty("output2", out var output2) && output2.ValueKind == JsonValueKind.Array)
             {
-                // output2가 배열인 경우 첫 번째 요소 사용
-                JsonElement target = output2;
-                if (output2.ValueKind == JsonValueKind.Array)
+                foreach (var row in output2.EnumerateArray())
                 {
-                    var enumerator = output2.EnumerateArray();
-                    if (enumerator.MoveNext())
-                        target = enumerator.Current;
-                    else
-                    {
-                        Logger.Warn("[KisBroker] 예수금 조회: output2 배열이 비어있음. 0 반환.");
-                        return 0m;
-                    }
-                }
+                    string currency = row.TryGetProperty("crcy_cd", out var cc) ? (cc.GetString() ?? "") : "";
+                    if (!string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase)) continue;
 
-                if (target.TryGetProperty("frcr_dncl_amt_2", out var cashProp))
-                {
-                    if (decimal.TryParse(cashProp.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal cash))
+                    if (row.TryGetProperty("frcr_dncl_amt_2", out var cashProp)
+                        && decimal.TryParse(cashProp.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal cash))
                     {
                         Logger.Info($"[KisBroker] 예수금 조회: ${cash:N2}");
                         return cash;
                     }
                 }
+
+                Logger.Warn("[KisBroker] 예수금 조회: output2에 USD 행이 없음. 0 반환.");
+                return 0m;
             }
 
-            Logger.Warn("[KisBroker] 예수금 조회 실패. 기본값 0 반환.");
+            // 실패 사유를 남긴다 — 필드 부재와 API 거부(rt_cd≠0)는 원인이 달라 구분이 필요하다.
+            string msg = json.TryGetProperty("msg1", out var m1) ? (m1.GetString() ?? "").Trim() : "";
+            string rtCd = json.TryGetProperty("rt_cd", out var rc) ? (rc.GetString() ?? "") : "";
+            Logger.Warn($"[KisBroker] 예수금 조회 실패 (rt_cd={rtCd}, msg1={msg}). 기본값 0 반환.");
             return 0m;
         }
 
