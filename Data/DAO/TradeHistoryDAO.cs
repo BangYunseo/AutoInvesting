@@ -38,6 +38,30 @@ namespace AutoInvest.Data.DAO
         }
 
         /// <summary>
+        /// 주문번호로 거래 1건의 상태를 갱신합니다 (체결 대사용).
+        ///
+        /// 주문 시점에는 접수만 확인되므로 <c>PENDING</c>으로 적재되고, 장 마감 후 대사에서
+        /// 실제 체결 여부가 확인되면 이 메서드로 <c>FILLED</c>/<c>PARTIAL</c>/<c>FAILED</c>로 바꾼다.
+        /// 주문번호가 비어 있으면(ODNO 미수신) 매칭할 키가 없으므로 아무것도 하지 않는다.
+        /// </summary>
+        /// <param name="orderNo">증권사 주문번호(ODNO)</param>
+        /// <param name="status">갱신할 상태</param>
+        /// <returns>갱신된 행 수</returns>
+        public static int UpdateStatusByOrderNo(string orderNo, string status)
+        {
+            if (string.IsNullOrWhiteSpace(orderNo)) return 0;
+
+            using (var conn = DBManager.Instance.GetConnection())
+            using (var cmd = new NpgsqlCommand(
+                "UPDATE TB_TRADE_HISTORY SET STATUS=@s WHERE ORDER_NO=@o", conn))
+            {
+                cmd.Parameters.AddWithValue("@s", status);
+                cmd.Parameters.AddWithValue("@o", orderNo);
+                return cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
         /// 최근 거래 내역을 조회합니다.
         /// 2026-07-30 배선 이전에 적재된 행은 <c>ORDER_NO</c>가 NULL이므로 빈 문자열로 읽습니다.
         /// </summary>

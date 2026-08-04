@@ -65,6 +65,33 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
+        /// 장 마감 후 체결 대사를 실행합니다 (외부 크론잡이 호출).
+        ///
+        /// 주문 전후 보유 수량을 비교해 실제 체결을 판정하고, 전량 미체결이면 그 달 적립 완료
+        /// 표시를 해제해 다음 사이클이 다시 시도하게 합니다. 백그라운드로 돌리고 즉시 202를 반환합니다.
+        /// </summary>
+        [HttpPost("reconcile")]
+        public IActionResult RunReconcile()
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var dailyService = scope.ServiceProvider.GetRequiredService<DailyExecutionService>();
+                    await dailyService.ReconcileAsync();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"[Order] 백그라운드 체결 대사 실패: {ex.Message}");
+                }
+            });
+
+            Logger.Info("[Order] 체결 대사를 백그라운드로 시작했습니다 (즉시 202 반환).");
+            return Accepted(new { message = "체결 대사를 시작했습니다. 결과는 서버 로그와 이메일로 확인하세요." });
+        }
+
+        /// <summary>
         /// 이번 달(KST) 적립 상태와 추가 적립 예약 여부를 반환합니다.
         /// 프론트가 "이미 적립한 달인지"에 따라 확인 문구를 바꾸고, 예약 토글의 현재 상태를 그리는 데 씁니다.
         /// </summary>
@@ -118,7 +145,7 @@ namespace AutoInvest.Controllers
                 month,
                 reserved = reserve,
                 message = reserve
-                    ? "다음 크론 실행(매일 KST 23:40, 미국장 개장 직후)에 추가 적립 1회를 예약했습니다."
+                    ? "다음 크론 실행(매일 KST 00:10, 미국장 장중)에 추가 적립 1회를 예약했습니다."
                     : "추가 적립 예약을 해제했습니다."
             });
         }
