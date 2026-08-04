@@ -58,8 +58,17 @@ namespace AutoInvest
 
                 var app = builder.Build();
 
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                // Swagger는 개발 환경에서만 노출한다.
+                // 전역 인증 필터(ApiKeyAuthAttribute)는 MVC 액션 필터라 미들웨어인 Swagger에는 걸리지 않는다.
+                // 프로덕션에 켜두면 인증 없이 전체 API 표면(경로·파라미터·DTO 스키마)이 읽힌다 —
+                // 실행은 401로 막히지만, ManualOrderRequest의 acknowledgeTax나 dca-run의 force처럼
+                // UI가 쓰지 않는 우회 수단까지 명세로 광고하게 된다. 배포 서버의 API 명세는
+                // Documents/reference/API_REFERENCE.md를 본다.
+                if (app.Environment.IsDevelopment())
+                {
+                    app.UseSwagger();
+                    app.UseSwaggerUI();
+                }
 
                 // ── 정적 파일 제공 (프론트엔드 React) ──
                 app.UseDefaultFiles();
