@@ -35,7 +35,11 @@ Data (Data/, Data/DTO/, Data/DAO/)
 - `DcaSettings` — 매수 템플릿 목록·월별 배정·예산의 단일 읽기/쓰기 지점 (DB `TB_APP_CONFIG`: `DCA_TEMPLATES` JSON / `DCA_MONTH_MAP` 우선 → 레거시 `DCA_QTYS`/`DCA_BUDGET_KRW`/`appsettings.json > Dca` 폴백, 자동 이관)
 - `DailyExecutionService` — 적립 사이클 실행 진입점 (`RunDcaCycleAsync`, Scoped, `IServiceScopeFactory` 패턴)
 - `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (Resend HTTP API, 443 포트 — Render SMTP 차단 우회)
-- `ApiKeyAuthAttribute` — 전역 인증 필터. 모든 컨트롤러에 적용되며 Bearer 세션 토큰(사람) 또는 `x-api-key`(크론) 중 하나로 통과. `[PublicEndpoint]` 표시 액션(로그인/초기설정/상태)만 면제
+- `ApiKeyAuthAttribute` — 전역 인증 필터. 모든 컨트롤러 **액션**에 적용되며 Bearer 세션 토큰(사람) 또는 `x-api-key`(크론) 중 하나로 통과. `[PublicEndpoint]` 표시 액션만 면제이며, 면제 대상은 **`/api/auth/status`와 `/api/auth/login` 둘뿐**이다
+  - 🚫 **`[PublicEndpoint]`를 컨트롤러 클래스에 붙이지 말 것.** 클래스에 붙이면 그 안의 모든 액션이 한꺼번에 열린다. 과거 `AuthController`가 그 상태여서 `setup`까지 미인증 공개였고, 관리자 자리가 비어 보이는 순간 누구나 관리자를 선점해 실주문을 낼 수 있었다(2026-08-04 수정). `Tests/PublicEndpointExposureTests.cs`가 면제 목록을 리플렉션으로 고정한다
+  - 이 필터는 **MVC 액션에만** 걸린다. 미들웨어 경로(`/swagger`, 정적 파일)와 `MapHealthChecks`, 그리고 앞으로 추가할 Minimal API(`app.MapGet` 등)에는 적용되지 않으므로 별도 보호가 필요하다
+- `LoginThrottle` — 로그인 실패 **속도 상한**(전역 카운터, 분당 20회). 호출자별 IP/헤더 카운터는 쓰지 않는다 — 프록시 뒤라 신뢰할 수 있는 발신지가 없고 `X-Forwarded-For`는 클라이언트가 정하는 값이라 우회·표적 잠금·메모리 증가가 모두 성립한다. 상한 검사는 반드시 비밀번호 검증(PBKDF2) **앞**에 둔다
+- 관리자 해시가 "비었는지" 판정하는 곳(`status`/`setup`/`login`)은 `AppConfigManager.TryReadDb`로 **조회 실패와 값 없음을 구분**하고, 조회 실패면 `503`으로 거부한다(fail-closed). `AppConfigManager.Get`은 둘을 기본값으로 뭉개므로 보안 판정에 쓰지 않는다
 - `TaxEstimator` — **정보·확인 전용 보조 기능**. 매도 양도세 추정(수동 매도 확인용). ⚠️ `DcaAccumulationEngine`/`DailyExecutionService`의 매수 의사결정에 값을 흘려보내지 않는다(판단 레이어 재도입 아님)
 
 ## 아키텍처 흐름

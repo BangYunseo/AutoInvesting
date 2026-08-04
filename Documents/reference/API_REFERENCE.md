@@ -28,7 +28,9 @@ status: draft
 | 외부 크론잡 | `x-api-key: <key>` | 서버 `Security:ApiAccessKey`(`API_ACCESS_KEY`) 값 |
 
 - 둘 다 없거나 유효하지 않으면 `401`.
-- **인증 면제(`[PublicEndpoint]`)**: `/api/auth/status`·`/api/auth/setup`·`/api/auth/login`(닭-달걀 방지), `GET /api/health`, `/swagger`.
+- **인증 면제(`[PublicEndpoint]`)**: `/api/auth/status`·`/api/auth/login` 둘뿐(닭-달걀 방지). 그 밖에 필터가 걸리지 않는 경로로 `GET /api/health`와 정적 파일이 있다 — 전역 필터는 MVC 액션 필터라 미들웨어 경로에는 적용되지 않는다.
+- `/swagger`는 **개발 환경에서만** 노출된다(2026-08-04). 프로덕션에서는 켜지지 않으므로 배포 서버의 API 명세는 이 문서를 본다.
+- ⚠️ **`/api/auth/setup`은 면제가 아니다.** 관리자 자리가 비어 보이는 순간(최초 배포 직후이거나 DB 조회 실패로 오판했을 때) 누구나 관리자를 선점해 실주문까지 낼 수 있어 2026-08-04에 인증 대상으로 옮겼다. 최초 설정은 `x-api-key`를 붙여 호출한다 → **`API_ACCESS_KEY`가 부트스트랩 필수 조건**이다.
 
 ### 공통 응답 규약
 - Content-Type: `application/json` (단 `GET /api/test/send-test-email`은 평문 문자열).
@@ -44,15 +46,16 @@ status: draft
 | `401` | 인증 실패(세션토큰·x-api-key 모두 없음/불일치) |
 | `404` | 리소스 없음(티커 현재가 없음 등) |
 | `409` | 충돌(과세 매도 미확인, 관리자 계정 중복 설정) |
+| `429` | 로그인 실패 속도 상한 초과(`Retry-After` 헤더에 재시도까지 남은 초) |
 | `500` | 서버 내부 오류 |
 | `502` | 외부(주문) 거부/주문번호 없음 |
-| `503` | 의존성(브로커 로그인) 미준비 |
+| `503` | 의존성 미준비 — 브로커 로그인 실패, 또는 설정 저장소(DB) 조회 실패로 판정 불가 |
 
 ### 엔드포인트 목록
 | 그룹 | Method | 경로 | 인증 |
 |------|--------|------|------|
 | 인증 | GET | `/api/auth/status` | 면제 |
-| 인증 | POST | `/api/auth/setup` | 면제 |
+| 인증 | POST | `/api/auth/setup` | **필요** (`x-api-key`) |
 | 인증 | POST | `/api/auth/login` | 면제 |
 | 설정 | GET | `/api/config` | 필요 |
 | 설정 | POST | `/api/config` | 필요 |
@@ -73,20 +76,25 @@ status: draft
 ## 본문
 
 ### 인증 (`AuthController`, `/api/auth`)
-단일 관리자 로그인. 비밀번호 검증 후 서명된 세션 토큰(7일)을 발급한다. 모든 액션은 `[PublicEndpoint]`로 전역 인증 필터를 면제받는다.
+단일 관리자 로그인. 비밀번호 검증 후 서명된 세션 토큰(7일)을 발급한다. **`status`와 `login`만** `[PublicEndpoint]`로 전역 인증 필터를 면제받는다. `setup`은 면제 대상이 아니다.
+
+세 액션 모두 "관리자 해시가 비었는가"를 같은 판정 함수로 읽으며, **DB 조회에 실패하면 미설정으로 추측하지 않고 `503`을 반환한다**(조회 실패를 미설정으로 오판하면 기존 계정을 덮어쓰거나 소유자에게 "계정이 없다"고 오도하게 된다).
 
 **`GET /api/auth/status`** — 최초 설정 필요 여부 조회.
 - 응답 `200`: `{ "needsSetup": true }` (관리자 비밀번호 해시가 없으면 true)
+- 오류: `503`(설정 저장소 조회 실패 — 이때 프론트는 설정 폼으로 전환하지 않는다)
 
-**`POST /api/auth/setup`** — 최초 1회 관리자 계정 설정.
+**`POST /api/auth/setup`** — 최초 1회 관리자 계정 설정. **인증 필요**(`x-api-key` 또는 Bearer).
 - 요청 본문: `{ "username": "...", "password": "..." }` (비밀번호 8자 이상)
 - 응답 `200`: `{ "message": "관리자 계정이 설정되었습니다. 로그인하세요." }`
-- 오류: `409`(이미 설정됨), `400`(입력 누락/8자 미만)
+- 오류: `401`(인증 없음 — 브라우저에서 호출하면 여기에 걸린다), `409`(이미 설정됨), `400`(입력 누락/8자 미만), `503`(설정 저장소 조회 실패), `500`(저장 실패)
+- 호출 예: `curl -H "x-api-key: <API_ACCESS_KEY>" -H "Content-Type: application/json" -d '{"username":"...","password":"..."}' -X POST https://<host>/api/auth/setup`
 
 **`POST /api/auth/login`** — 로그인, 세션 토큰 발급.
 - 요청 본문: `{ "username": "...", "password": "..." }`
 - 응답 `200`: `{ "token": "<서명 토큰>", "expiresAt": "<UTC 만료시각>" }`
-- 오류: `400`(미설정 시 `{error, needsSetup:true}` / 입력 누락), `401`(자격증명 불일치), `500`(서명 키 `MASTER_KEY` 부재)
+- 오류: `429`(실패 속도 상한 초과), `400`(미설정 시 `{error, needsSetup:true}` / 입력 누락), `401`(자격증명 불일치), `503`(설정 저장소 조회 실패), `500`(서명 키 `MASTER_KEY` 부재)
+- 실패 속도 상한: 서비스 전체에서 **분당 실패 20회**를 넘기면 그 창이 끝날 때까지 `429`. 비밀번호 검증(PBKDF2 12만 회)보다 앞에서 잘라내 CPU 소모 공격도 함께 막는다. 유효한 `x-api-key`를 동봉한 요청은 상한에서 면제된다(공격 중에도 소유자가 들어올 통로).
 
 ### 설정 (`ConfigController`, `/api/config`)
 

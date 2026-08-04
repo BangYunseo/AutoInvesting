@@ -297,7 +297,7 @@ docker run --rm -p 5000:5000 \
 | `DATABASE_URL` | PostgreSQL 접속 URI (미설정 시 `localhost` 기본 접속) | 선택 (로컬 기본값 사용 시 생략) |
 | `MASTER_KEY` | 시크릿 AES-256-GCM 암복호화 + 세션 토큰 서명 키 (base64 32바이트) | 권장 (미설정 시 시크릿 평문 저장·로그인 불가) |
 | `AUTH_TOKEN_SECRET` | 세션 토큰 서명 전용 키 (미설정 시 `MASTER_KEY`에서 파생) | 선택 |
-| `API_ACCESS_KEY` | 크론이 보내는 `x-api-key` 헤더를 검증하는 서버 측 키 | 크론 트리거 사용 시 필수 |
+| `API_ACCESS_KEY` | 크론이 보내는 `x-api-key` 헤더를 검증하는 서버 측 키. **최초 관리자 설정(`POST /api/auth/setup`)의 유일한 통과 수단이기도 하다** | 크론 트리거 사용 시 + **새 환경 부트스트랩 시 필수** |
 | `IS_PAPER_TRADING` | 모의(`1`)/실전(`0`) 분기 (미설정 시 `appsettings.json > Trading:IsPaperTrading` = 모의) | 선택 |
 | `KIS_APP_KEY` | 한국투자증권 APP KEY | 실전 전환 시 필수 |
 | `KIS_APP_SECRET` | 한국투자증권 APP SECRET | 실전 전환 시 필수 |

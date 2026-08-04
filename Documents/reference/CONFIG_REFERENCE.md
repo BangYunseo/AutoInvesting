@@ -159,7 +159,7 @@ IS_PAPER_TRADING = 0
 | Node + `npm install` | 프론트 사용 시 | 백엔드를 Vite 프록시 대상 포트에 바인딩 |
 | `MASTER_KEY` | 권장 | 없으면 시크릿 평문 저장. `AUTH_TOKEN_SECRET`까지 없으면 로그인 불가 |
 | KIS 키 | 불필요 | 없으면 `SimBrokerClient` |
-| `API_ACCESS_KEY` | 불필요 | 크론 미사용 시 |
+| `API_ACCESS_KEY` | **사실상 필수** | 크론 트리거뿐 아니라 **최초 관리자 설정(`POST /api/auth/setup`)의 유일한 통과 수단**이다. 관리자가 없는 새 환경에서 이 값이 없으면 Bearer도 못 받고 `x-api-key`도 못 써 관리자를 만들 수 없다(복구: 환경변수/`appsettings.local.json`에 추가 후 재기동, 또는 `TB_APP_CONFIG`에 행 직접 삽입) |
 | Resend 키 | 불필요 | 알림 미사용 시 |
 
 로컬 시크릿은 `appsettings.local.json`에 둔다. `.gitignore`와 `.dockerignore` 양쪽에서 제외된다. 템플릿은 `appsettings.example.json`을 복사해 쓴다.

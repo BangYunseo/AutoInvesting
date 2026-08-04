@@ -45,7 +45,7 @@ AutoInvesting/
 │   ├── OrderController.cs              # dca-run(적립 사이클), manual(수동 주문), sell-preview(매도 양도세 프리뷰)
 │   ├── DcaController.cs               # /api/dca/config 매수 템플릿·월배정 조회·저장 (GET: {templates, monthMap, currentMonth, activeTemplateId} / PUT: {templates, monthMap})
 │   ├── PriceController.cs             # /api/price/{ticker} 현재가 조회 겸 티커 검증
-│   ├── AuthController.cs              # /api/auth status/setup/login (단일 관리자 인증, 서명 세션 토큰) [PublicEndpoint]
+│   ├── AuthController.cs              # /api/auth status/setup/login (단일 관리자 인증, 서명 세션 토큰) — [PublicEndpoint]는 status/login만, setup은 인증 필요(x-api-key)
 │   ├── ConfigController.cs
 │   ├── PortfolioController.cs
 │   ├── HistoryController.cs

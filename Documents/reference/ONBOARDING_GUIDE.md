@@ -98,7 +98,9 @@ AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(�
 - **사람/Web UI**: `AuthController`(`/api/auth/login`)로 로그인해 받은 **서명된 세션 토큰**을 `Authorization: Bearer <token>` 헤더로 전송합니다. 프론트엔드는 이 경로를 사용합니다.
 - **외부 크론잡**: 위에서 설정한 `Security:ApiAccessKey` 값을 HTTP 헤더 **`x-api-key`**에 담아 전송합니다.
 
-둘 중 하나로 통과하며, 어느 쪽도 없으면 `401 Unauthorized`로 비인가 접근을 차단합니다. 단 로그인·초기설정·상태 조회(`/api/auth/*`)는 `[PublicEndpoint]`로 인증이 면제됩니다.
+둘 중 하나로 통과하며, 어느 쪽도 없으면 `401 Unauthorized`로 비인가 접근을 차단합니다. 인증이 면제되는 것은 **상태 조회(`/api/auth/status`)와 로그인(`/api/auth/login`) 둘뿐**입니다.
+
+⚠️ **초기설정(`/api/auth/setup`)은 면제가 아닙니다.** 관리자 자리가 비어 보이는 순간에 아무나 관리자를 선점해 실주문까지 낼 수 있어 2026-08-04에 인증 대상으로 옮겼습니다. 새 환경의 최초 설정은 `x-api-key`를 붙여 호출해야 하므로 `API_ACCESS_KEY`가 부트스트랩 필수 조건입니다. 이 경계는 `Tests/PublicEndpointExposureTests.cs`가 리플렉션으로 고정하고 있어, 컨트롤러 클래스에 `[PublicEndpoint]`를 다시 붙이면 테스트가 깨집니다.
 
 ## 6. 프론트엔드 화면 구성
 
