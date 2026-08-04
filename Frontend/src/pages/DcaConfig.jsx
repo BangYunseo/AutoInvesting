@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 /**
  * 적립 설정 페이지.
@@ -25,6 +25,9 @@ const DcaConfig = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  // 월별 실행 로그: 올해 매수 기록(TB_TRADE_HISTORY)과 오른쪽에서 볼 월
+  const [trades, setTrades] = useState([]);
+  const [logMonth, setLogMonth] = useState(0);
 
   const won = (n) => '₩' + Math.round(n || 0).toLocaleString('ko-KR');
   const newId = () => 't' + Date.now();
@@ -81,6 +84,7 @@ const DcaConfig = () => {
       setTemplates(tpls);
       setMonthMap(data.monthMap || {});
       setCurrentMonth(data.currentMonth || 0);
+      setLogMonth(m => m || data.currentMonth || 1);
       const sel = data.activeTemplateId || tpls[0]?.id || null;
       setSelectedId(sel);
       // 선택된 템플릿의 현재가만 조회
@@ -109,7 +113,35 @@ const DcaConfig = () => {
     }
   };
 
-  useEffect(() => { loadConfig(); loadCash(); }, []);
+  // ── 올해 매수 기록 조회 (월별 "실제 실행됐는지" 확인용) ──
+  // 전용 테이블을 새로 만들지 않고 기존 거래이력을 월로 묶어 쓴다. 다만 이 테이블에는
+  // 주문 출처 컬럼이 없어 적립 사이클과 수동 매수를 구분하지 못한다(화면에 그대로 밝힌다).
+  const loadTrades = async () => {
+    try {
+      const res = await fetch('/api/history/trades?limit=500');
+      if (!res.ok) return; // 로그는 보조 정보 — 실패해도 설정 화면을 막지 않는다
+      const data = await res.json();
+      setTrades(Array.isArray(data.trades) ? data.trades : []);
+    } catch {
+      // 조회 실패 시 로그 패널만 비어 보인다(별도 에러 배너 없음)
+    }
+  };
+
+  useEffect(() => { loadConfig(); loadCash(); loadTrades(); }, []);
+
+  // ── 올해 매수 기록을 월(1~12)별로 묶기 ──
+  const thisYear = new Date().getFullYear();
+  const buysByMonth = useMemo(() => {
+    const map = {};
+    for (const t of trades) {
+      if ((t.orderType || '').toUpperCase() !== 'BUY') continue;
+      const d = new Date(t.tradeDate);
+      if (Number.isNaN(d.getTime()) || d.getFullYear() !== thisYear) continue;
+      (map[d.getMonth() + 1] ??= []).push({ ...t, at: d });
+    }
+    for (const m of Object.keys(map)) map[m].sort((a, b) => b.at - a.at);
+    return map;
+  }, [trades, thisYear]);
 
   const selected = templates.find(t => t.id === selectedId) || null;
   const budgetNum = selected ? Number(selected.budget) || 0 : 0;
@@ -221,7 +253,7 @@ const DcaConfig = () => {
     // 주문 설정과 동일하게 "카드가 떠오르는" 인트로를 유지하기 위해
     // 별도 로딩 박스 대신, 같은 카드 안에서 스피너를 보여준다(교체 깜빡임 제거).
     return (
-      <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 760, margin: '0 auto' }}>
+      <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 980, margin: '0 auto' }}>
         <h2>적립 설정</h2>
         <div className="loading-container" style={{ padding: '48px 20px' }}>
           <div className="loading-spinner" />
@@ -250,7 +282,7 @@ const DcaConfig = () => {
   };
 
   return (
-    <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 760, margin: '0 auto' }}>
+    <div className="card fade-in fade-in-delay-1" style={{ maxWidth: 980, margin: '0 auto' }}>
       <h2>적립 설정</h2>
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: 20, wordBreak: 'keep-all' }}>
         여러 <strong>매수 템플릿</strong>을 만들어 두고 <strong>월별로 배정</strong>하면, 그 달의 적립 사이클은
@@ -370,25 +402,91 @@ const DcaConfig = () => {
           ※ 배정이 비어 있으면 첫 템플릿(<strong>{templates[0]?.name}</strong>)이 매월 적용됩니다.
         </p>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 24 }}>
-        {MONTHS.map((label, i) => {
-          const m = i + 1;
-          const isCur = m === currentMonth;
-          return (
-            <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 'var(--radius-sm)', background: isCur ? 'rgba(110,168,254,0.10)' : 'transparent', border: isCur ? '1px solid var(--accent, #6ea8fe)' : '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ width: 34, fontSize: '0.8rem', color: isCur ? 'var(--accent, #6ea8fe)' : 'var(--text-secondary)' }}>{label}</span>
-              <select
-                className="input-field"
-                value={monthMap[String(m)] || ''}
-                onChange={e => assignMonth(m, e.target.value)}
-                style={{ flex: 1, fontSize: '0.8rem' }}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 24 }}>
+        {/* 좌: 월별 배정 리스트 (행을 누르면 오른쪽 로그가 그 달로 바뀜) */}
+        <div style={{ flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {MONTHS.map((label, i) => {
+            const m = i + 1;
+            const isCur = m === currentMonth;
+            const isLogSel = m === logMonth;
+            const ran = (buysByMonth[m] || []).length > 0;
+            return (
+              <div
+                key={m}
+                onClick={() => setLogMonth(m)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', cursor: 'pointer',
+                  borderRadius: 'var(--radius-sm)',
+                  background: isLogSel ? 'rgba(110,168,254,0.14)' : isCur ? 'rgba(110,168,254,0.06)' : 'transparent',
+                  border: isLogSel ? '1px solid var(--accent, #6ea8fe)' : isCur ? '1px solid rgba(110,168,254,0.35)' : '1px solid rgba(255,255,255,0.06)',
+                }}
               >
-                <option value="">— 미배정</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-          );
-        })}
+                <span
+                  title={ran ? '이 달에 매수 기록 있음' : '이 달에 매수 기록 없음'}
+                  style={{ width: 12, color: ran ? 'var(--profit-green)' : 'var(--text-muted)', fontSize: '0.7rem' }}
+                >
+                  {ran ? '●' : '○'}
+                </span>
+                <span style={{ width: 34, fontSize: '0.8rem', color: isCur ? 'var(--accent, #6ea8fe)' : 'var(--text-secondary)' }}>{label}</span>
+                <select
+                  className="input-field"
+                  value={monthMap[String(m)] || ''}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => assignMonth(m, e.target.value)}
+                  style={{ flex: 1, fontSize: '0.8rem' }}
+                >
+                  <option value="">— 미배정</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 우: 선택한 달의 실제 매수 기록 */}
+        <div style={{ flex: '1 1 340px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-sm)', padding: 14, alignSelf: 'stretch' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+            <strong style={{ fontSize: '0.9rem' }}>{thisYear}년 {logMonth}월 실행 기록</strong>
+            <button className="btn btn--outline" onClick={loadTrades} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>🔄 새로고침</button>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginBottom: 10, wordBreak: 'keep-all' }}>
+            거래이력의 매수 기록입니다. 이 표에는 주문 출처 컬럼이 없어 <strong>적립 사이클과 수동 매수를 구분하지 않습니다</strong>.
+            지정가 주문이므로 접수(PENDING)가 곧 체결은 아닙니다.
+          </p>
+
+          {(() => {
+            const rows = buysByMonth[logMonth] || [];
+            if (rows.length === 0) {
+              return (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.83rem', padding: '18px 0', textAlign: 'center' }}>
+                  이 달에는 매수 기록이 없습니다.
+                </div>
+              );
+            }
+            const totalQty = rows.reduce((s, r) => s + (r.qty || 0), 0);
+            const totalUsd = rows.reduce((s, r) => s + (r.qty || 0) * (r.price || 0), 0);
+            return (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
+                  {rows.map(r => (
+                    <div key={r.tradeId} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                      <span style={{ color: 'var(--text-muted)', width: 88, flexShrink: 0 }}>
+                        {String(r.at.getMonth() + 1).padStart(2, '0')}-{String(r.at.getDate()).padStart(2, '0')} {String(r.at.getHours()).padStart(2, '0')}:{String(r.at.getMinutes()).padStart(2, '0')}
+                      </span>
+                      <span style={{ fontWeight: 600, width: 58, flexShrink: 0 }}>{r.ticker}</span>
+                      <span style={{ flex: 1 }}>{r.qty}주 · ${Number(r.price).toFixed(2)}</span>
+                      <span style={{ color: r.status === 'FILLED' ? 'var(--profit-green)' : 'var(--warn-amber)', flexShrink: 0 }}>{r.status}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  합계 <strong>{rows.length}건</strong> · {totalQty}주 · ${totalUsd.toFixed(2)}
+                  {exchangeRate > 0 && ` (${won(totalUsd * exchangeRate)})`}
+                </div>
+              </>
+            );
+          })()}
+        </div>
       </div>
 
       <button className="btn btn--primary" onClick={handleSave} disabled={saving} style={{ width: '100%', padding: '14px', fontSize: '1rem' }}>
