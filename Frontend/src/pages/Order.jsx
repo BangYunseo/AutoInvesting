@@ -424,7 +424,7 @@ const Order = () => {
       title: "다음 개장 때 추가 적립",
       body: (
         <>
-          다음 크론 실행(<strong>매일 KST 23:40</strong>, 미국장 개장 직후)에 추가 적립 1회를
+          다음 크론 실행(<strong>매일 KST 00:10</strong>, 미국장 장중)에 추가 적립 1회를
           예약합니다.
           <br />
           {whatItBuys}
@@ -444,7 +444,7 @@ const Order = () => {
       title: `${scheduleMonthLabel} 추가 적립이 예정된 상태입니다`,
       body: (
         <>
-          다음 크론 실행(<strong>매일 KST 23:40</strong>)에 추가 적립 1회가 집행됩니다.
+          다음 크론 실행(<strong>매일 KST 00:10</strong>)에 추가 적립 1회가 집행됩니다.
           <br />
           {whatItBuys}
           <br />
@@ -746,8 +746,8 @@ const Order = () => {
           {scheduling ? "⏳ 예약 변경 중..." : "추가 적립"}
         </button>
         <p style={{ marginTop: 6, fontSize: "0.76rem", color: "var(--text-muted)", wordBreak: "keep-all" }}>
-          한국 낮에는 미국장이 닫혀 있어 즉시 실행이 거부됩니다. 예약하면 매일 KST 23:40에 도는
-          크론이 개장 직후 1회 집행하고 예약을 소진합니다. 주문 접수가 없으면 예약이 남아 다음 날 다시 시도합니다.
+          한국 낮에는 미국장이 닫혀 있어 즉시 실행이 거부됩니다. 예약하면 매일 KST 00:10에 도는
+          크론이 미국장 장중에 1회 집행하고 예약을 소진합니다. 주문 접수가 없으면 예약이 남아 다음 날 다시 시도합니다.
         </p>
 
         {dcaError && (

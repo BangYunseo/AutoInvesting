@@ -54,7 +54,8 @@
 - 과매수 방지(월 예산 매일 소진 시 ~30배)는 **코드로 이미 해결됨** — `DailyExecutionService.RunDcaCycleAsync`의
   월 1회 멱등 가드(`TB_APP_CONFIG`의 `DCA_LAST_RUN_MONTH`, KST)가 당월 1회만 집행하고, 체결 0건인 날은
   마커를 남기지 않아 다음 날 자동 재시도한다. 따라서 크론(`.github/workflows/daily-run.yml`,
-  `40 14 1-31 * *` = 매일 KST 23:40)은 **그대로 두어도 안전하다**(매월 1일로 변경할 필요 없음 —
+  `10 15 1-31 * *` = 매일 KST 00:10, 2026-08-03에 월 경계 뒤집힘 때문에 23:40에서 옮김)은
+  **그대로 두어도 안전하다**(매월 1일로 변경할 필요 없음 —
   월초부터 시도해 처음 성공하는 날 1회만 적립).
 - **전환 스위치는 `IS_PAPER_TRADING` 하나뿐이고, 값은 정확히 문자열 `0`이어야 한다.**
   `SessionManager`의 판정이 `AppConfigManager.Get("IS_PAPER_TRADING", "1") != "0"`이므로 `false`·`False`·`no`·
@@ -66,6 +67,14 @@
   실전 자격증명(`KIS_APP_KEY`/`_SECRET`/`_ACCOUNT_NO` — 모의 앱키는 실전망에서 인증 실패)·예수금·체결.
   (`TestController`의 실주문 우회 경로 봉인은 **완료** — `POST /api/test/buy`를 2026-07-30에 제거해
   실주문 경로는 가드가 있는 `/api/order/manual` 하나만 남았다.)
+- **체결 대사 (2026-08-04 추가)**: 접수만으로 그 달을 완료로 세면 지정가가 안 붙어 소멸해도 완료로 남아
+  적립이 조용히 누락된다. `.github/workflows/reconcile.yml`(매일 UTC 21:30 = 미장 마감 후)이
+  `POST /api/order/reconcile`을 호출해 **주문 전후 보유 수량 차이**로 체결을 판정하고,
+  전량 미체결이면 `DCA_LAST_RUN_MONTH`를 해제해 재시도를 허용한다.
+  - 판정 근거는 `DCA_PENDING_SNAPSHOT`(주문 직전 보유 수량 + 접수 주문)이다.
+  - 🚫 **부분 체결에서는 마커를 되돌리지 않는다** — 되돌리면 이미 체결된 종목을 또 산다.
+  - 🚫 **수량이 줄어든 종목이 있으면 마커를 건드리지 않는다** — 사람이 매도했을 수 있어 판정을 신뢰할 수 없다.
+    애매하면 아무것도 하지 않는 쪽이 중복 매수보다 낫다.
 - 상세 이력: `Documents/reference/DEVELOPMENT.md`의 "실거래 전환" 섹션(과매수 방지 구현 완료 기록).
 ---
  
