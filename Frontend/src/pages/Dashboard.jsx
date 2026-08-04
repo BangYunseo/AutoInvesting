@@ -218,7 +218,7 @@ const Dashboard = () => {
           <h2>보유 종목</h2>
           {summaryUpdated && (
             <span className="section-header__sub">
-              마지막 업데이트: {summaryUpdated.toLocaleTimeString('ko-KR')} · 위 새로고침과 함께 갱신
+              원화는 현재 환율(₩{exchangeRate.toLocaleString(undefined, { maximumFractionDigits: 1 })}) 환산 · 매입 시점 환율 아님
             </span>
           )}
         </div>
