@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { countRunsInMonth } from "../utils/dcaRuns";
 
 /** 숫자를 원화 천단위 구분 문자열로 변환 (표시용). */
 const won = (n) => Number(n ?? 0).toLocaleString("ko-KR");
@@ -286,8 +287,10 @@ const Order = () => {
   // 이번 달 적립 상태 { month, alreadyRan, reserved } — 확인 문구와 예약 토글에 함께 쓴다
   const [dcaSchedule, setDcaSchedule] = useState(null);
   const [scheduling, setScheduling] = useState(false);
-  // 적립 실행·예약 확인 모달 키 ('run' | 'run-again' | 'reserve', null = 닫힘)
+  // 적립 실행·예약 확인 모달 키 ('run' | 'run-again' | 'reserve' | 'unreserve', null = 닫힘)
   const [dcaConfirm, setDcaConfirm] = useState(null);
+  // 이번 달 집행 회차 수 (거래이력을 회차로 묶어 센 값)
+  const [monthRunCount, setMonthRunCount] = useState(0);
 
   // ── 보유 종목 (수동 주문 종목 선택 소스) ──
   const [holdings, setHoldings] = useState([]);
@@ -333,12 +336,20 @@ const Order = () => {
     }
   }, []);
 
-  // ── 이번 달 적립 상태 조회 (실행 여부 + 예약 여부) ──
+  // ── 이번 달 적립 상태 조회 (실행 여부 + 예약 여부 + 적용될 템플릿) ──
   const fetchDcaSchedule = useCallback(async () => {
     try {
       const res = await fetch("/api/order/dca-schedule");
       if (!res.ok) return; // 보조 정보 — 실패해도 실행 버튼은 막지 않는다
-      setDcaSchedule(await res.json());
+      const data = await res.json();
+      setDcaSchedule(data);
+
+      // 이번 달 집행 횟수는 거래이력을 회차로 묶어 센다.
+      // 적립 설정의 월별 로그와 같은 숫자가 나와야 하므로 같은 유틸을 쓴다.
+      const tradeRes = await fetch("/api/history/trades?limit=500");
+      if (!tradeRes.ok) return;
+      const tradeData = await tradeRes.json();
+      setMonthRunCount(countRunsInMonth(tradeData.trades, data.month));
     } catch {
       // 조회 실패 시 확인 문구만 일반형으로 떨어진다
     }
@@ -357,6 +368,25 @@ const Order = () => {
   // 실행/예약 확인 모달 컨텍스트 (null = 닫힘)
   // 이미 적립한 달이면 "한 번 더 사는 것"임을 분명히 묻고, 아직 안 한 달이면
   // 굳이 중복 경고를 띄우지 않는다(늑대 소년 방지).
+  // 무엇을 사게 되는지 — 서버가 엔진과 같은 선택 로직으로 골라 준 템플릿
+  const activeTemplateName = dcaSchedule?.activeTemplateName || "";
+  const activeQtyText = Object.entries(dcaSchedule?.activeQuantities ?? {})
+    .map(([t, q]) => `${t} ${q}주`)
+    .join(" · ");
+
+  // 실수하면 돈이 나가는 사실만 붉은 굵은 글씨로 띄운다. 전부 강조하면 아무것도 강조되지 않는다.
+  // (컴포넌트가 아니라 엘리먼트다 — 렌더 중 컴포넌트를 새로 정의하면 매 렌더마다 트리가 갈린다)
+  const whatItBuys = activeTemplateName ? (
+    <span className="confirm-em">
+      {scheduleMonthLabel} 배정 템플릿은 &lsquo;{activeTemplateName}&rsquo;
+      {activeQtyText ? ` — ${activeQtyText}` : ""}
+    </span>
+  ) : (
+    <span className="confirm-em">
+      {scheduleMonthLabel}에 배정된 템플릿이 없습니다 — 실행해도 매수되지 않습니다
+    </span>
+  );
+
   const dcaConfirmSpec = {
     "run-again": {
       icon: "🔁",
@@ -364,8 +394,13 @@ const Order = () => {
       title: `${scheduleMonthLabel}은 이미 매수가 완료됐습니다`,
       body: (
         <>
-          지금 실행하면 <strong>{scheduleMonthLabel}에 배정된 템플릿의 수량만큼 한 번 더</strong>{" "}
-          매수합니다. 실제 자금이 추가로 집행됩니다.
+          <span className="confirm-em">
+            지금 실행하면 같은 수량을 한 번 더 매수합니다. 실제 자금이 추가로 집행됩니다.
+          </span>
+          <br />
+          {whatItBuys}
+          <br />
+          이번 달 적립은 지금까지 <strong>{monthRunCount}회</strong> 실행됐습니다.
         </>
       ),
       confirmLabel: "한 번 더 매수",
@@ -376,8 +411,9 @@ const Order = () => {
       title: `${scheduleMonthLabel} 적립 실행`,
       body: (
         <>
-          {scheduleMonthLabel}에 배정된 매수 템플릿의 <strong>종목별 고정 수량</strong>대로
-          매수합니다. 1주를 채우지 못한 잔돈은 다음 사이클로 이월됩니다.
+          {whatItBuys}
+          <br />
+          이 수량 그대로 즉시 매수합니다. 미국장이 닫혀 있으면 주문이 거부됩니다.
         </>
       ),
       confirmLabel: "적립 실행",
@@ -385,15 +421,39 @@ const Order = () => {
     reserve: {
       icon: "🗓",
       tone: "primary",
-      title: "다음 개장 때 추가 적립 예약",
+      title: "다음 개장 때 추가 적립",
       body: (
         <>
           다음 크론 실행(<strong>매일 KST 23:40</strong>, 미국장 개장 직후)에 추가 적립 1회를
-          예약합니다. 집행 시점의 <strong>{scheduleMonthLabel} 배정 템플릿</strong>을 그대로 사므로,
-          사려는 템플릿이 배정돼 있는지 먼저 확인하세요.
+          예약합니다.
+          <br />
+          {whatItBuys}
+          <br />
+          <span className="confirm-em">
+            집행 시점의 배정 템플릿을 그대로 삽니다 — 집행 전에 배정을 바꾸면 바뀐 쪽을 삽니다.
+          </span>
+          <br />
+          이번 달 적립은 지금까지 <strong>{monthRunCount}회</strong> 실행됐습니다.
         </>
       ),
       confirmLabel: "예약하기",
+    },
+    unreserve: {
+      icon: "🗓",
+      tone: "primary",
+      title: `${scheduleMonthLabel} 추가 적립이 예정된 상태입니다`,
+      body: (
+        <>
+          다음 크론 실행(<strong>매일 KST 23:40</strong>)에 추가 적립 1회가 집행됩니다.
+          <br />
+          {whatItBuys}
+          <br />
+          <span className="confirm-em">취소하면 이 집행은 일어나지 않습니다.</span>
+          <br />
+          이번 달 적립은 지금까지 <strong>{monthRunCount}회</strong> 실행됐습니다.
+        </>
+      ),
+      confirmLabel: "추가 적립 취소",
     },
   };
 
@@ -424,11 +484,9 @@ const Order = () => {
   // ── 추가 적립 예약 토글 ──
   // 즉시 실행은 한국 낮에 누르면 미국장이 닫혀 거부된다. 크론은 이미 개장 직후에 도므로
   // 그 실행이 당월 가드를 한 번만 넘도록 예약해 둔다.
-  // 예약 설정은 확인을 받고, 해제는 돈이 나가지 않으므로 바로 처리한다.
-  const requestToggleSchedule = () => {
-    if (dcaSchedule?.reserved) setSchedule(false);
-    else setDcaConfirm("reserve");
-  };
+  // 켤 때든 끌 때든 현재 상태와 무엇을 사게 되는지를 같은 형식으로 보여주고 확인받는다.
+  const requestToggleSchedule = () =>
+    setDcaConfirm(dcaSchedule?.reserved ? "unreserve" : "reserve");
 
   const setSchedule = async (next) => {
     setDcaConfirm(null);
@@ -676,18 +734,16 @@ const Order = () => {
           {dcaRunning ? "⏳ 실행 요청 중..." : "🪙 지금 적립 실행"}
         </button>
 
-        {/* 미국장이 닫힌 시간에 눌러도 주문이 거부되므로, 개장 직후 도는 크론에 1회 예약해 둔다 */}
+        {/* 미국장이 닫힌 시간에 눌러도 주문이 거부되므로, 개장 직후 도는 크론에 1회 예약해 둔다.
+            켜짐/꺼짐을 문구가 아니라 버튼이 눌린 모양으로 보여준다(토글). */}
         <button
-          className="btn btn--outline"
+          className={`btn ${dcaSchedule?.reserved ? "btn--primary" : "btn--outline"}`}
           onClick={requestToggleSchedule}
           disabled={scheduling}
+          aria-pressed={!!dcaSchedule?.reserved}
           style={{ width: "100%", padding: "12px", fontSize: "0.9rem", marginTop: 8 }}
         >
-          {scheduling
-            ? "⏳ 예약 변경 중..."
-            : dcaSchedule?.reserved
-              ? "🗓 예약됨 — 다음 개장 때 추가 적립 (누르면 취소)"
-              : "🗓 다음 개장 때 추가 적립 예약"}
+          {scheduling ? "⏳ 예약 변경 중..." : "🗓 추가 적립"}
         </button>
         <p style={{ marginTop: 6, fontSize: "0.76rem", color: "var(--text-muted)", wordBreak: "keep-all" }}>
           한국 낮에는 미국장이 닫혀 있어 즉시 실행이 거부됩니다. 예약하면 매일 KST 23:40에 도는
@@ -1052,7 +1108,11 @@ const Order = () => {
           spec={dcaConfirmSpec[dcaConfirm]}
           busy={dcaRunning || scheduling}
           onCancel={() => setDcaConfirm(null)}
-          onConfirm={() => (dcaConfirm === "reserve" ? setSchedule(true) : runDca())}
+          onConfirm={() => {
+            if (dcaConfirm === "reserve") setSchedule(true);
+            else if (dcaConfirm === "unreserve") setSchedule(false);
+            else runDca();
+          }}
         />
       )}
 

@@ -6,6 +6,7 @@ using AutoInvest.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -71,11 +72,24 @@ namespace AutoInvest.Controllers
         public IActionResult GetDcaSchedule()
         {
             string month = DailyExecutionService.CurrentKstMonth();
+
+            // 실행하면 무엇을 사는지 화면이 확인 문구에 그대로 띄울 수 있어야 한다.
+            // 엔진이 쓰는 것과 같은 선택 로직(SelectTemplate)을 그대로 쓴다 — 여기서 따로 판단하면
+            // 화면이 안내한 템플릿과 실제로 사는 템플릿이 어긋날 수 있다.
+            var templates = DcaSettings.LoadTemplates();
+            var monthMap = DcaSettings.LoadMonthMap();
+            var chosen = DcaSettings.SelectTemplate(templates, monthMap, int.Parse(month.Substring(5, 2)));
+
             return Ok(new
             {
                 month,
                 alreadyRan = AppConfigManager.Get(DailyExecutionService.LastRunMonthKey, "") == month,
-                reserved = AppConfigManager.Get(DailyExecutionService.ForceRunMonthKey, "") == month
+                reserved = AppConfigManager.Get(DailyExecutionService.ForceRunMonthKey, "") == month,
+                activeTemplateName = chosen?.Name ?? "",
+                activeQuantities = chosen?.Quantities
+                    .Where(kv => kv.Value > 0)
+                    .ToDictionary(kv => kv.Key, kv => kv.Value)
+                    ?? new Dictionary<string, int>()
             });
         }
 
