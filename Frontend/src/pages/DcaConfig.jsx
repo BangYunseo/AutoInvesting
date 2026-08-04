@@ -25,9 +25,10 @@ const DcaConfig = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  // 월별 실행 로그: 올해 매수 기록(TB_TRADE_HISTORY)과 오른쪽에서 볼 월
+  // 월별 실행 로그: 매수 기록(TB_TRADE_HISTORY)과 오른쪽에서 볼 연·월
   const [trades, setTrades] = useState([]);
   const [logMonth, setLogMonth] = useState(0);
+  const [logYear, setLogYear] = useState(new Date().getFullYear());
 
   const won = (n) => '₩' + Math.round(n || 0).toLocaleString('ko-KR');
   const newId = () => 't' + Date.now();
@@ -129,19 +130,30 @@ const DcaConfig = () => {
 
   useEffect(() => { loadConfig(); loadCash(); loadTrades(); }, []);
 
-  // ── 올해 매수 기록을 월(1~12)별로 묶기 ──
-  const thisYear = new Date().getFullYear();
-  const buysByMonth = useMemo(() => {
+  // ── 매수 기록을 연-월로 묶기 ──
+  // 연도로 나눠 담는다. 해가 바뀌어도 지난해 기록이 사라지지 않고 연도를 넘겨 보면 그대로 남는다.
+  const buysByYearMonth = useMemo(() => {
     const map = {};
     for (const t of trades) {
       if ((t.orderType || '').toUpperCase() !== 'BUY') continue;
       const d = new Date(t.tradeDate);
-      if (Number.isNaN(d.getTime()) || d.getFullYear() !== thisYear) continue;
-      (map[d.getMonth() + 1] ??= []).push({ ...t, at: d });
+      if (Number.isNaN(d.getTime())) continue;
+      ((map[d.getFullYear()] ??= {})[d.getMonth() + 1] ??= []).push({ ...t, at: d });
     }
-    for (const m of Object.keys(map)) map[m].sort((a, b) => b.at - a.at);
+    for (const y of Object.keys(map))
+      for (const m of Object.keys(map[y])) map[y][m].sort((a, b) => b.at - a.at);
     return map;
-  }, [trades, thisYear]);
+  }, [trades]);
+
+  // 기록이 있는 연도 + 올해를 합쳐 오름차순으로 (◀ ▶ 이동 범위)
+  const logYears = useMemo(() => {
+    const years = new Set(Object.keys(buysByYearMonth).map(Number));
+    years.add(new Date().getFullYear());
+    return [...years].sort((a, b) => a - b);
+  }, [buysByYearMonth]);
+
+  const buysByMonth = buysByYearMonth[logYear] || {};
+  const yearIdx = logYears.indexOf(logYear);
 
   const selected = templates.find(t => t.id === selectedId) || null;
   const budgetNum = selected ? Number(selected.budget) || 0 : 0;
@@ -344,22 +356,23 @@ const DcaConfig = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
             {selected.rows.map((row, idx) => (
               <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {/* 좁은 화면에서는 티커 줄과 수량 줄로 접힌다 — wrap이 없으면 티커 입력이 찌그러진다 */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <input
                     type="text" className="input-field" value={row.ticker}
                     onChange={e => setTicker(idx, e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') validateRow(selectedId, idx, row.ticker); }}
                     onBlur={() => { if (row.ticker && (row.status === 'idle' || row.status === 'saved')) validateRow(selectedId, idx, row.ticker); }}
-                    placeholder="티커 (예: QQQM)" style={{ flex: 2 }}
+                    placeholder="티커 (예: QQQM)" style={{ flex: '2 1 150px', minWidth: 130 }}
                   />
-                  <button className="btn btn--outline" onClick={() => validateRow(selectedId, idx, row.ticker)} style={{ padding: '8px 12px' }} title="현재가 확인">🔍</button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button className="btn btn--outline" onClick={() => validateRow(selectedId, idx, row.ticker)} style={{ padding: '8px 12px', flexShrink: 0 }} title="현재가 확인">🔍</button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <button className="btn btn--outline" onClick={() => stepQty(idx, -1)} style={{ padding: '8px 12px' }} title="감소">−</button>
                     <input type="number" className="input-field" min="1" step="1" value={row.qty} onChange={e => setQty(idx, e.target.value)} style={{ width: 60, textAlign: 'center' }} />
                     <button className="btn btn--outline" onClick={() => stepQty(idx, 1)} style={{ padding: '8px 12px' }} title="증가">+</button>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>주</span>
                   </div>
-                  <button className="btn btn--outline" onClick={() => removeRow(idx)} style={{ padding: '8px 12px' }} title="삭제">✕</button>
+                  <button className="btn btn--outline" onClick={() => removeRow(idx)} style={{ padding: '8px 12px', flexShrink: 0, marginLeft: 'auto' }} title="삭제">✕</button>
                 </div>
                 <div style={{ fontSize: '0.78rem', paddingLeft: 2 }}>{statusLine(row)}</div>
               </div>
@@ -407,9 +420,9 @@ const DcaConfig = () => {
         <div style={{ flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {MONTHS.map((label, i) => {
             const m = i + 1;
-            const isCur = m === currentMonth;
+            const isCur = m === currentMonth && logYear === new Date().getFullYear();
             const isLogSel = m === logMonth;
-            const ran = (buysByMonth[m] || []).length > 0;
+            const runCount = (buysByMonth[m] || []).length;
             return (
               <div
                 key={m}
@@ -422,10 +435,13 @@ const DcaConfig = () => {
                 }}
               >
                 <span
-                  title={ran ? '이 달에 매수 기록 있음' : '이 달에 매수 기록 없음'}
-                  style={{ width: 12, color: ran ? 'var(--profit-green)' : 'var(--text-muted)', fontSize: '0.7rem' }}
+                  title={runCount > 0 ? `${logYear}년 ${m}월 매수 기록 ${runCount}건` : `${logYear}년 ${m}월 매수 기록 없음`}
+                  style={{
+                    minWidth: 22, textAlign: 'center', flexShrink: 0, fontSize: '0.7rem',
+                    color: runCount > 0 ? 'var(--profit-green)' : 'var(--text-muted)',
+                  }}
                 >
-                  {ran ? '●' : '○'}
+                  {runCount > 0 ? `●${runCount}` : '○'}
                 </span>
                 <span style={{ width: 34, fontSize: '0.8rem', color: isCur ? 'var(--accent, #6ea8fe)' : 'var(--text-secondary)' }}>{label}</span>
                 <select
@@ -445,8 +461,24 @@ const DcaConfig = () => {
 
         {/* 우: 선택한 달의 실제 매수 기록 */}
         <div style={{ flex: '1 1 340px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-sm)', padding: 14, alignSelf: 'stretch' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-            <strong style={{ fontSize: '0.9rem' }}>{thisYear}년 {logMonth}월 실행 기록</strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button
+                className="btn btn--outline"
+                onClick={() => setLogYear(logYears[yearIdx - 1])}
+                disabled={yearIdx <= 0}
+                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                title="이전 연도"
+              >◀</button>
+              <strong style={{ fontSize: '0.9rem' }}>{logYear}년 {logMonth}월 실행 기록</strong>
+              <button
+                className="btn btn--outline"
+                onClick={() => setLogYear(logYears[yearIdx + 1])}
+                disabled={yearIdx < 0 || yearIdx >= logYears.length - 1}
+                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                title="다음 연도"
+              >▶</button>
+            </span>
             <button className="btn btn--outline" onClick={loadTrades} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>🔄 새로고침</button>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginBottom: 10, wordBreak: 'keep-all' }}>

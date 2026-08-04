@@ -761,6 +761,11 @@ select.input-field option {
   .summary-grid {
     grid-template-columns: 1fr;
   }
+
+  /* 카드 안쪽 여백이 24px씩 양옆을 먹으면 좁은 화면에서 입력줄이 찌그러진다 */
+  .card {
+    padding: 16px;
+  }
 }
 
 /* ── 스크롤바 커스텀 ── */
