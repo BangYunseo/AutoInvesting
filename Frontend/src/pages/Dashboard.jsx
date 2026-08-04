@@ -84,7 +84,10 @@ const Dashboard = () => {
   // ── 상단 카드 집계 계산 ──
   const stockEvalUsd = summaryHoldings.reduce((sum, h) => sum + h.currentPrice * h.qty, 0);
   const totalCostUsd = summaryHoldings.reduce((sum, h) => sum + h.avgPrice * h.qty, 0);
-  const totalAssetsUsd = stockEvalUsd; // 총 자산 = 보유 종목 평가액(예수금 제외)
+  // 총 자산 = 주식 평가액 + 예수금.
+  // 예전에는 예수금을 뺀 주식 평가액만 담아 '총 자산'과 '주식 평가금액' 두 카드가 같은 값을
+  // 보여줬다. 예수금 조회가 늘 0을 반환하던 동안은 우연히 맞아떨어져 드러나지 않았다.
+  const totalAssetsUsd = stockEvalUsd + cashBalance;
   const totalProfitUsd = stockEvalUsd - totalCostUsd;
   const totalProfitRate =
     totalCostUsd > 0 ? ((totalProfitUsd / totalCostUsd) * 100).toFixed(2) : '0.00';
@@ -159,7 +162,7 @@ const Dashboard = () => {
             {fmtMoney(totalAssetsUsd)}
           </div>
           <div className="summary-card__sub">
-            {fmtMoneyAlt(totalAssetsUsd)}
+            주식 {fmtMoney(stockEvalUsd)} + 예수금 {fmtMoney(cashBalance)}
           </div>
         </div>
 
