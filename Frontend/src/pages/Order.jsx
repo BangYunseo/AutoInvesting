@@ -419,7 +419,7 @@ const Order = () => {
       confirmLabel: "적립 실행",
     },
     reserve: {
-      icon: "🗓",
+      icon: "⏰",
       tone: "primary",
       title: "다음 개장 때 추가 적립",
       body: (
@@ -439,7 +439,7 @@ const Order = () => {
       confirmLabel: "예약하기",
     },
     unreserve: {
-      icon: "🗓",
+      icon: "⏰",
       tone: "primary",
       title: `${scheduleMonthLabel} 추가 적립이 예정된 상태입니다`,
       body: (
@@ -743,7 +743,7 @@ const Order = () => {
           aria-pressed={!!dcaSchedule?.reserved}
           style={{ width: "100%", padding: "12px", fontSize: "0.9rem", marginTop: 8 }}
         >
-          {scheduling ? "⏳ 예약 변경 중..." : "🗓 추가 적립"}
+          {scheduling ? "⏳ 예약 변경 중..." : "추가 적립"}
         </button>
         <p style={{ marginTop: 6, fontSize: "0.76rem", color: "var(--text-muted)", wordBreak: "keep-all" }}>
           한국 낮에는 미국장이 닫혀 있어 즉시 실행이 거부됩니다. 예약하면 매일 KST 23:40에 도는

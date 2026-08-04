@@ -223,7 +223,11 @@ const Dashboard = () => {
           )}
         </div>
 
-        <HoldingsTable holdings={summaryHoldings} exchangeRate={exchangeRate} />
+        <HoldingsTable
+          holdings={summaryHoldings}
+          format={fmtMoney}
+          formatAlt={fmtMoneyAlt}
+        />
       </div>
 
       {/* ── 비중 (표에서 빼서 전체 100% 기준으로 한눈에) ── */}

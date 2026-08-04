@@ -7,10 +7,7 @@
  * `TB_TRADE_HISTORY`에 체결 시점 환율 컬럼이 없어 진짜 원화 매입원가는 계산할 수 없습니다.
  * 정확한 원화 원가가 필요해지면 거래이력에 체결 환율을 함께 적재하는 것이 먼저입니다.
  */
-const HoldingsTable = ({ holdings, exchangeRate }) => {
-  const krw = (usd) =>
-    '₩' + Math.round(usd * exchangeRate).toLocaleString('ko-KR');
-
+const HoldingsTable = ({ holdings, format, formatAlt }) => {
   if (holdings.length === 0) {
     return (
       <div className="empty-state">
@@ -36,7 +33,6 @@ const HoldingsTable = ({ holdings, exchangeRate }) => {
         <tbody>
           {holdings.map((h, idx) => {
             const evalUsd = h.currentPrice * h.qty;
-            const evalKrw = evalUsd * exchangeRate;
             const profitPct = (h.profitRate * 100).toFixed(2);
             const isProfit = h.profitRate >= 0;
 
@@ -49,20 +45,18 @@ const HoldingsTable = ({ holdings, exchangeRate }) => {
                   </span>
                 </td>
                 <td className="text-strong">{h.qty.toLocaleString()}주</td>
-                {/* USD가 원본, 원화는 현재 환율 환산 보조 표기 */}
+                {/* 상단 자산 요약과 같은 통화 토글을 따른다: 선택 통화가 주 표기, 반대 통화가 보조 */}
                 <td>
-                  ${h.avgPrice.toFixed(2)}
-                  <div className="cell-sub">{krw(h.avgPrice)}</div>
+                  {format(h.avgPrice)}
+                  <div className="cell-sub">{formatAlt(h.avgPrice)}</div>
                 </td>
                 <td className="text-strong">
-                  ${h.currentPrice.toFixed(2)}
-                  <div className="cell-sub">{krw(h.currentPrice)}</div>
+                  {format(h.currentPrice)}
+                  <div className="cell-sub">{formatAlt(h.currentPrice)}</div>
                 </td>
                 <td className="text-strong">
-                  ${evalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  <div className="cell-sub">
-                    ₩{Math.round(evalKrw).toLocaleString('ko-KR')}
-                  </div>
+                  {format(evalUsd)}
+                  <div className="cell-sub">{formatAlt(evalUsd)}</div>
                 </td>
                 <td>
                   <span className={`badge-profit ${isProfit ? 'badge-profit--up' : 'badge-profit--down'}`}>
