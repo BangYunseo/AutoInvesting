@@ -64,6 +64,52 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
+        /// 이번 달(KST) 적립 상태와 추가 적립 예약 여부를 반환합니다.
+        /// 프론트가 "이미 적립한 달인지"에 따라 확인 문구를 바꾸고, 예약 토글의 현재 상태를 그리는 데 씁니다.
+        /// </summary>
+        [HttpGet("dca-schedule")]
+        public IActionResult GetDcaSchedule()
+        {
+            string month = DailyExecutionService.CurrentKstMonth();
+            return Ok(new
+            {
+                month,
+                alreadyRan = AppConfigManager.Get(DailyExecutionService.LastRunMonthKey, "") == month,
+                reserved = AppConfigManager.Get(DailyExecutionService.ForceRunMonthKey, "") == month
+            });
+        }
+
+        /// <summary>
+        /// 추가 적립을 다음 크론 실행 1회에 예약하거나 해제합니다.
+        ///
+        /// 즉시 실행은 한국 낮 시간대에 누르면 미국장이 닫혀 있어 주문이 거부됩니다. 크론은 이미
+        /// 개장 직후(매일 14:40 UTC)에 돌므로, 그 실행이 당월 멱등 가드를 한 번만 넘도록 예약합니다.
+        /// 예약은 접수가 발생하면 소진되고, 달이 바뀌면 저절로 무효가 됩니다.
+        /// </summary>
+        /// <param name="reserve">true면 예약, false면 예약 해제</param>
+        [HttpPost("dca-schedule")]
+        public IActionResult SetDcaSchedule([FromQuery] bool reserve)
+        {
+            string month = DailyExecutionService.CurrentKstMonth();
+
+            if (!AppConfigManager.Set(DailyExecutionService.ForceRunMonthKey, reserve ? month : ""))
+            {
+                Logger.Error($"[Order] 추가 적립 예약 {(reserve ? "설정" : "해제")} 저장 실패");
+                return StatusCode(500, new { error = "예약 상태를 저장하지 못했습니다. 잠시 후 다시 시도하세요." });
+            }
+
+            Logger.Info($"[Order] 추가 적립 예약 {(reserve ? $"설정 ({month})" : "해제")}");
+            return Ok(new
+            {
+                month,
+                reserved = reserve,
+                message = reserve
+                    ? "다음 크론 실행(매일 KST 23:40, 미국장 개장 직후)에 추가 적립 1회를 예약했습니다."
+                    : "추가 적립 예약을 해제했습니다."
+            });
+        }
+
+        /// <summary>
         /// 신호 판단을 거치지 않고 즉시 매수/매도 주문을 실행합니다 (KIS 모의계좌 연동 검증용).
         /// 퀀트/AI 합의와 무관하게 동작하므로 실거래 환경에서는 사용에 주의하세요.
         /// </summary>

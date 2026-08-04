@@ -30,10 +30,23 @@ namespace AutoInvest.Core
         /// DCA_LAST_RUN_MONTH("yyyy-MM")에 기록되며, 같은 달 재호출은 스킵됩니다.
         /// 거래이력이 아니라 전용 마커를 쓰는 이유: 수동 단일 매수가 월 적립을 오판하지 않게 하기 위함.
         /// </summary>
-        private const string LastRunMonthKey = "DCA_LAST_RUN_MONTH";
+        public const string LastRunMonthKey = "DCA_LAST_RUN_MONTH";
+
+        /// <summary>
+        /// 추가 적립 예약 마커. 값은 예약이 유효한 월("yyyy-MM", KST)이며, 이 값이 현재 월과 같으면
+        /// 당월 멱등 가드를 한 번 넘긴다.
+        ///
+        /// 사람이 화면에서 누르는 즉시 실행은 한국 낮 시간대라 미국장이 닫혀 있어 주문이 거부된다.
+        /// 그렇다고 크론에 강제 실행을 상시로 걸면 매일 중복 매수가 된다. 그래서 "다음 크론 실행 1회만
+        /// 강제"를 예약해 두고, 이미 미국장 안에서 도는 크론(매일 14:40 UTC = 개장 직후)이 집행한다.
+        ///
+        /// 월을 값으로 쓰는 이유: 예약이 소진되지 않은 채 달을 넘기면 다음 달 정기 적립에 얹혀
+        /// 2회 매수가 된다. 월이 바뀌면 저절로 무효가 되도록 만든다.
+        /// </summary>
+        public const string ForceRunMonthKey = "DCA_FORCE_RUN_MONTH";
 
         /// <summary>현재(KST=UTC+9) 월을 "yyyy-MM"으로 반환합니다.</summary>
-        private static string CurrentKstMonth() => DateTime.UtcNow.AddHours(9).ToString("yyyy-MM");
+        public static string CurrentKstMonth() => DateTime.UtcNow.AddHours(9).ToString("yyyy-MM");
 
         /// <summary>
         /// 적립식(DCA) 자동 매수 사이클을 실행합니다 (판단 없는 단순 자동화).
@@ -54,16 +67,19 @@ namespace AutoInvest.Core
             string statusNote = "";
 
             // ── 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 스킵 ──
+            // 예약(ForceRunMonthKey)이 이번 달로 걸려 있으면 크론 호출도 가드를 한 번 넘는다.
             string thisMonth = CurrentKstMonth();
             string lastRunMonth = AppConfigManager.Get(LastRunMonthKey, "");
-            if (lastRunMonth == thisMonth && !force)
+            bool reserved = AppConfigManager.Get(ForceRunMonthKey, "") == thisMonth;
+
+            if (lastRunMonth == thisMonth && !force && !reserved)
             {
                 statusNote = $"이번 달({thisMonth}) 적립이 이미 완료되어 매수를 건너뜁니다.";
                 Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 상태 — 매수 스킵");
                 return statusNote;
             }
             if (lastRunMonth == thisMonth)
-                Logger.Warn($"[DcaCycle] 강제 실행 — 이번 달({thisMonth}) 적립 완료 상태에서 추가 매수를 진행합니다.");
+                Logger.Warn($"[DcaCycle] {(reserved ? "예약된" : "강제")} 실행 — 이번 달({thisMonth}) 적립 완료 상태에서 추가 매수를 진행합니다.");
 
             try
             {
@@ -98,6 +114,15 @@ namespace AutoInvest.Core
                     // 기준을 체결이 아니라 접수로 두는 이유: 접수된 주문을 재시도하면 중복 매수가 된다.
                     if (result.Accepted.Count > 0)
                     {
+                        // 예약분은 접수가 있을 때만 소진한다. 접수 0건(휴장·예수금 부족)이면 예약을 남겨
+                        // 다음 크론이 다시 시도한다 — 월 마커와 같은 재시도 정책이다.
+                        if (reserved && !AppConfigManager.Set(ForceRunMonthKey, ""))
+                        {
+                            statusNote = "⚠️ 추가 적립 예약을 해제하지 못했습니다. 다음 크론 실행이 또 매수할 수 있으니 "
+                                + $"TB_APP_CONFIG의 {ForceRunMonthKey}를 비우세요.";
+                            Logger.Error($"[DcaCycle] {ForceRunMonthKey} 해제 실패 — 중복 매수 위험");
+                        }
+
                         // 마커 저장이 조용히 실패하면 다음 날 크론이 같은 달에 또 매수한다(실자금 중복 집행).
                         // 저장 실패는 반드시 보고서에 실어 사람이 알아채게 한다.
                         if (AppConfigManager.Set(LastRunMonthKey, thisMonth))
@@ -106,7 +131,8 @@ namespace AutoInvest.Core
                         }
                         else
                         {
-                            statusNote = $"⚠️ 이번 달({thisMonth}) 적립 완료 표시를 저장하지 못했습니다. "
+                            // 예약 해제 실패 안내가 이미 있을 수 있으므로 덮어쓰지 않고 잇는다.
+                            statusNote += $"{(statusNote.Length > 0 ? " " : "")}⚠️ 이번 달({thisMonth}) 적립 완료 표시를 저장하지 못했습니다. "
                                 + "이 상태로 두면 다음 크론 실행이 같은 달에 다시 매수합니다 — "
                                 + $"TB_APP_CONFIG의 {LastRunMonthKey}를 '{thisMonth}'로 직접 넣거나 크론을 멈추세요.";
                             Logger.Error($"[DcaCycle] {LastRunMonthKey} 저장 실패 — 중복 매수 위험");

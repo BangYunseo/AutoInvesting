@@ -221,6 +221,9 @@ const Order = () => {
   const [dcaRunning, setDcaRunning] = useState(false);
   const [dcaResult, setDcaResult] = useState(null);
   const [dcaError, setDcaError] = useState(null);
+  // 이번 달 적립 상태 { month, alreadyRan, reserved } — 확인 문구와 예약 토글에 함께 쓴다
+  const [dcaSchedule, setDcaSchedule] = useState(null);
+  const [scheduling, setScheduling] = useState(false);
 
   // ── 보유 종목 (수동 주문 종목 선택 소스) ──
   const [holdings, setHoldings] = useState([]);
@@ -266,19 +269,38 @@ const Order = () => {
     }
   }, []);
 
+  // ── 이번 달 적립 상태 조회 (실행 여부 + 예약 여부) ──
+  const fetchDcaSchedule = useCallback(async () => {
+    try {
+      const res = await fetch("/api/order/dca-schedule");
+      if (!res.ok) return; // 보조 정보 — 실패해도 실행 버튼은 막지 않는다
+      setDcaSchedule(await res.json());
+    } catch {
+      // 조회 실패 시 확인 문구만 일반형으로 떨어진다
+    }
+  }, []);
+
   useEffect(() => {
     fetchHoldings();
-  }, [fetchHoldings]);
+    fetchDcaSchedule();
+  }, [fetchHoldings, fetchDcaSchedule]);
+
+  // 이번 달 몇 월인지 (KST 기준 서버 응답 "yyyy-MM"에서 월만 뽑음)
+  const scheduleMonthLabel = dcaSchedule
+    ? `${Number(dcaSchedule.month.slice(5, 7))}월`
+    : "이번 달";
 
   const handleDcaRun = async () => {
-    if (
-      !confirm(
-        "이번 달에 배정된 매수 템플릿의 종목별 고정 수량대로 적립식 매수 사이클을 실행합니다.\n" +
-          "⚠️ 이번 달에 이미 적립했더라도 그만큼 추가로 매수됩니다 (중복 실행 = 중복 매수).\n" +
-          "정말 진행하시겠습니까?",
-      )
-    )
-      return;
+    // 이미 적립한 달이면 "한 번 더 사는 것"임을 분명히 묻는다.
+    // 아직 안 한 달이면 굳이 중복 경고를 띄우지 않는다(늑대 소년 방지).
+    const message = dcaSchedule?.alreadyRan
+      ? `${scheduleMonthLabel}은 이미 매수가 완료됐습니다.\n` +
+        "지금 실행하면 그만큼 한 번 더 매수합니다.\n\n" +
+        "한 번 더 매수하시겠습니까?"
+      : `${scheduleMonthLabel}에 배정된 매수 템플릿의 종목별 고정 수량대로 적립식 매수 사이클을 실행합니다.\n` +
+        "정말 진행하시겠습니까?";
+
+    if (!confirm(message)) return;
     try {
       setDcaRunning(true);
       setDcaError(null);
@@ -290,10 +312,43 @@ const Order = () => {
       if (!res.ok) throw new Error(`적립 실행 실패 (${res.status})`);
       const data = await res.json();
       setDcaResult(data);
+      fetchDcaSchedule();
     } catch (err) {
       setDcaError(err.message);
     } finally {
       setDcaRunning(false);
+    }
+  };
+
+  // ── 추가 적립 예약 토글 ──
+  // 즉시 실행은 한국 낮에 누르면 미국장이 닫혀 거부된다. 크론은 이미 개장 직후에 도므로
+  // 그 실행이 당월 가드를 한 번만 넘도록 예약해 둔다.
+  const handleToggleSchedule = async () => {
+    const next = !dcaSchedule?.reserved;
+    if (
+      next &&
+      !confirm(
+        "다음 크론 실행(매일 KST 23:40, 미국장 개장 직후)에 추가 적립 1회를 예약합니다.\n" +
+          `${scheduleMonthLabel}에 배정된 템플릿대로 매수하므로, 사려는 템플릿이 배정돼 있는지 먼저 확인하세요.\n\n` +
+          "예약하시겠습니까?",
+      )
+    )
+      return;
+
+    try {
+      setScheduling(true);
+      setDcaError(null);
+      const res = await fetch(`/api/order/dca-schedule?reserve=${next}`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `예약 변경 실패 (${res.status})`);
+      setDcaResult({ message: data.message });
+      await fetchDcaSchedule();
+    } catch (err) {
+      setDcaError(err.message);
+    } finally {
+      setScheduling(false);
     }
   };
 
@@ -508,6 +563,13 @@ const Order = () => {
           <code>적립 설정</code> 페이지에서 편집합니다.
         </div>
 
+        {dcaSchedule?.alreadyRan && (
+          <div className="alert alert--warn" style={{ marginBottom: 12 }}>
+            ✅ {scheduleMonthLabel}은 이미 매수가 완료됐습니다. 지금 실행하면{" "}
+            <strong>한 번 더</strong> 매수합니다.
+          </div>
+        )}
+
         <button
           className="btn btn--primary"
           onClick={handleDcaRun}
@@ -516,6 +578,24 @@ const Order = () => {
         >
           {dcaRunning ? "⏳ 실행 요청 중..." : "🪙 지금 적립 실행"}
         </button>
+
+        {/* 미국장이 닫힌 시간에 눌러도 주문이 거부되므로, 개장 직후 도는 크론에 1회 예약해 둔다 */}
+        <button
+          className="btn btn--outline"
+          onClick={handleToggleSchedule}
+          disabled={scheduling}
+          style={{ width: "100%", padding: "12px", fontSize: "0.9rem", marginTop: 8 }}
+        >
+          {scheduling
+            ? "⏳ 예약 변경 중..."
+            : dcaSchedule?.reserved
+              ? "🗓 예약됨 — 다음 개장 때 추가 적립 (누르면 취소)"
+              : "🗓 다음 개장 때 추가 적립 예약"}
+        </button>
+        <p style={{ marginTop: 6, fontSize: "0.76rem", color: "var(--text-muted)", wordBreak: "keep-all" }}>
+          한국 낮에는 미국장이 닫혀 있어 즉시 실행이 거부됩니다. 예약하면 매일 KST 23:40에 도는
+          크론이 개장 직후 1회 집행하고 예약을 소진합니다. 주문 접수가 없으면 예약이 남아 다음 날 다시 시도합니다.
+        </p>
 
         {dcaError && (
           <div className="alert alert--err" style={{ marginTop: 16 }}>
