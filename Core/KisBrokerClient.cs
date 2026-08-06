@@ -243,6 +243,14 @@ namespace AutoInvest.Core
             var responseString = await response.Content.ReadAsStringAsync();
             var json = JsonSerializer.Deserialize<JsonElement>(responseString);
 
+            // ── 진단 로그 (임시) ──
+            // frcr_dncl_amt_2가 정말 예수금인지 공식 문서로 확정하지 못했다. 어느 필드가 실제
+            // 예수금/주문가능액인지 값을 보고 고르기 위해 통화별(output2)·계좌총괄(output3) 원본을 남긴다.
+            // 계좌번호는 요청 파라미터에만 있고 이 두 노드에는 없으므로 그대로 남겨도 안전하다.
+            // ponytail: 필드가 확정되면 이 두 줄은 지운다.
+            if (json.TryGetProperty("output2", out var dbg2)) Logger.Info($"[KisBroker][진단] output2={dbg2.GetRawText()}");
+            if (json.TryGetProperty("output3", out var dbg3)) Logger.Info($"[KisBroker][진단] output3={dbg3.GetRawText()}");
+
             if (json.TryGetProperty("output2", out var output2) && output2.ValueKind == JsonValueKind.Array)
             {
                 foreach (var row in output2.EnumerateArray())
