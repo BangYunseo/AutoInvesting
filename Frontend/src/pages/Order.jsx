@@ -774,8 +774,37 @@ const Order = () => {
       </div>
 
       {/* ── 우측: 수동 주문 ── */}
-      <div className="card fade-in fade-in-delay-2">
-        <h2>수동 주문</h2>
+      <div
+        className={`card fade-in fade-in-delay-2 manual-order manual-order--${orderType === "BUY" ? "buy" : "sell"}`}
+      >
+        {/* 종목 선택 방식은 매수에만 있는 선택이라 제목 줄 우측 토글로 붙인다(대시보드 통화 토글과 같은 모양). */}
+        <div className="card-head">
+          <h2>수동 주문</h2>
+          {orderType === "BUY" && (
+            <div className="ccy-toggle" role="group" aria-label="종목 선택 방식">
+              <button
+                type="button"
+                className={buyMode === "hold" ? "active" : ""}
+                onClick={() => {
+                  setBuyMode("hold");
+                  setOrderError(null);
+                }}
+              >
+                보유 종목
+              </button>
+              <button
+                type="button"
+                className={buyMode === "new" ? "active" : ""}
+                onClick={() => {
+                  setBuyMode("new");
+                  setOrderError(null);
+                }}
+              >
+                신규 입력
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="alert alert--warn" style={{ marginBottom: 20 }}>
           ⚠️ 판단 없이 즉시 주문이 실행됩니다. 매도는 보유 종목·보유수량
@@ -810,38 +839,7 @@ const Order = () => {
           </div>
         </div>
 
-        {/* 매수 종목 소스 토글 (매수 전용) */}
-        {orderType === "BUY" && (
-          <div className="form-group">
-            <label>종목 선택 방식</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                className={`btn ${buyMode === "hold" ? "btn--primary" : "btn--outline"}`}
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setBuyMode("hold");
-                  setOrderError(null);
-                }}
-              >
-                보유 종목 선택
-              </button>
-              <button
-                type="button"
-                className={`btn ${buyMode === "new" ? "btn--primary" : "btn--outline"}`}
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setBuyMode("new");
-                  setOrderError(null);
-                }}
-              >
-                신규 직접입력
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 종목: 보유종목 드롭다운 (매도 전체 / 매수 'hold' 모드) */}
+        {/* 종목: 보유종목 목록 (매도 전체 / 매수 'hold' 모드) */}
         {!isBuyNew && (
           <div className="form-group">
             <label>종목 {orderType === "SELL" ? "(보유 종목)" : ""}</label>
@@ -873,12 +871,11 @@ const Order = () => {
                 {orderType === "BUY" && "신규 직접입력으로 매수하세요."}
               </div>
             ) : (
-              <div className="chip-row" role="radiogroup" aria-label="보유 종목">
+              <div className="pick-list" role="radiogroup" aria-label="보유 종목">
                 {holdings.map((h) => (
                   <label
                     key={h.ticker}
                     className={`chip ${selectedTicker === h.ticker ? "chip--on" : ""}`}
-                    title={`${h.ticker} · ${h.qty}주 보유 · $${h.currentPrice?.toFixed?.(2) ?? h.currentPrice}`}
                   >
                     <input
                       type="radio"
@@ -890,15 +887,11 @@ const Order = () => {
                       }}
                     />
                     {h.ticker}
-                    <span
-                      style={{
-                        marginLeft: 6,
-                        opacity: 0.7,
-                        fontWeight: 400,
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
+                    <span className="pick-list__num">
                       {h.qty}주
+                      <span className="cell-sub">
+                        ${h.currentPrice?.toFixed?.(2) ?? h.currentPrice}
+                      </span>
                     </span>
                   </label>
                 ))}

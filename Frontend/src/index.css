@@ -718,10 +718,78 @@ select.input-field option {
   pointer-events: none;
 }
 
+/* 표 한 칸 안의 보조 표기(원화 환산 등) — 주 값 아래에 작게 붙인다 */
+.cell-sub {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 확인 모달에서 "실수하면 돈이 나가는" 사실만 눈에 박히게. 남발하면 강조가 죽는다. */
 .confirm-em {
   color: var(--loss-red);
   font-weight: 700;
+}
+
+/* ── 카드 제목 줄 (제목 + 우측 컨트롤) ──
+   .card h2의 구분선을 유지해야 하므로 이 줄이 테두리를 대신 들고, h2에서는 뗀다. */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.card-head h2 {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* ── 수동 주문: 매수=빨강 / 매도=파랑 (한국 관례) ──
+   칩·버튼·포커스링이 각자 색을 들고 있으면 분기가 늘어난다. 카드 안에서 강조색 변수만
+   갈아끼워 전부 따라오게 한다. 매도는 기본 강조색(파랑)이라 별도 선언이 없다. */
+.manual-order--buy {
+  --accent-blue: var(--loss-red);
+  --accent-blue-glow: var(--loss-red-bg);
+  --accent-purple: #f97316;
+  --shadow-glow-blue: 0 0 20px rgba(239, 68, 68, 0.15);
+}
+
+/* btn--primary:hover만 색을 하드코딩하고 있어 변수 교체가 닿지 않는다 */
+.manual-order--buy .btn--primary:hover {
+  background: #dc2626;
+}
+
+/* ── 종목 선택 목록 ──
+   좌우로 흐르면 종목이 늘 때 줄이 접힌다. 한 줄에 한 종목, 수량은 우측·현재가는 그 아래. */
+.pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pick-list .chip {
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.pick-list__num {
+  text-align: right;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.pick-list__num .cell-sub {
+  display: block;
 }
 
 /* ── 로그 달력 ──
@@ -838,6 +906,12 @@ select.input-field option {
 .ccy-toggle button.active {
   background: var(--accent-blue);
   color: #fff;
+}
+
+/* 요약 카드 안처럼 폭이 좁은 자리에 넣는 축소판 */
+.ccy-toggle--sm button {
+  padding: 2px 8px;
+  font-size: 0.7rem;
 }
 
 /* ── 배지 ── */
