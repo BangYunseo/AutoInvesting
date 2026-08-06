@@ -7,7 +7,7 @@
  * `TB_TRADE_HISTORY`에 체결 시점 환율 컬럼이 없어 진짜 원화 매입원가는 계산할 수 없습니다.
  * 정확한 원화 원가가 필요해지면 거래이력에 체결 환율을 함께 적재하는 것이 먼저입니다.
  */
-const HoldingsTable = ({ holdings, format }) => {
+const HoldingsTable = ({ holdings, format, formatAlt }) => {
   if (holdings.length === 0) {
     return (
       <div className="empty-state">
@@ -45,10 +45,19 @@ const HoldingsTable = ({ holdings, format }) => {
                   </span>
                 </td>
                 <td className="text-strong">{h.qty.toLocaleString()}주</td>
-                {/* 상단 자산 요약의 통화 토글을 따라 선택한 통화만 보여준다 */}
-                <td>{format(h.avgPrice)}</td>
-                <td className="text-strong">{format(h.currentPrice)}</td>
-                <td className="text-strong">{format(evalUsd)}</td>
+                {/* 상단 자산 요약과 같은 통화 토글을 따른다: 선택 통화가 주 표기, 반대 통화가 보조 */}
+                <td>
+                  {format(h.avgPrice)}
+                  <div className="cell-sub">{formatAlt(h.avgPrice)}</div>
+                </td>
+                <td className="text-strong">
+                  {format(h.currentPrice)}
+                  <div className="cell-sub">{formatAlt(h.currentPrice)}</div>
+                </td>
+                <td className="text-strong">
+                  {format(evalUsd)}
+                  <div className="cell-sub">{formatAlt(evalUsd)}</div>
+                </td>
                 <td>
                   <span className={`badge-profit ${isProfit ? 'badge-profit--up' : 'badge-profit--down'}`}>
                     {isProfit ? '▲' : '▼'} {isProfit ? '+' : ''}{profitPct}%
