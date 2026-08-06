@@ -243,14 +243,12 @@ namespace AutoInvest.Core
             var responseString = await response.Content.ReadAsStringAsync();
             var json = JsonSerializer.Deserialize<JsonElement>(responseString);
 
-            // ── 진단 로그 (임시) ──
-            // frcr_dncl_amt_2가 정말 예수금인지 공식 문서로 확정하지 못했다. 어느 필드가 실제
-            // 예수금/주문가능액인지 값을 보고 고르기 위해 통화별(output2)·계좌총괄(output3) 원본을 남긴다.
-            // 계좌번호는 요청 파라미터에만 있고 이 두 노드에는 없으므로 그대로 남겨도 안전하다.
-            // ponytail: 필드가 확정되면 이 두 줄은 지운다.
-            if (json.TryGetProperty("output2", out var dbg2)) Logger.Info($"[KisBroker][진단] output2={dbg2.GetRawText()}");
-            if (json.TryGetProperty("output3", out var dbg3)) Logger.Info($"[KisBroker][진단] output3={dbg3.GetRawText()}");
-
+            // 2026-08-06 실계좌 응답으로 필드를 확정했다(진단 로그는 목적을 달성해 제거).
+            // output2[USD]의 frcr_dncl_amt_2 · frcr_drwg_psbl_amt_1 · nxdy_frcr_drwg_psbl_amt가
+            // 모두 같은 값이었고 미결제(ustl_buy_amt_smtl/ustl_sll_amt_smtl)가 0이었다 — 이 값이 실시간 예수금이다.
+            //
+            // 🚫 output3의 frcr_use_psbl_amt("외화사용가능금액")로 바꾸지 말 것. 이름과 달리 원화 환산값이다
+            //    (실측: 1454.65 USD × 1424.80 = 2,072,585). 이 필드를 쓰면 예수금·총자산이 환율배로 부풀어 오른다.
             if (json.TryGetProperty("output2", out var output2) && output2.ValueKind == JsonValueKind.Array)
             {
                 foreach (var row in output2.EnumerateArray())
