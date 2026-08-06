@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { countRunsInMonth } from "../utils/dcaRuns";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 /** 숫자를 원화 천단위 구분 문자열로 변환 (표시용). */
 const won = (n) => Number(n ?? 0).toLocaleString("ko-KR");
@@ -148,6 +149,17 @@ const OrderConfirmModal = ({ ctx, ordering, onCancel, onConfirm }) => {
             <br />
             예상 양도차익 {won(e.gainKrw)}원 · 남은 공제{" "}
             {won(e.remainingDeductionKrw)}원
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: "0.78rem",
+                color: "var(--text-muted)",
+                wordBreak: "keep-all",
+              }}
+            >
+              ※ 올해 다른 곳(증권사 앱 등)에서 실현한 차익은 집계되지 않습니다. 그만큼 공제가
+              이미 줄어 있으면 실제로는 세금이 나올 수 있습니다.
+            </div>
           </div>
         )}
 
@@ -212,68 +224,6 @@ const OrderConfirmModal = ({ ctx, ordering, onCancel, onConfirm }) => {
 };
 
 /**
- * 범용 확인 모달 — 브라우저 기본 confirm() 대신 앱 테마를 그대로 쓴다.
- * 주문 확인(OrderConfirmModal)은 세금 표 등 전용 내용이 많아 따로 두고, 이쪽은
- * 문구 하나만 보여주면 되는 확인(적립 실행·예약)에 쓴다.
- */
-const ConfirmDialog = ({ spec, busy, onCancel, onConfirm }) => (
-  <div
-    className="modal-overlay"
-    onClick={() => {
-      if (!busy) onCancel();
-    }}
-  >
-    <div
-      className="modal-content"
-      onClick={(ev) => ev.stopPropagation()}
-      style={{ maxWidth: 440 }}
-    >
-      <h3
-        style={{
-          marginBottom: 14,
-          borderBottom: "1px solid var(--border-primary)",
-          paddingBottom: 12,
-          color:
-            spec.tone === "danger" ? "var(--loss-red)" : "var(--text-primary)",
-        }}
-      >
-        {spec.icon} {spec.title}
-      </h3>
-
-      <p
-        style={{
-          fontSize: "0.9rem",
-          lineHeight: 1.7,
-          color: "var(--text-secondary)",
-          wordBreak: "keep-all",
-        }}
-      >
-        {spec.body}
-      </p>
-
-      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-        <button
-          className="btn btn--outline"
-          style={{ flex: 1 }}
-          onClick={onCancel}
-          disabled={busy}
-        >
-          취소
-        </button>
-        <button
-          className={`btn ${spec.tone === "danger" ? "btn--danger" : "btn--primary"}`}
-          style={{ flex: 1 }}
-          onClick={onConfirm}
-          disabled={busy}
-        >
-          {busy ? "처리 중..." : spec.confirmLabel}
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
-/**
  * 주문/적립 페이지.
  * OrderController와 연동하여 적립식(DCA) 매수 사이클과 수동 주문을 실행합니다.
  * 수동 주문은 실제 보유 종목을 끌어와, 매도는 보유 종목·보유수량 범위에서만,
@@ -291,6 +241,10 @@ const Order = () => {
   const [dcaConfirm, setDcaConfirm] = useState(null);
   // 이번 달 집행 회차 수 (거래이력을 회차로 묶어 센 값)
   const [monthRunCount, setMonthRunCount] = useState(0);
+  // 적립 지정일 (KST, 1~28). 0 = 미설정(월초부터 시도)
+  const [runDay, setRunDay] = useState(0);
+  const [maxRunDay, setMaxRunDay] = useState(28);
+  const [savingRunDay, setSavingRunDay] = useState(false);
 
   // ── 보유 종목 (수동 주문 종목 선택 소스) ──
   const [holdings, setHoldings] = useState([]);
@@ -310,8 +264,6 @@ const Order = () => {
   });
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState("");
-  // 매도 절세 계산용: 올해 이미 실현한 양도차익(원, 수동 입력)
-  const [ytdGain, setYtdGain] = useState("");
   const [ordering, setOrdering] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
   const [orderError, setOrderError] = useState(null);
@@ -355,15 +307,62 @@ const Order = () => {
     }
   }, []);
 
+  // ── 적립 지정일 조회 (적립 설정과 같은 엔드포인트를 쓴다) ──
+  const fetchRunDay = useCallback(async () => {
+    try {
+      const res = await fetch("/api/dca/config");
+      if (!res.ok) return; // 보조 정보 — 실패해도 실행 버튼은 막지 않는다
+      const data = await res.json();
+      setRunDay(data.runDay ?? 0);
+      if (data.maxRunDay > 0) setMaxRunDay(data.maxRunDay);
+    } catch {
+      // 조회 실패 시 '지정 안 함'으로 보인다(실제 저장값은 서버가 그대로 유지)
+    }
+  }, []);
+
   useEffect(() => {
     fetchHoldings();
     fetchDcaSchedule();
-  }, [fetchHoldings, fetchDcaSchedule]);
+    fetchRunDay();
+  }, [fetchHoldings, fetchDcaSchedule, fetchRunDay]);
+
+  // 지정일 변경은 그 자체로 돈이 나가지 않으므로 고르는 즉시 저장한다.
+  const saveRunDay = async (day) => {
+    setDcaError(null);
+    setDcaResult(null);
+    try {
+      setSavingRunDay(true);
+      const res = await fetch("/api/dca/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runDay: day }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `지정일 저장 실패 (${res.status})`);
+      setRunDay(day);
+      setDcaResult({ message: data.message });
+    } catch (err) {
+      setDcaError(err.message);
+      fetchRunDay(); // 실패 시 서버 값으로 되돌린다
+    } finally {
+      setSavingRunDay(false);
+    }
+  };
 
   // 이번 달 몇 월인지 (KST 기준 서버 응답 "yyyy-MM"에서 월만 뽑음)
   const scheduleMonthLabel = dcaSchedule
     ? `${Number(dcaSchedule.month.slice(5, 7))}월`
     : "이번 달";
+
+  // 이번 달 일수 — 달력 API 없이 표준 Date로 구한다(다음 달 0일 = 이번 달 말일, 윤년 포함).
+  // 서버가 KST로 준 month를 쓰므로 브라우저 시간대와 어긋나지 않는다.
+  const daysInThisMonth = dcaSchedule
+    ? new Date(
+        Number(dcaSchedule.month.slice(0, 4)),
+        Number(dcaSchedule.month.slice(5, 7)),
+        0,
+      ).getDate()
+    : 31;
 
   // 실행/예약 확인 모달 컨텍스트 (null = 닫힘)
   // 이미 적립한 달이면 "한 번 더 사는 것"임을 분명히 묻고, 아직 안 한 달이면
@@ -604,7 +603,9 @@ const Order = () => {
     }
 
     // ── 매도: 세금 프리뷰 조회 → 확인 모달 컨텍스트 구성 (실제 제출은 executeOrder) ──
-    const ytdNum = ytdGain !== "" && Number(ytdGain) > 0 ? Number(ytdGain) : 0;
+    // 올해 실현 차익은 넘기지 않는다(서버 기본 0). 이 앱은 그 합계를 집계하지 않으므로 사람이
+    // 매번 손으로 적어야 맞는 값이었고, 실제로는 늘 비워 두는 입력칸이었다. 그래서 세금 프리뷰는
+    // "공제가 전액 남았다"는 가정 아래의 낙관적 추정이며, 확인 모달이 그 사실을 그대로 밝힌다.
     const priceOverride =
       price !== "" && Number(price) > 0 ? Number(price) : null;
 
@@ -616,7 +617,6 @@ const Order = () => {
           qty: String(Number(qty)),
         });
         if (priceOverride) params.set("price", String(priceOverride));
-        if (ytdNum > 0) params.set("ytd", String(ytdNum));
         const pr = await fetch(`/api/order/sell-preview?${params.toString()}`);
         if (pr.ok) est = await pr.json();
       } catch {
@@ -639,7 +639,6 @@ const Order = () => {
         kind,
         est,
         acknowledgeTax,
-        ytdNum,
         priceOverride,
         orderType,
         ticker: effectiveTicker,
@@ -650,7 +649,6 @@ const Order = () => {
         kind: "buy",
         est: null,
         acknowledgeTax: false,
-        ytdNum: 0,
         priceOverride,
         orderType,
         ticker: effectiveTicker,
@@ -675,7 +673,6 @@ const Order = () => {
       if (ctx.priceOverride) body.price = ctx.priceOverride;
       if (ctx.orderType === "SELL") {
         body.acknowledgeTax = ctx.acknowledgeTax;
-        body.ytdRealizedGainKrw = ctx.ytdNum;
       }
 
       const res = await fetch("/api/order/manual", {
@@ -720,10 +717,73 @@ const Order = () => {
 
         {dcaSchedule?.alreadyRan && (
           <div className="alert alert--warn" style={{ marginBottom: 12 }}>
-            ✅ {scheduleMonthLabel}은 이미 매수가 완료됐습니다. 지금 실행하면{" "}
-            <strong>한 번 더</strong> 매수합니다.
+            ✅ {scheduleMonthLabel}은 이미 매수가 완료됐습니다
+            {dcaSchedule.lastRunDate && (
+              <>
+                {" "}
+                (<strong>{dcaSchedule.lastRunDate}</strong> KST 집행)
+              </>
+            )}
+            . 지금 실행하면 <strong>한 번 더</strong> 매수합니다.
           </div>
         )}
+
+        {/* 적립 지정일 — 매월 이 날짜부터 크론이 적립을 시도한다(KST 기준). */}
+        <div className="form-group">
+          <label>매월 적립 지정일 (KST)</label>
+          <div className="day-grid" role="radiogroup" aria-label="적립 지정일">
+            <label
+              className={`chip ${runDay === 0 ? "chip--on" : ""}`}
+              style={{ gridColumn: "span 7", justifyContent: "center" }}
+            >
+              <input
+                type="radio"
+                name="run-day"
+                checked={runDay === 0}
+                onChange={() => saveRunDay(0)}
+                disabled={savingRunDay}
+              />
+              지정 안 함 (월초부터)
+            </label>
+            {Array.from({ length: maxRunDay }, (_, i) => i + 1).map((d) => (
+              <label
+                key={d}
+                className={`chip ${runDay === d ? "chip--on" : ""}`}
+                style={{ justifyContent: "center" }}
+              >
+                <input
+                  type="radio"
+                  name="run-day"
+                  checked={runDay === d}
+                  onChange={() => saveRunDay(d)}
+                  disabled={savingRunDay}
+                />
+                {d}
+              </label>
+            ))}
+          </div>
+          <p
+            style={{
+              marginTop: 6,
+              fontSize: "0.76rem",
+              color: "var(--text-muted)",
+              wordBreak: "keep-all",
+              lineHeight: 1.6,
+            }}
+          >
+            매월 <strong>{runDay > 0 ? `${runDay}일` : "1일"}</strong>부터 크론(매일 KST 00:10)이
+            적립을 시도하고, 처음 주문이 접수되는 날 <strong>1회만</strong> 매수합니다.
+            지정일이 주말·미국 휴장이면 다음 영업일로 넘어갑니다.
+            {runDay > daysInThisMonth && (
+              <>
+                {" "}
+                이번 달은 {daysInThisMonth}일까지라서{" "}
+                <strong>{daysInThisMonth}일(말일)</strong>부터 시도합니다 — 없는 날짜는 그 달 말일로
+                당깁니다.
+              </>
+            )}
+          </p>
+        </div>
 
         <button
           className="btn btn--primary"
@@ -777,33 +837,32 @@ const Order = () => {
       <div
         className={`card fade-in fade-in-delay-2 manual-order manual-order--${orderType === "BUY" ? "buy" : "sell"}`}
       >
-        {/* 종목 선택 방식은 매수에만 있는 선택이라 제목 줄 우측 토글로 붙인다(대시보드 통화 토글과 같은 모양). */}
+        {/* 주문 유형은 이 카드에서 가장 먼저 정하는 값이라 제목 줄 우측 토글로 둔다
+            (대시보드 통화 토글과 같은 모양). 카드의 강조색이 매수=빨강/매도=파랑으로 함께 바뀐다. */}
         <div className="card-head">
           <h2>수동 주문</h2>
-          {orderType === "BUY" && (
-            <div className="ccy-toggle" role="group" aria-label="종목 선택 방식">
-              <button
-                type="button"
-                className={buyMode === "hold" ? "active" : ""}
-                onClick={() => {
-                  setBuyMode("hold");
-                  setOrderError(null);
-                }}
-              >
-                보유 종목
-              </button>
-              <button
-                type="button"
-                className={buyMode === "new" ? "active" : ""}
-                onClick={() => {
-                  setBuyMode("new");
-                  setOrderError(null);
-                }}
-              >
-                신규 입력
-              </button>
-            </div>
-          )}
+          <div className="ccy-toggle" role="group" aria-label="주문 유형">
+            <button
+              type="button"
+              className={orderType === "BUY" ? "active" : ""}
+              onClick={() => {
+                setOrderType("BUY");
+                setOrderError(null);
+              }}
+            >
+              매수
+            </button>
+            <button
+              type="button"
+              className={orderType === "SELL" ? "active" : ""}
+              onClick={() => {
+                setOrderType("SELL");
+                setOrderError(null);
+              }}
+            >
+              매도
+            </button>
+          </div>
         </div>
 
         <div className="alert alert--warn" style={{ marginBottom: 20 }}>
@@ -812,32 +871,34 @@ const Order = () => {
           주문됩니다.
         </div>
 
-        {/* 주문 유형 */}
-        <div className="form-group">
-          <label>주문 유형</label>
-          <div className="chip-row" role="radiogroup" aria-label="주문 유형">
-            {[
-              { id: "BUY", name: "매수 (BUY)" },
-              { id: "SELL", name: "매도 (SELL)" },
-            ].map((o) => (
-              <label
-                key={o.id}
-                className={`chip ${orderType === o.id ? "chip--on" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="order-type"
-                  checked={orderType === o.id}
-                  onChange={() => {
-                    setOrderType(o.id);
-                    setOrderError(null);
-                  }}
-                />
-                {o.name}
-              </label>
-            ))}
+        {/* 종목 선택 방식 — 매수에만 있는 선택. 매도는 보유 종목 안에서만 가능하다. */}
+        {orderType === "BUY" && (
+          <div className="form-group">
+            <label>종목 선택 방식</label>
+            <div className="chip-row" role="radiogroup" aria-label="종목 선택 방식">
+              {[
+                { id: "hold", name: "보유 종목" },
+                { id: "new", name: "신규 입력" },
+              ].map((m) => (
+                <label
+                  key={m.id}
+                  className={`chip ${buyMode === m.id ? "chip--on" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="buy-mode"
+                    checked={buyMode === m.id}
+                    onChange={() => {
+                      setBuyMode(m.id);
+                      setOrderError(null);
+                    }}
+                  />
+                  {m.name}
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 종목: 보유종목 목록 (매도 전체 / 매수 'hold' 모드) */}
         {!isBuyNew && (
@@ -988,30 +1049,6 @@ const Order = () => {
           </div>
         </div>
 
-        {orderType === "SELL" && (
-          <div className="form-group">
-            <label>올해 이미 실현한 차익 (원, 선택)</label>
-            <input
-              type="number"
-              min="0"
-              step="10000"
-              value={ytdGain}
-              onChange={(e) => setYtdGain(e.target.value)}
-              placeholder="0 (증권사 앱 등 외부 매도분이 있으면 입력)"
-            />
-            <div
-              style={{
-                marginTop: 4,
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-                wordBreak: "keep-all",
-              }}
-            >
-              연 250만원 기본공제 중 남은 금액 계산에 사용됩니다. 이 시스템
-              밖에서 매도한 차익은 자동 집계되지 않으니 직접 입력하세요.
-            </div>
-          </div>
-        )}
 
         {orderType === "SELL" && (
           <button

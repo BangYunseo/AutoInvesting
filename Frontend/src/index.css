@@ -774,6 +774,13 @@ select.input-field option {
   gap: 4px;
 }
 
+/* 적립 지정일 고르기 — 달력처럼 7열로 늘어놓는다(1~28) */
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
 .pick-list .chip {
   justify-content: space-between;
   width: 100%;
@@ -906,12 +913,6 @@ select.input-field option {
 .ccy-toggle button.active {
   background: var(--accent-blue);
   color: #fff;
-}
-
-/* 요약 카드 안처럼 폭이 좁은 자리에 넣는 축소판 */
-.ccy-toggle--sm button {
-  padding: 2px 8px;
-  font-size: 0.7rem;
 }
 
 /* ── 배지 ── */
