@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { groupRuns, toBuyRows } from '../utils/dcaRuns';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 /**
  * 적립 설정 페이지.
@@ -24,6 +25,7 @@ const DcaConfig = () => {
   const [accountMode, setAccountMode] = useState(''); // 'SIM' | 'PAPER' | 'LIVE' — 폴백 문구 분기용
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null); // null | 'templates' | 'months' — 저장은 둘이 독립
+  const [deleteTarget, setDeleteTarget] = useState(null); // 삭제 확인 대기 중인 템플릿 (null = 닫힘)
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   // 월별 실행 로그: 매수 기록(TB_TRADE_HISTORY)과 오른쪽에서 볼 연·월
@@ -195,14 +197,28 @@ const DcaConfig = () => {
     setTemplates(ts => [...ts, { ...src, id: nid, name: src.name + ' 복사', rows: src.rows.map(r => ({ ...r })) }]);
     setSelectedId(nid);
   };
-  const deleteTemplate = (id) => {
+  // 삭제는 되돌릴 수 없으니 확인 모달을 한 번 거친다. 실제 제거는 confirmDelete에서.
+  const requestDeleteTemplate = (t) => {
     if (templates.length <= 1) { setError('템플릿은 최소 1개 이상 있어야 합니다.'); return; }
+    setError(null);
+    setDeleteTarget(t);
+  };
+
+  const confirmDelete = () => {
+    const id = deleteTarget?.id;
+    setDeleteTarget(null);
+    if (!id) return;
     const remaining = templates.filter(t => t.id !== id);
     setTemplates(remaining);
     // 해당 템플릿을 가리키던 월배정 제거
     setMonthMap(mm => Object.fromEntries(Object.entries(mm).filter(([, v]) => v !== id)));
     if (selectedId === id) setSelectedId(remaining[0]?.id || null);
   };
+
+  // 삭제하면 함께 비워지는 달 (확인 문구에 그대로 보여준다)
+  const monthsOf = (id) => Object.entries(monthMap)
+    .filter(([, v]) => v === id)
+    .map(([m]) => `${m}월`);
 
   const assignMonth = (monthNum, tid) => {
     setMonthMap(mm => {
@@ -375,7 +391,7 @@ const DcaConfig = () => {
                 </div>
               </div>
               <button className="btn btn--outline" onClick={(e) => { e.stopPropagation(); duplicateTemplate(t.id); }} style={{ padding: '5px 9px', fontSize: '0.75rem' }} title="복제">⧉</button>
-              <button className="btn btn--outline" onClick={(e) => { e.stopPropagation(); deleteTemplate(t.id); }} style={{ padding: '5px 9px', fontSize: '0.75rem' }} title="삭제">✕</button>
+              <button className="btn btn--outline" onClick={(e) => { e.stopPropagation(); requestDeleteTemplate(t); }} style={{ padding: '5px 9px', fontSize: '0.75rem' }} title="삭제">✕</button>
             </div>
           );
         })}
@@ -627,6 +643,35 @@ const DcaConfig = () => {
       >
         {saving === 'months' ? '⏳ 저장 중...' : '💾 월별 배정 저장'}
       </button>
+
+      {deleteTarget && (
+        <ConfirmDialog
+          spec={{
+            icon: '🗑️',
+            tone: 'danger',
+            title: `'${deleteTarget.name}' 템플릿을 삭제할까요?`,
+            body: (
+              <>
+                종목 {deleteTarget.rows.filter(r => r.ticker).length}개 · 예산{' '}
+                {won(Number(deleteTarget.budget) || 0)}
+                {monthsOf(deleteTarget.id).length > 0 && (
+                  <>
+                    <br />
+                    이 템플릿에 배정된 <strong>{monthsOf(deleteTarget.id).join(', ')}</strong>도 함께
+                    미배정으로 바뀝니다.
+                  </>
+                )}
+                <br />
+                삭제 후 <strong>템플릿 저장</strong>을 눌러야 서버에 반영됩니다.
+              </>
+            ),
+            confirmLabel: '삭제',
+          }}
+          busy={false}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
     </div>
   );
 };
