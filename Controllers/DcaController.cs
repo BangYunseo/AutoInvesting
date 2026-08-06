@@ -39,7 +39,9 @@ namespace AutoInvest.Controllers
                     templates,
                     monthMap = monthMap.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value),
                     currentMonth,
-                    activeTemplateId = activeId
+                    activeTemplateId = activeId,
+                    runDay = DcaSettings.LoadRunDay(),   // 0 = 미설정(월초부터 시도)
+                    maxRunDay = DcaSettings.MaxRunDay
                 });
             }
             catch (Exception ex)
@@ -59,9 +61,17 @@ namespace AutoInvest.Controllers
         {
             try
             {
-                if (req == null || (req.Templates == null && req.MonthMap == null))
+                if (req == null || (req.Templates == null && req.MonthMap == null && req.RunDay == null))
                 {
-                    return BadRequest(new { error = "저장할 내용이 없습니다 (templates 또는 monthMap 중 하나는 필요)." });
+                    return BadRequest(new { error = "저장할 내용이 없습니다 (templates·monthMap·runDay 중 하나는 필요)." });
+                }
+
+                if (req.RunDay != null && (req.RunDay < 0 || req.RunDay > DcaSettings.MaxRunDay))
+                {
+                    return BadRequest(new
+                    {
+                        error = $"적립 지정일은 1~{DcaSettings.MaxRunDay} 사이여야 합니다(0은 해제)."
+                    });
                 }
 
                 if (req.Templates != null)
@@ -99,16 +109,29 @@ namespace AutoInvest.Controllers
                 if (req.Templates != null) DcaSettings.SaveTemplates(req.Templates);
                 if (monthMap != null) DcaSettings.SaveMonthMap(monthMap);
 
-                string what = req.Templates != null && monthMap != null
-                    ? "적립 설정"
-                    : req.Templates != null ? "매수 템플릿" : "월별 배정";
+                // 지정일 기록이 조용히 실패하면 크론이 월초부터 매수해 사람이 고른 날보다 이르게
+                // 실자금이 나간다. 실패는 삼키지 않고 그대로 알린다.
+                if (req.RunDay != null && !DcaSettings.SaveRunDay(req.RunDay.Value))
+                {
+                    return StatusCode(500, new
+                    {
+                        error = "적립 지정일을 저장하지 못했습니다. 지금 상태로 두면 크론이 월초부터 매수합니다."
+                    });
+                }
 
-                Logger.Info($"[Dca] {what} 저장 완료 — 템플릿 {req.Templates?.Count ?? 0}개, 월배정 {monthMap?.Count ?? 0}건");
+                var saved = new List<string>();
+                if (req.Templates != null) saved.Add("매수 템플릿");
+                if (monthMap != null) saved.Add("월별 배정");
+                if (req.RunDay != null) saved.Add("적립 지정일");
+                string what = saved.Count == 3 ? "적립 설정" : string.Join("·", saved);
+
+                Logger.Info($"[Dca] {what} 저장 완료 — 템플릿 {req.Templates?.Count ?? 0}개, 월배정 {monthMap?.Count ?? 0}건, 지정일 {req.RunDay?.ToString() ?? "변경없음"}");
                 return Ok(new
                 {
                     message = $"{what}이 저장되었습니다. 다음 사이클부터 반영됩니다.",
                     templates = req.Templates,
-                    monthMap = req.MonthMap
+                    monthMap = req.MonthMap,
+                    runDay = req.RunDay
                 });
             }
             catch (Exception ex)
@@ -174,5 +197,8 @@ namespace AutoInvest.Controllers
 
         /// <summary>월(문자열 "1"~"12")→템플릿Id 배정. null이면 월배정을 저장하지 않는다.</summary>
         public Dictionary<string, string>? MonthMap { get; set; }
+
+        /// <summary>매월 적립을 시작할 날짜(KST, 1~28). 0은 해제(월초부터 시도), null이면 변경하지 않는다.</summary>
+        public int? RunDay { get; set; }
     }
 }

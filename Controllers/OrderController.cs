@@ -107,11 +107,17 @@ namespace AutoInvest.Controllers
             var monthMap = DcaSettings.LoadMonthMap();
             var chosen = DcaSettings.SelectTemplate(templates, monthMap, int.Parse(month.Substring(5, 2)));
 
+            // 집행 일자는 표시 전용 마커다(가드는 월 단위 그대로). 이번 달 것이 아니면 비워서 보낸다 —
+            // 지난달 날짜를 그대로 내려보내면 화면이 "이번 달 그 날 샀다"로 읽힌다.
+            string lastRunDate = AppConfigManager.Get(DailyExecutionService.LastRunDateKey, "");
+            if (!lastRunDate.StartsWith(month)) lastRunDate = "";
+
             return Ok(new
             {
                 month,
                 alreadyRan = AppConfigManager.Get(DailyExecutionService.LastRunMonthKey, "") == month,
                 reserved = AppConfigManager.Get(DailyExecutionService.ForceRunMonthKey, "") == month,
+                lastRunDate,
                 activeTemplateName = chosen?.Name ?? "",
                 activeQuantities = chosen?.Quantities
                     .Where(kv => kv.Value > 0)

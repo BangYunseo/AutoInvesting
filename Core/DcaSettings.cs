@@ -33,6 +33,18 @@ namespace AutoInvest.Core
         /// <summary>DB 키 — 레거시 단일 설정 예산(원) (마이그레이션 폴백).</summary>
         public const string BudgetKey = "DCA_BUDGET_KRW";
 
+        /// <summary>
+        /// DB 키 — 매월 적립을 시작할 날짜(KST, 1~31). 비어 있으면 월초부터 시도(기존 동작).
+        /// </summary>
+        public const string RunDayKey = "DCA_RUN_DAY";
+
+        /// <summary>
+        /// 지정 가능한 최대 일자. 29~31도 허용한다 — 그 날이 없는 달에는 말일로 당겨 판정하므로
+        /// (<see cref="DailyExecutionService.IsOnOrAfterRunDay"/>) 적립이 빠지는 달은 없다.
+        /// 31을 고르면 사실상 "매월 말일부터"가 된다.
+        /// </summary>
+        public const int MaxRunDay = 31;
+
         /// <summary>기본 예산 (설정이 전혀 없을 때).</summary>
         public const decimal DefaultBudgetKrw = 1_000_000m;
 
@@ -183,6 +195,29 @@ namespace AutoInvest.Core
 
             WriteMonthMap(kept);
             Logger.Info($"[DcaSettings] 월별 배정 저장 — {kept.Count}건");
+        }
+
+        /// <summary>
+        /// 매월 적립을 시작할 날짜(KST)를 반환합니다. 미설정·범위 밖이면 0(월초부터 시도).
+        /// </summary>
+        public static int LoadRunDay()
+        {
+            string raw = AppConfigManager.Get(RunDayKey, "");
+            if (int.TryParse(raw, out int day) && day >= 1 && day <= MaxRunDay) return day;
+            return 0;
+        }
+
+        /// <summary>
+        /// 매월 적립을 시작할 날짜를 저장합니다. 0 이하를 넘기면 지정을 해제합니다(월초부터 시도).
+        /// </summary>
+        /// <param name="day">1~31, 또는 해제용 0</param>
+        /// <returns>DB 기록 성공 여부. 실패를 삼키면 사람이 고른 날짜보다 이르게 매수될 수 있어 그대로 돌려준다.</returns>
+        public static bool SaveRunDay(int day)
+        {
+            string value = day >= 1 && day <= MaxRunDay ? day.ToString() : "";
+            bool ok = AppConfigManager.Set(RunDayKey, value);
+            Logger.Info($"[DcaSettings] 적립 지정일 저장 — {(value.Length == 0 ? "해제(월초부터)" : value + "일")} (성공={ok})");
+            return ok;
         }
 
         private static void WriteMonthMap(Dictionary<int, string> map)

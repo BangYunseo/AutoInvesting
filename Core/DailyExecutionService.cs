@@ -47,6 +47,15 @@ namespace AutoInvest.Core
         public const string ForceRunMonthKey = "DCA_FORCE_RUN_MONTH";
 
         /// <summary>
+        /// 마지막으로 적립을 집행한 날짜("yyyy-MM-dd", KST). <b>표시 전용</b>이다.
+        ///
+        /// 판정에는 쓰지 않는다 — 멱등 가드는 월 단위(<see cref="LastRunMonthKey"/>)로 그대로 두고,
+        /// 이 키는 "이번 달 언제 샀는지"를 화면에 보여주기 위해서만 함께 기록한다. 값 형식을 바꾸거나
+        /// 가드 조건에 끌어들이면 과매수 방지 로직이 달라지므로 그렇게 쓰지 않는다.
+        /// </summary>
+        public const string LastRunDateKey = "DCA_LAST_RUN_DATE";
+
+        /// <summary>
         /// 체결 대사용 스냅샷. 주문 직전 보유 수량과 이번에 접수한 주문을 함께 담는다.
         ///
         /// 접수만으로 그 달을 완료로 세면, 지정가가 안 붙어 장 마감에 소멸해도 완료로 남아
@@ -61,6 +70,31 @@ namespace AutoInvest.Core
 
         /// <summary>현재(KST=UTC+9) 월을 "yyyy-MM"으로 반환합니다.</summary>
         public static string CurrentKstMonth() => DateTime.UtcNow.AddHours(9).ToString("yyyy-MM");
+
+        /// <summary>
+        /// 오늘(KST)이 적립을 시도할 날인지 판정합니다 (순수 함수 — 외부 I/O 없음).
+        ///
+        /// runDay가 0(미설정)이면 월초부터 매일 시도합니다(기존 동작).
+        /// 지정일이 있으면 "그 날부터" 시도합니다 — 그 날에만 시도하지 않는 이유:
+        /// 지정일이 주말·미국 휴장이면 그날은 접수 0건이 되고, 월 1회 마커가 남지 않아
+        /// 다음 날 크론이 재시도해 자동으로 다음 영업일에 1회 집행된다. 지정일에만 시도하면
+        /// 그 달 적립이 통째로 빠진다.
+        ///
+        /// 29~31일도 고를 수 있다. 그 날이 없는 달(2월 30일 등)에는 <b>말일로 당겨</b> 판정하므로
+        /// 적립이 빠지는 달은 없다 — 31을 고르면 사실상 "매월 말일부터"가 된다. 달의 일수는
+        /// 외부 달력 API가 아니라 DateTime.DaysInMonth로 구한다(윤년 포함).
+        ///
+        /// 날짜 기준은 KST다. 사람이 8월 1일에 적립하기로 정했으면 미국 체결일이 7월 31일로
+        /// 찍히더라도 그것은 표기 문제이며, 기준은 쓰는 사람이 사는 시간대를 따른다.
+        /// </summary>
+        /// <param name="kstNow">현재 KST 시각</param>
+        /// <param name="runDay">지정일(1~31). 0이면 미설정</param>
+        public static bool IsOnOrAfterRunDay(DateTime kstNow, int runDay)
+        {
+            if (runDay <= 0) return true;
+            int effectiveDay = Math.Min(runDay, DateTime.DaysInMonth(kstNow.Year, kstNow.Month));
+            return kstNow.Day >= effectiveDay;
+        }
 
         /// <summary>
         /// 적립식(DCA) 자동 매수 사이클을 실행합니다 (판단 없는 단순 자동화).
@@ -85,6 +119,17 @@ namespace AutoInvest.Core
             string thisMonth = CurrentKstMonth();
             string lastRunMonth = AppConfigManager.Get(LastRunMonthKey, "");
             bool reserved = AppConfigManager.Get(ForceRunMonthKey, "") == thisMonth;
+
+            // ── 지정일 게이트: 사람이 고른 날짜 전이면 크론 호출을 흘려보낸다 ──
+            // 사람이 누른 즉시 실행(force)과 추가 적립 예약(reserved)은 명시적 의사이므로 통과시킨다.
+            int runDay = DcaSettings.LoadRunDay();
+            var kstNow = DateTime.UtcNow.AddHours(9);
+            if (!force && !reserved && !IsOnOrAfterRunDay(kstNow, runDay))
+            {
+                statusNote = $"이번 달 적립 지정일({runDay}일)이 아직 오지 않아 매수를 건너뜁니다. (오늘 KST {kstNow:MM-dd})";
+                Logger.Info($"[DcaCycle] 적립 지정일 {runDay}일 미도래 (오늘 {kstNow:yyyy-MM-dd} KST) — 매수 스킵");
+                return statusNote;
+            }
 
             if (lastRunMonth == thisMonth && !force && !reserved)
             {
@@ -158,7 +203,12 @@ namespace AutoInvest.Core
                         // 저장 실패는 반드시 보고서에 실어 사람이 알아채게 한다.
                         if (AppConfigManager.Set(LastRunMonthKey, thisMonth))
                         {
-                            Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 표시 저장");
+                            // 집행 일자는 표시 전용이므로 실패해도 경고만 남긴다(가드는 위 월 마커가 담당).
+                            string today = kstNow.ToString("yyyy-MM-dd");
+                            if (!AppConfigManager.Set(LastRunDateKey, today))
+                                Logger.Warn($"[DcaCycle] {LastRunDateKey} 저장 실패 — 화면에 집행 일자가 비어 보일 수 있습니다(가드는 정상).");
+
+                            Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 표시 저장 — 집행일 {today} KST");
                         }
                         else
                         {
@@ -334,6 +384,8 @@ namespace AutoInvest.Core
                     // 전량 미체결이 확실하다 → 그 달을 다시 열어 다음 크론이 재시도하게 한다.
                     if (AppConfigManager.Set(LastRunMonthKey, ""))
                     {
+                        // 완료를 되돌렸으면 표시용 집행 일자도 함께 지운다(남겨두면 화면이 집행됐다고 말한다).
+                        AppConfigManager.Set(LastRunDateKey, "");
                         note = $"전량 미체결로 확인되어 {thisMonth} 적립 완료 표시를 해제했습니다. 다음 사이클에서 다시 시도합니다.";
                         Logger.Warn($"[Reconcile] 전량 미체결 — {LastRunMonthKey} 해제, 재시도 허용");
                     }
