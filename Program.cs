@@ -14,7 +14,12 @@ namespace AutoInvest
     /// </summary>
     public class Program
     {
-        public static void Main(string[] args)
+        /// <summary>
+        /// 프로세스 진입점. 종료 코드를 돌려준다 — 0은 정상 종료, 1은 기동 거부·치명적 오류.
+        /// Render 같은 호스트가 재시작 여부를 판단하고, 사람이 "떠 있는데 반쪽"인 상태와
+        /// "아예 못 떴다"를 구분할 수 있어야 하기 때문이다.
+        /// </summary>
+        public static int Main(string[] args)
         {
             try
             {
@@ -33,9 +38,19 @@ namespace AutoInvest
                 NotificationService.Initialize(builder.Configuration);
 
                 // ── 암호화 유틸 초기화 (MASTER_KEY: 시크릿 암복호화 + 토큰 서명) ──
+                // 키가 없으면 경고만 남기고 뜨던 것을 기동 중단으로 바꿨다. 이 상태로 떠 있는 편이
+                // 더 위험하기 때문이다: 저장된 암호문을 복호화하지 못해 빈 값이 되고
+                // (CryptoUtil.DecryptSecret), SessionManager가 "앱키 없음"으로 판단해 조용히
+                // SimBrokerClient로 폴백한다 — 화면에는 체결이 찍히지만 실제로는 아무것도 사지 않는다.
+                // 사람 로그인도 토큰 서명 키가 없어 이미 500이 되므로, 반쪽으로 떠 있을 이유가 없다.
+                // 로컬 개발은 appsettings.local.json에 MASTER_KEY 한 줄로 해결된다(.gitignore 대상).
                 CryptoUtil.Initialize(builder.Configuration);
                 if (!CryptoUtil.IsConfigured)
-                    Logger.Warn("[Program] MASTER_KEY 미설정 — 시크릿이 평문으로 저장됩니다. 운영 환경에서는 반드시 설정하세요.");
+                {
+                    Logger.Fatal("[Program] MASTER_KEY 미설정(또는 base64 32바이트 아님) — 기동을 중단합니다. "
+                        + "환경변수 또는 appsettings.local.json에 MASTER_KEY를 설정하세요.");
+                    return 1;
+                }
 
                 // ── 서비스 등록 ──
                 builder.Services.AddControllers(options =>
@@ -83,10 +98,12 @@ namespace AutoInvest
 
                 Logger.Info("[Program] 자동 투자 API 서버 시작 완료");
                 app.Run();
+                return 0;
             }
             catch (Exception ex)
             {
                 Logger.Fatal($"[Program] 치명적 오류: {ex.Message}\n{ex.StackTrace}");
+                return 1;
             }
             finally
             {

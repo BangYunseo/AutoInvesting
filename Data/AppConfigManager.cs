@@ -146,14 +146,17 @@ namespace AutoInvest.Data
                 string storedValue = value;
                 if (SensitiveKeys.Contains(key) && !string.IsNullOrEmpty(value))
                 {
-                    if (CryptoUtil.IsConfigured)
+                    if (!CryptoUtil.IsConfigured)
                     {
-                        storedValue = CryptoUtil.EncryptSecret(value);
+                        // 예전에는 경고만 남기고 평문으로 저장했다. Neon은 스냅샷·백업을 뜨므로 한 번
+                        // 들어간 평문은 회수할 수 없고, 계좌번호는 개인정보 취급 대상이다. 저장을 거부한다.
+                        // Program.cs가 MASTER_KEY 없이는 기동조차 막지만, 그 검사를 누가 느슨하게 풀어도
+                        // 평문이 DB에 닿지 않도록 여기서 한 번 더 막는다.
+                        Logger.Error($"[AppConfig] MASTER_KEY 미설정 — 민감 키 저장 거부 [{key}]. MASTER_KEY를 설정하세요.");
+                        return false;
                     }
-                    else
-                    {
-                        Logger.Warn($"[AppConfig] MASTER_KEY 미설정 \n\t: 민감 키 평문 저장 [{key}]\n\tMASTER_KEY 설정 요청");
-                    }
+
+                    storedValue = CryptoUtil.EncryptSecret(value);
                 }
 
                 using (var conn = DBManager.Instance.GetConnection())
