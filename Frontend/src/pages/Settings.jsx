@@ -108,7 +108,10 @@ const SecretManagerModal = ({ open, onClose, configs, onSaved }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
+      // 서버가 저장 실패한 키를 알려주므로 그 문구를 그대로 띄운다. 상태 코드만 보여주면
+      // "무엇이 안 바뀌었는지"를 모르고 저장됐다고 믿게 된다.
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `저장 실패 (${res.status})`);
       setMsg('✅ 저장되었습니다.');
       // 갱신된 설정 여부/값을 다시 받도록 부모에 알리고, 본 값 캐시 초기화
       setEdits({});
@@ -252,11 +255,15 @@ const Settings = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error(`저장 실패 (${res.status})`);
+      // 거래 모드가 저장되지 않았는데 "저장되었습니다"가 뜨면 모의를 실전이라 믿게 된다.
+      // 서버가 돌려준 실패 키 문구를 그대로 띄우고, 화면 값도 서버 값으로 되읽는다.
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `저장 실패 (${res.status})`);
       setMessage('✅ 설정이 저장되었습니다.');
       setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       setMessage(`❌ ${err.message}`);
+      fetchConfigs(); // 저장이 안 됐으므로 화면을 서버의 실제 값으로 되돌린다
     } finally {
       setSaving(false);
     }

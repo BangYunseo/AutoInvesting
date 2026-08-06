@@ -17,6 +17,22 @@ namespace AutoInvest.Utils
         private const string API_KEY_HEADER = "x-api-key";
         private const string AUTH_HEADER = "Authorization";
 
+        /// <summary>
+        /// 통과한 자격증명 종류를 담는 <c>HttpContext.Items</c> 키. 값은 <see cref="AuthKindSession"/>
+        /// 또는 <see cref="AuthKindApiKey"/>다.
+        ///
+        /// 두 자격증명은 권한이 같지 않다 — 세션 토큰은 사람이 비밀번호로 얻지만, x-api-key는
+        /// GitHub Actions Secret에 있어 노출 표면이 다르다. 시크릿 평문 열람처럼 사람만 해야 하는
+        /// 동작은 이 표식으로 구분한다. 표식이 없으면(필터를 타지 않았으면) 사람이 아닌 것으로 본다.
+        /// </summary>
+        public const string AuthKindItemKey = "AuthKind";
+
+        /// <summary>사람이 로그인해 받은 Bearer 세션 토큰으로 통과.</summary>
+        public const string AuthKindSession = "session";
+
+        /// <summary>크론·머신이 x-api-key로 통과.</summary>
+        public const string AuthKindApiKey = "apikey";
+
         public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
             // ── 공개 엔드포인트(로그인/설정/상태)는 인증 면제 ──
@@ -36,6 +52,7 @@ namespace AutoInvest.Utils
                     string token = raw.Substring("Bearer ".Length).Trim();
                     if (CryptoUtil.TryValidateToken(token, out _))
                     {
+                        context.HttpContext.Items[AuthKindItemKey] = AuthKindSession;
                         await next();
                         return;
                     }
@@ -48,6 +65,7 @@ namespace AutoInvest.Utils
                 var serverApiKey = AppConfigManager.Get("API_ACCESS_KEY", "");
                 if (!string.IsNullOrWhiteSpace(serverApiKey) && serverApiKey.Equals(extractedApiKey.ToString()))
                 {
+                    context.HttpContext.Items[AuthKindItemKey] = AuthKindApiKey;
                     await next();
                     return;
                 }
