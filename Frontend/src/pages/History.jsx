@@ -290,8 +290,10 @@ const History = () => {
                 <div className="log-viewer__header">
                   <span>{logData.date} — {logData.totalLines}줄</span>
                 </div>
+                {/* 서버는 오래된 순으로 준다(SystemLogDAO.GetByDate). 볼 때 필요한 건 방금 무슨 일이
+                    있었나이므로 최신 줄을 위로 뒤집는다. 원본 배열은 건드리지 않는다. */}
                 <pre className="log-viewer__content">
-                  {logData.logs.map((line, i) => (
+                  {logData.logs.slice().reverse().map((line, i) => (
                     <div key={i} className={`log-line ${getLogLineClass(line)}`}>
                       {line}
                     </div>
