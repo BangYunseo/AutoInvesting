@@ -3,7 +3,6 @@ import Dashboard from './pages/Dashboard';
 import DcaConfig from './pages/DcaConfig';
 import History from './pages/History';
 import Order from './pages/Order';
-import Settings from './pages/Settings';
 import Login from './pages/Login';
 
 /**
@@ -48,10 +47,6 @@ function Shell() {
               <span className="nav-link__icon">📜</span>
               거래 내역
             </NavLink>
-            <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <span className="nav-link__icon">⚙️</span>
-              설정
-            </NavLink>
           </div>
         </nav>
       )}
@@ -64,7 +59,9 @@ function Shell() {
           <Route path="/dca-config" element={<DcaConfig />} />
           <Route path="/history" element={<History />} />
           <Route path="/order" element={<Order />} />
-          <Route path="/settings" element={<Settings />} />
+          {/* 설정 페이지는 제거됨 — 모든 운영 설정이 Render 환경변수로 주입되고
+              AppConfigManager.Get이 환경변수를 우선하므로 화면에서 저장해도 읽히지 않았다.
+              값 변경은 Render 환경변수 + 재배포로 한다. 계좌 모드·마스킹 계좌번호는 대시보드 배지가 보여준다. */}
         </Routes>
       </main>
     </div>
