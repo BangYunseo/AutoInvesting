@@ -72,8 +72,8 @@ const Dashboard = () => {
   // 내부 계산은 USD 기준. 표시만 현재 환율로 USD↔KRW 전환한다.
   const fmtUsd = (usd) => '$' + usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtKrw = (usd) => '₩' + (usd * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 });
-  const fmtMoney = (usd) => (currency === 'KRW' ? fmtKrw(usd) : fmtUsd(usd)); // 선택 통화(주 표시)
-  const fmtMoneyAlt = (usd) => (currency === 'KRW' ? fmtUsd(usd) : fmtKrw(usd)); // 반대 통화(서브 표시)
+  // 금액은 선택한 통화 하나로만 보여준다 — 반대 통화를 나란히 적으면 같은 숫자를 두 번 읽게 된다.
+  const fmtMoney = (usd) => (currency === 'KRW' ? fmtKrw(usd) : fmtUsd(usd));
 
   // ── 계좌 모드 배지 표기 (실거래 전환 가시화) ──
   const accountBadge = {
@@ -162,10 +162,7 @@ const Dashboard = () => {
           <div className="summary-card__value">
             {fmtMoney(totalAssetsUsd)}
           </div>
-          {/* 구성(주식+예수금)은 옆·아래 카드가 이미 보여준다. 여기서 또 쪼개면 같은 숫자를 세 번 읽는다. */}
-          <div className="summary-card__sub">
-            {fmtMoneyAlt(totalAssetsUsd)}
-          </div>
+          {/* 부제 없음 — 구성(주식+예수금)은 옆·아래 카드가 이미 보여준다. */}
         </div>
 
         {/* 주식 평가금액 */}
@@ -195,9 +192,6 @@ const Dashboard = () => {
           </div>
           <div className="summary-card__value">
             {fmtMoney(cashBalance)}
-          </div>
-          <div className="summary-card__sub">
-            {fmtMoneyAlt(cashBalance)}
           </div>
         </div>
 
@@ -234,11 +228,7 @@ const Dashboard = () => {
           )}
         </div>
 
-        <HoldingsTable
-          holdings={summaryHoldings}
-          format={fmtMoney}
-          formatAlt={fmtMoneyAlt}
-        />
+        <HoldingsTable holdings={summaryHoldings} format={fmtMoney} />
       </div>
 
       {/* ── 비중 (표에서 빼서 전체 100% 기준으로 한눈에) ── */}
