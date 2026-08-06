@@ -229,7 +229,8 @@ namespace AutoInvest.Data
             string? mappedPath = key switch
             {
                 "IS_PAPER_TRADING"      => "Trading:IsPaperTrading",
-                "KIS_SERVER"            => "Kis:Server",
+                // KIS_SERVER 매핑은 2026-08-06에 제거했다 — 실전/모의 분기는 IS_PAPER_TRADING이 하고,
+                // 이 값을 읽던 유일한 코드(ConfigController의 화면 표시)가 사라져 소비자가 0이 됐다.
                 "KIS_ACCOUNT_PROD"      => "Kis:AccountProd",
                 "KIS_APP_KEY"           => "Kis:AppKey",
                 "KIS_APP_SECRET"        => "Kis:AppSecret",

@@ -78,7 +78,7 @@ AutoInvesting/
     │   ├── DEVELOPMENT.md          # 개발 진척도 및 변경 이력
     │   ├── ONBOARDING_GUIDE.md     # 신규 개발자용 아키텍처 가이드
     │   ├── CODE_READING_GUIDE.md   # DCA 적립 코어 코드 흐름 가이드
-    │   ├── CODE_MAP.md             # 코드 색인
+    │   ├── CODE_MAP.md             # 코드 색인 (regen-codemap.ps1로 재생성 — 직접 수정 금지)
     │   ├── RECOVERY.md             # 운영 복구 절차 (환경변수 이름·출처·순서 — 값 없음)
     │   └── API_REFERENCE.md         # REST API 레퍼런스 (인터랙티브 명세는 /swagger)
     ├── [YYYY-MM-DD] NN_*.md        # 분석·진단 문서 (프로젝트 개요/아키텍처 등)
