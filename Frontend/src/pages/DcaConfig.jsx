@@ -23,7 +23,7 @@ const DcaConfig = () => {
   const [cashUsd, setCashUsd] = useState(0); // 예수금(현금 잔고, USD) — /api/portfolio/summary
   const [accountMode, setAccountMode] = useState(''); // 'SIM' | 'PAPER' | 'LIVE' — 폴백 문구 분기용
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState(null); // null | 'templates' | 'months' — 저장은 둘이 독립
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   // 월별 실행 로그: 매수 기록(TB_TRADE_HISTORY)과 오른쪽에서 볼 연·월
@@ -222,10 +222,10 @@ const DcaConfig = () => {
   const hasCash = cashUsd > 0 && exchangeRate > 0;
   const overCash = hasCash && totalCost > cashKrw;
 
-  const handleSave = async () => {
-    setError(null);
-    setNotice(null);
-
+  // ── 저장 ──
+  // 템플릿과 월별 배정은 서로 독립적으로 저장한다. 한쪽만 담아 보내면 서버는 다른 쪽을 건드리지 않는다.
+  // 저장 후 loadConfig()로 되읽지 않는 것도 같은 이유다 — 되읽으면 저장하지 않은 쪽의 편집분이 날아간다.
+  const buildTemplates = () => {
     const payloadTemplates = [];
     const skipped = []; // 아직 종목을 하나도 안 채운 템플릿 (만들다 만 껍데기)
 
@@ -243,42 +243,62 @@ const DcaConfig = () => {
         const ticker = r.ticker.trim().toUpperCase();
         const qty = parseInt(r.qty, 10);
         if (!ticker) continue;
-        if (r.status === 'invalid') { setError(`'${t.name}' 템플릿의 '${ticker}'는 검증 실패한 티커입니다.`); return; }
-        if (r.status === 'idle' || r.status === 'checking') { setError(`'${t.name}' 템플릿의 '${ticker}'를 먼저 검증하세요(엔터/🔍).`); return; }
-        if (!(qty > 0)) { setError(`'${t.name}' 템플릿의 '${ticker}' 수량은 1 이상이어야 합니다.`); return; }
-        if (quantities[ticker]) { setError(`'${t.name}' 템플릿에 중복 종목: ${ticker}`); return; }
+        if (r.status === 'invalid') { setError(`'${t.name}' 템플릿의 '${ticker}'는 검증 실패한 티커입니다.`); return null; }
+        if (r.status === 'idle' || r.status === 'checking') { setError(`'${t.name}' 템플릿의 '${ticker}'를 먼저 검증하세요(엔터/🔍).`); return null; }
+        if (!(qty > 0)) { setError(`'${t.name}' 템플릿의 '${ticker}' 수량은 1 이상이어야 합니다.`); return null; }
+        if (quantities[ticker]) { setError(`'${t.name}' 템플릿에 중복 종목: ${ticker}`); return null; }
         quantities[ticker] = qty;
       }
       const b = Number(t.budget);
-      if (!(b > 0)) { setError(`'${t.name}' 템플릿의 예산은 0보다 커야 합니다.`); return; }
+      if (!(b > 0)) { setError(`'${t.name}' 템플릿의 예산은 0보다 커야 합니다.`); return null; }
       payloadTemplates.push({ id: t.id, name: t.name.trim() || t.id, budgetKrw: b, quantities });
     }
 
     if (payloadTemplates.length === 0) {
       setError('저장할 템플릿이 없습니다. 템플릿에 종목을 최소 1개 넣으세요.');
-      return;
+      return null;
     }
 
+    return { payloadTemplates, skipped };
+  };
+
+  const put = async (body, target, extraNotice = '') => {
     try {
-      setSaving(true);
+      setSaving(target);
       const res = await fetch('/api/dca/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templates: payloadTemplates, monthMap }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `저장 실패 (${res.status})`);
-      // 빠진 템플릿을 조용히 삭제하면 "내가 만든 게 사라졌다"가 된다. 무엇이 왜 빠졌는지 남긴다.
-      setNotice(
-        (data.message || '저장되었습니다.')
-        + (skipped.length ? ` (종목이 없는 템플릿 ${skipped.length}개는 저장하지 않았습니다: ${skipped.join(', ')})` : ''),
-      );
-      await loadConfig();
+      setNotice((data.message || '저장되었습니다.') + extraNotice);
     } catch (err) {
       setError(err.message);
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
+  };
+
+  const saveTemplates = async () => {
+    setError(null);
+    setNotice(null);
+    const built = buildTemplates();
+    if (!built) return;
+    // 빠진 템플릿을 조용히 삭제하면 "내가 만든 게 사라졌다"가 된다. 무엇이 왜 빠졌는지 남긴다.
+    await put(
+      { templates: built.payloadTemplates },
+      'templates',
+      built.skipped.length
+        ? ` (종목이 없는 템플릿 ${built.skipped.length}개는 저장하지 않았습니다: ${built.skipped.join(', ')})`
+        : '',
+    );
+  };
+
+  const saveMonthMap = async () => {
+    setError(null);
+    setNotice(null);
+    await put({ monthMap }, 'months');
   };
 
   if (loading) {
@@ -319,6 +339,7 @@ const DcaConfig = () => {
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: 20, wordBreak: 'keep-all' }}>
         여러 <strong>매수 템플릿</strong>을 만들어 두고 <strong>월별로 배정</strong>하면, 그 달의 적립 사이클은
         해당 템플릿대로 매수합니다. 매달 다른 구성·예산으로 적립할 수 있습니다.
+        저장은 <strong>템플릿과 월별 배정이 각각 따로</strong> 됩니다 — 한쪽만 저장해도 다른 쪽은 그대로 남습니다.
       </p>
 
       {error && <div className="alert alert--err" style={{ marginBottom: 16 }}>❌ {error}</div>}
@@ -433,6 +454,15 @@ const DcaConfig = () => {
           </div>
         </div>
       )}
+
+      <button
+        className="btn btn--primary"
+        onClick={saveTemplates}
+        disabled={saving !== null}
+        style={{ width: '100%', padding: '12px', fontSize: '0.95rem', marginBottom: 28 }}
+      >
+        {saving === 'templates' ? '⏳ 저장 중...' : '💾 템플릿 저장'}
+      </button>
 
       {/* 월별 템플릿 배정 */}
       <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: '0.9rem' }}>월별 템플릿 배정</label>
@@ -589,8 +619,13 @@ const DcaConfig = () => {
         </div>
       </div>
 
-      <button className="btn btn--primary" onClick={handleSave} disabled={saving} style={{ width: '100%', padding: '14px', fontSize: '1rem' }}>
-        {saving ? '⏳ 저장 중...' : '💾 적립 설정 저장'}
+      <button
+        className="btn btn--primary"
+        onClick={saveMonthMap}
+        disabled={saving !== null}
+        style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}
+      >
+        {saving === 'months' ? '⏳ 저장 중...' : '💾 월별 배정 저장'}
       </button>
     </div>
   );

@@ -147,11 +147,54 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 템플릿 목록과 월배정을 DB에 저장합니다 (다음 사이클부터 반영).
+        /// 템플릿 목록만 저장합니다 (월배정은 건드리지 않음 — 다음 사이클부터 반영).
+        /// 다만 삭제된 템플릿을 가리키던 월배정은 함께 지웁니다. 그대로 두면 그 달에 배정된
+        /// 템플릿이 없는 상태가 되어 매수가 조용히 스킵됩니다.
         /// </summary>
-        public static void SaveConfig(List<DcaTemplate> templates, Dictionary<int, string> monthMap)
+        /// <param name="templates">저장할 템플릿 목록</param>
+        public static void SaveTemplates(List<DcaTemplate> templates)
         {
-            var cleanTemplates = (templates ?? new List<DcaTemplate>())
+            var clean = CleanTemplates(templates);
+            AppConfigManager.Set(TemplatesKey, JsonSerializer.Serialize(clean));
+
+            var ids = new HashSet<string>(clean.Select(t => t.Id));
+            var stored = LoadMonthMap();
+            var kept = stored.Where(kv => ids.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value);
+            if (kept.Count != stored.Count)
+            {
+                WriteMonthMap(kept);
+                Logger.Warn($"[DcaSettings] 삭제된 템플릿을 가리키던 월배정 {stored.Count - kept.Count}건을 정리했습니다.");
+            }
+
+            Logger.Info($"[DcaSettings] 매수 템플릿 저장 — 템플릿 {clean.Count}개");
+        }
+
+        /// <summary>
+        /// 월(1~12)→템플릿Id 배정만 저장합니다 (템플릿 목록은 건드리지 않음).
+        /// 저장된 템플릿에 없는 Id를 가리키는 배정은 버립니다.
+        /// </summary>
+        /// <param name="monthMap">월(1~12)→템플릿Id 배정</param>
+        public static void SaveMonthMap(Dictionary<int, string> monthMap)
+        {
+            var ids = new HashSet<string>(LoadTemplates().Select(t => t.Id));
+            var kept = (monthMap ?? new Dictionary<int, string>())
+                .Where(kv => kv.Key >= 1 && kv.Key <= 12 && !string.IsNullOrWhiteSpace(kv.Value) && ids.Contains(kv.Value))
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            WriteMonthMap(kept);
+            Logger.Info($"[DcaSettings] 월별 배정 저장 — {kept.Count}건");
+        }
+
+        private static void WriteMonthMap(Dictionary<int, string> map)
+        {
+            AppConfigManager.Set(
+                MonthMapKey,
+                JsonSerializer.Serialize(map.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value)));
+        }
+
+        private static List<DcaTemplate> CleanTemplates(List<DcaTemplate> templates)
+        {
+            return (templates ?? new List<DcaTemplate>())
                 .Where(t => t != null && !string.IsNullOrWhiteSpace(t.Id))
                 .Select(t => new DcaTemplate
                 {
@@ -163,15 +206,6 @@ namespace AutoInvest.Core
                         .ToDictionary(kv => kv.Key.Trim().ToUpper(), kv => kv.Value)
                 })
                 .ToList();
-
-            var ids = new HashSet<string>(cleanTemplates.Select(t => t.Id));
-            var cleanMap = (monthMap ?? new Dictionary<int, string>())
-                .Where(kv => kv.Key >= 1 && kv.Key <= 12 && !string.IsNullOrWhiteSpace(kv.Value) && ids.Contains(kv.Value))
-                .ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
-
-            AppConfigManager.Set(TemplatesKey, JsonSerializer.Serialize(cleanTemplates));
-            AppConfigManager.Set(MonthMapKey, JsonSerializer.Serialize(cleanMap));
-            Logger.Info($"[DcaSettings] DCA 템플릿 저장 — 템플릿 {cleanTemplates.Count}개, 월배정 {cleanMap.Count}건");
         }
 
         // ── 레거시 단일 설정 로딩 (마이그레이션용) ──
