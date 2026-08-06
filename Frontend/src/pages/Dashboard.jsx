@@ -17,7 +17,6 @@ const Dashboard = () => {
   const [summaryError, setSummaryError] = useState(null);
   const [summaryUpdated, setSummaryUpdated] = useState(null);
   const [currency, setCurrency] = useState('USD'); // 금액 카드 표시 통화 — 'USD' | 'KRW'
-  const [rateInverted, setRateInverted] = useState(false); // 환율 표기 방향 — false = 달러원, true = 원달러
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -195,25 +194,20 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* 환율 — 달러원(1 USD가 몇 원) ↔ 원달러(1,000원이 몇 달러) 표기 전환.
-            원달러를 1원 기준으로 쓰면 $0.00072처럼 읽을 수 없는 자릿수가 되므로 1,000원 기준으로 둔다. */}
+        {/* 환율 — 방향은 상단 통화 토글을 따른다. USD를 고르면 달러원(1 USD가 몇 원),
+            KRW를 고르면 원달러. 원달러를 1원 기준으로 쓰면 $0.00072처럼 읽을 수 없는
+            자릿수가 되므로 1,000원 기준으로 둔다. */}
         <div className="summary-card fade-in fade-in-delay-4">
           <div className="summary-card__header">
-            <span className="summary-card__label">{rateInverted ? '원달러 환율' : '달러원 환율'}</span>
+            <span className="summary-card__label">{currency === 'KRW' ? '원달러 환율' : '달러원 환율'}</span>
             <div className="summary-card__icon summary-card__icon--cyan">💱</div>
           </div>
           <div className="summary-card__value">
-            {rateInverted
+            {currency === 'KRW'
               ? '$' + (1000 / exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })
               : '₩' + exchangeRate.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
           </div>
-          <div className="summary-card__sub" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span>{rateInverted ? '1,000원 기준' : '1 USD 기준'}</span>
-            <div className="ccy-toggle ccy-toggle--sm" role="group" aria-label="환율 표기 방향">
-              <button className={!rateInverted ? 'active' : ''} onClick={() => setRateInverted(false)}>달러원</button>
-              <button className={rateInverted ? 'active' : ''} onClick={() => setRateInverted(true)}>원달러</button>
-            </div>
-          </div>
+          <div className="summary-card__sub">{currency === 'KRW' ? '1,000원 기준' : '1 USD 기준'}</div>
         </div>
       </div>
 
