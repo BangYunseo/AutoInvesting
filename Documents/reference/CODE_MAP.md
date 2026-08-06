@@ -25,7 +25,7 @@ status: draft
 |------|------|-----------|-----------|
 | `DailyExecutionService.cs` | class | 외부 크론잡(Cron-job.org, GitHub Actions 등)에 의해 매수 주기마다 호출되는 적립식 사이클 실행기. | `RunDcaCycleAsync` |
 | `DcaAccumulationEngine.cs` | class | 적립식(DCA) 자동 매수 엔진. | `PlanPurchases`, `AccumulateAsync` |
-| `DcaSettings.cs` | class | 적립식(DCA) 설정의 단일 읽기/쓰기 지점. | `SelectTemplate`, `LoadTemplates`, `LoadMonthMap`, `SaveConfig` |
+| `DcaSettings.cs` | class | 적립식(DCA) 설정의 단일 읽기/쓰기 지점. | `SelectTemplate`, `LoadTemplates`, `LoadMonthMap`, `SaveTemplates`, `SaveMonthMap`, `LoadRunDay`, `SaveRunDay` |
 | `IBrokerClient.cs` | interface | 증권사 API 추상화 인터페이스. | — |
 | `KisBrokerClient.cs` | class | KIS (한국투자증권) API 실거래 브로커 클라이언트. | `LoginAsync`, `GetCurrentPriceAsync`, `GetExchangeRateAsync`, `GetHoldingsAsync`, `GetCashBalanceAsync` |
 | `KisTokenManager.cs` | class | KIS (한국투자증권) API OAuth 토큰 관리자. | `EnsureValidTokenAsync`, `GetToken` |
@@ -38,7 +38,6 @@ status: draft
 | 파일 | 타입 | 책임 요약 | 핵심 멤버 |
 |------|------|-----------|-----------|
 | `AuthController.cs` | class | 단일 관리자 로그인 API. | `GetStatus`, `Setup`, `Login` |
-| `ConfigController.cs` | class | 운영 설정 값 (거래 모드, KIS 인증 정보 등)을 조회하고 변경하는 API. | `GetAllConfigs`, `UpdateConfig`, `RevealSecret` |
 | `DcaController.cs` | class | 적립식(DCA) 설정 조회·저장 API. | `GetConfig`, `UpdateConfig` |
 | `HistoryController.cs` | class | 매매 이력과 시스템 로그를 조회하는 API. | `GetTradeHistory`, `GetSystemLogs` |
 | `OrderController.cs` | class | 수동 주문 트리거 API. | `RunDcaCycle`, `PlaceManualOrder`, `PreviewSell` |

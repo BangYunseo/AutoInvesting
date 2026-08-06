@@ -15,6 +15,8 @@ status: draft
 
 설정 키 목록이 코드 다섯 곳(`AppConfigManager.ResolveFromConfiguration` 매핑, `SensitiveKeys`, `ConfigController` 응답 딕셔너리, `README` 표, `Settings.jsx` secretKeys)에 흩어져 단일 진실 원천이 없었다. 그 결과 죽은 키가 남고, 문서가 무효한 전환 절차를 지시하고, 환경변수 우선순위 때문에 UI 저장이 조용히 무효화되는 문제가 생겼다.
 
+그중 두 곳(`ConfigController`, `Settings.jsx`)은 2026-08-06에 **코드째 제거**됐다. 운영 설정이 전부 Render 환경변수로 주입돼 있어 화면 저장이 애초에 읽히지 않는 무동작 UI였기 때문이다. 이제 설정 변경 수단은 **Render 환경변수 수정 + 재배포** 하나뿐이며(적립 설정 화면이 다루는 DB 전용 키는 예외), 이 문서가 그 유일한 목록 문서다.
+
 실계좌 전환 후에는 설정 하나가 잘못 놓이면 매수가 모의망으로 빠지거나 크론이 차단된다. 이 문서는 그 판단의 기준선이다.
 
 ## 본문
@@ -81,15 +83,15 @@ status: draft
 
 ### DB 전용 키
 
-아래는 DB(`TB_APP_CONFIG`)에만 있어야 한다. **환경변수로 만들면 UI 저장이 조용히 무효화된다.**
+아래는 DB(`TB_APP_CONFIG`)에만 있어야 한다. **동명 환경변수를 만들면 DB 값이 영구히 가려진다** — `Get()`이 환경변수를 먼저 집으므로 적립 설정 화면 저장이나 앱의 자동 기록이 조용히 무효화된다.
 
-| 키 | 읽고 쓰는 곳 | 관리 화면 |
+| 키 | 읽고 쓰는 곳 | 관리 경로 |
 |---|---|---|
-| `DCA_TEMPLATES` | `Core/DcaSettings.cs` | 적립 설정 |
-| `DCA_MONTH_MAP` | `Core/DcaSettings.cs` | 적립 설정 |
+| `DCA_TEMPLATES` | `Core/DcaSettings.cs` | 적립 설정 화면 (`PUT /api/dca/config`) |
+| `DCA_MONTH_MAP` | `Core/DcaSettings.cs` | 적립 설정 화면 (`PUT /api/dca/config`) |
 | `DCA_LAST_RUN_MONTH` | `Core/DailyExecutionService.cs` | **없음 — 앱이 자동 관리** |
-| `ADMIN_USERNAME` | `Controllers/AuthController.cs` | 설정 |
-| `ADMIN_PASSWORD_HASH` | `Controllers/AuthController.cs` | 설정 |
+| `ADMIN_USERNAME` | `Controllers/AuthController.cs` | `POST /api/auth/setup` (최초 1회, 화면 없음) |
+| `ADMIN_PASSWORD_HASH` | `Controllers/AuthController.cs` | `POST /api/auth/setup` (최초 1회, 화면 없음) |
 
 `DCA_LAST_RUN_MONTH`가 가장 위험하다. 동명 환경변수가 존재하면 월 1회 멱등 가드가 영구 무력화되어 크론이 매일 매수하거나 적립이 영구 스킵된다. `Set`은 DB에 기록되고 성공 로그까지 남으므로 **증상만 보면 가드가 동작하는 것처럼 보인다.**
 
@@ -113,7 +115,7 @@ status: draft
 
 | 키 | 상태 |
 |---|---|
-| `KIS_SERVER` / `Kis:Server` | `ConfigController`에서 화면 표시용으로만 읽힘. 도메인 분기는 `IS_PAPER_TRADING` 단독. **`prod`로 바꿔도 실전으로 가지 않는다** |
+| `KIS_SERVER` / `Kis:Server` | **소비자 0건.** 유일한 독자였던 `ConfigController`가 2026-08-06에 제거되어 이제 `AppConfigManager`의 appsettings 매핑에만 이름이 남아 있다. 도메인 분기는 예전부터 `IS_PAPER_TRADING` 단독이므로 **`prod`로 바꿔도 실전으로 가지 않는다** |
 | `DCA_QTYS` / `DCA_BUDGET_KRW` | 레거시 폴백. `DCA_TEMPLATES`가 있으면 도달 불가 |
 | `AI_PROVIDER` / `GEMINI_API_KEY` | Phase 6에서 판단 레이어 제거 시 코드 참조 0건. 2026-08-03에 Render 환경변수·DB에서 삭제 |
 
@@ -137,18 +139,18 @@ IS_PAPER_TRADING = 0
 
 ### 실효값 확인 방법
 
-소스만으로는 알 수 없다. 실행 중인 앱에 물어본다.
+소스만으로는 알 수 없다. 실행 중인 앱에 물어본다. **모든 설정값을 한 번에 되돌려주는 엔드포인트는 없다** — `GET /api/config`가 그 역할이었으나 2026-08-06에 제거됐다(무동작 UI 전용이었고, 인증만 통과하면 임의 키 쓰기·시크릿 평문 열람까지 붙어 있었다).
 
-| 방법 | 위치 |
-|---|---|
-| 설정 화면의 거래 모드 토글 상태 | `Frontend/src/pages/Settings.jsx` |
-| `GET /api/config` | `Controllers/ConfigController.cs` — `Get()`을 통과한 최종 실효값 |
-| 대시보드 계좌 배지 | `Core/SessionManager.cs`의 `GetAccountInfo()` |
-| 기동 로그 | `TB_SYSTEM_LOG` 또는 Render 로그 |
+| 방법 | 위치 | 확인되는 것 |
+|---|---|---|
+| 대시보드 계좌 배지 | `Core/SessionManager.cs`의 `GetAccountInfo()` → `GET /api/portfolio/summary`의 `accountMode`·`accountMasked` | 거래 모드(`SIM`/`PAPER`/`LIVE`)와 마스킹 계좌번호 |
+| 기동 로그 | `TB_SYSTEM_LOG`(`GET /api/history/logs`) 또는 Render 로그 | `[Session] KIS API 클라이언트 생성 (모드: ...)` 등 실제 분기 결과 |
+| 적립 설정 화면 | `GET /api/dca/config` | DB 전용 키(`DCA_TEMPLATES`·`DCA_MONTH_MAP`)의 실효값 |
+| Render 환경변수 목록 | Render 대시보드 | 어떤 키가 환경변수 층에 박혀 있는지 |
 
-환경변수가 설정돼 있으면 **설정 화면 토글이 조용히 실패한다.** 저장은 성공하고 DB에도 기록되지만 `Get`이 환경변수를 먼저 집기 때문이다. 토글이 원위치로 돌아오면 환경변수에 값이 박혀 있다는 신호다.
+나머지 키(시크릿·부트스트랩)는 **설정 여부조차 앱에 물어볼 수단이 없다.** 값이 잘못됐는지는 증상으로 역추적한다 — 배지가 `SIM`이면 `KIS_APP_KEY`가 비었고, 크론이 전부 `401`이면 `API_ACCESS_KEY`가 어긋났고, 로그인이 안 되면 `MASTER_KEY`/`AUTH_TOKEN_SECRET`이 없다.
 
-`render.yaml`이 저장소에 없으므로 프로덕션 환경변수 목록은 **Render 대시보드가 유일한 진실**이다.
+`render.yaml`이 저장소에 없으므로 프로덕션 환경변수 목록은 **Render 대시보드가 유일한 진실**이다. 현재 배포에 설정된 환경변수는 10개다 — `ADMIN_EMAIL`, `API_ACCESS_KEY`, `AUTH_TOKEN_SECRET`, `DATABASE_URL`, `IS_PAPER_TRADING`, `KIS_ACCOUNT_NO`, `KIS_APP_KEY`, `KIS_APP_SECRET`, `MASTER_KEY`, `RESEND_API_KEY`. `KIS_ACCOUNT_PROD`는 기본값 `01`이 맞아 설정하지 않았다.
 
 ### 로컬 개발 최소 기동 조건
 
@@ -181,11 +183,11 @@ IS_PAPER_TRADING = 0
 
 ### 알려진 함정
 
-`RESEND_API_KEY`와 `ADMIN_EMAIL`은 **설정 화면 저장이 반영되지 않는다.** `NotificationService`가 `AppConfigManager`를 경유하지 않고 환경변수와 appsettings만 읽기 때문이다. UI에서 키를 넣고 성공 응답을 받아도 메일 발송에는 쓰이지 않는다. `API_ACCESS_KEY`는 `AppConfigManager.Get` 경유라 DB 반영이 되므로 동작이 갈린다.
+`RESEND_API_KEY`와 `ADMIN_EMAIL`은 **DB(`TB_APP_CONFIG`)에 넣어도 읽히지 않는다.** `NotificationService`가 `AppConfigManager`를 경유하지 않고 환경변수와 appsettings만 읽기 때문이다. 이 둘은 반드시 환경변수(또는 로컬 `appsettings.local.json`)에 둔다. `API_ACCESS_KEY`는 `AppConfigManager.Get` 경유라 DB 값도 읽히므로 동작이 갈린다.
 
-`NotificationService.Initialize`는 기동 시 1회만 호출되므로 설정 변경 후 `_session.Reset()`이 브로커만 리셋하고 알림 설정은 리셋하지 않는다.
+`NotificationService.Initialize`는 기동 시 1회만 호출된다. `SessionManager.Reset()`도 유일한 호출자였던 `ConfigController`가 사라져 **현재 호출자가 0건**이다 — 즉 런타임에 설정을 다시 읽는 경로가 없고, 어떤 설정이든 반영하려면 재배포(재기동)해야 한다.
 
-`POST /api/config`에 키 화이트리스트가 없다. 인증을 통과한 요청은 `DCA_LAST_RUN_MONTH`·`ADMIN_PASSWORD_HASH`를 포함한 임의 키를 DB에 쓸 수 있고, `DcaSettings.SaveConfig`의 티커·수량·Id 검증을 우회한 원시 JSON 주입도 가능하다. 읽기는 화이트리스트로 막혀 있어 방향이 비대칭이다.
+**(해소됨 2026-08-06)** `POST /api/config`에 키 화이트리스트가 없었다. 인증을 통과한 요청은 `DCA_LAST_RUN_MONTH`·`ADMIN_PASSWORD_HASH`를 포함한 임의 키를 DB에 쓸 수 있었고, `DcaSettings.SaveConfig`의 티커·수량·Id 검증을 우회한 원시 JSON 주입도 가능했다. 읽기는 화이트리스트로 막혀 있어 방향이 비대칭이었다. 함께 있던 `GET /api/config/secret/{key}`는 크론용 `x-api-key`만으로 앱키·시크릿·계좌번호 **평문**을 열람할 수 있었다. 세 엔드포인트를 모두 제거해 이 쓰기·읽기 표면이 사라졌다 — 화이트리스트를 추가하는 대신 무동작 UI 전체를 걷어낸 결과다. 남은 DB 쓰기 경로는 검증이 붙은 `PUT /api/dca/config`와 `POST /api/auth/setup`뿐이다.
 
 `AppConfigManager.Get`은 호출마다 DB 커넥션을 새로 연다. `ApiKeyAuthAttribute`가 모든 인증 요청에서 이를 호출하므로 요청당 최소 1회 DB 왕복이 발생하고, DB 장애가 곧 `API_ACCESS_KEY` 빈 값 → 크론 401로 나타난다.
 
@@ -198,15 +200,15 @@ DB 스키마 변경은 자동 적용 경로가 없다. `DBManager.RunMigration`�
 1. **부트스트랩 3개(`DATABASE_URL`·`MASTER_KEY`·`AUTH_TOKEN_SECRET`)와 운영 시크릿·설정은 환경변수에 둔다.** 시크릿을 DB로 옮기면 노출 표면이 늘고 `MASTER_KEY` 의존이 커진다.
 2. **도메인 데이터와 런타임 상태는 DB에만 둔다.** 특히 `DCA_LAST_RUN_MONTH`를 환경변수로 만들면 과매수 방지 가드가 무력화된다.
 3. **실전 전환 스위치는 `IS_PAPER_TRADING="0"` 하나다.** `KIS_SERVER`는 죽은 설정이다.
-4. **실효값은 실행 중인 앱에 묻는다.** 소스와 대시보드 어느 쪽도 단독으로는 답이 아니다.
+4. **실효값은 실행 중인 앱에 묻는다.** 소스와 대시보드 어느 쪽도 단독으로는 답이 아니다. 다만 전체 설정을 되돌려주는 API는 없다 — 배지·기동 로그·Render 대시보드를 합쳐 판단한다.
+5. **설정을 바꾸는 방법은 Render 환경변수 수정 + 재배포 하나다.** 화면에서 바꾸는 경로는 2026-08-06에 제거됐다(적립 설정 화면이 다루는 `DCA_TEMPLATES`·`DCA_MONTH_MAP`만 예외).
 
 ## 참고
 
 - `Data/AppConfigManager.cs`, `Data/DBManager.cs`, `Data/sql/create_tables.sql`
 - `Core/SessionManager.cs`, `Core/DcaSettings.cs`, `Core/DailyExecutionService.cs`, `Core/TaxEstimator.cs`
 - `Utils/CryptoUtil.cs`, `Utils/NotificationService.cs`, `Utils/ApiKeyAuthAttribute.cs`
-- `Controllers/ConfigController.cs`, `Controllers/AuthController.cs`
-- `Frontend/src/pages/Settings.jsx`
+- `Controllers/AuthController.cs`, `Controllers/DcaController.cs`, `Controllers/PortfolioController.cs`
 - `appsettings.json`, `appsettings.example.json`, `Dockerfile`, `.gitignore`, `.dockerignore`
 - `.agents/rules/security.md`, `.agents/rules/recommended_rules.md`
 - `Documents/worklog/[2026-08-03] 01_실전 전환 첫날 준비와 설정 표면 정리.md`

@@ -29,6 +29,30 @@ status: draft
 > **역사적 기록(과거에 그렇게 구현되었음)**으로 보존된 것이며, 현재 코드베이스에는 해당 클래스·엔드포인트·화면이
 > **존재하지 않습니다.** 현재 동작은 본 문서 최상단의 "Phase 6 상세 변경 이력"을 기준으로 보세요.
 
+## 2026-08-06 — 설정 화면·ConfigController 제거 (동작하지 않는 UI 정리)
+
+### 제거한 것
+- `Controllers/ConfigController.cs` 파일 전체 삭제 → `GET /api/config`(운영 설정 조회), `POST /api/config`(설정 저장 + 세션 리셋), `GET /api/config/secret/{key}`(시크릿 평문 단건 조회) 세 엔드포인트가 사라졌다.
+- `Frontend/src/pages/Settings.jsx` 삭제 + `App.jsx`의 import·`/settings` 라우트·네비 링크 제거 → 화면은 **로그인 / 대시보드 / 적립 설정 / 주문 설정 / 거래 내역** 5개로 줄었다.
+- `Utils/ApiKeyAuthAttribute.cs`에 같은 날 추가했던 `AuthKind` 표식(`HttpContext.Items`)도 소비자가 없어져 제거. 필터 동작(Bearer 세션 토큰 또는 `x-api-key` 중 하나로 통과, `[PublicEndpoint]`만 면제)은 그대로다.
+- `Data/AppConfigManager.cs` 주석에서 "값 확인은 `GET /api/config`로 한다"는 문장 제거.
+
+### 제거한 이유 — 읽히지 않는 설정을 저장하던 화면
+Render 배포에는 운영 설정 10개가 **전부 환경변수로** 주입되어 있다(이름만: `ADMIN_EMAIL`, `API_ACCESS_KEY`, `AUTH_TOKEN_SECRET`, `DATABASE_URL`, `IS_PAPER_TRADING`, `KIS_ACCOUNT_NO`, `KIS_APP_KEY`, `KIS_APP_SECRET`, `MASTER_KEY`, `RESEND_API_KEY`). `AppConfigManager.Get()`은 **환경변수 → DB → appsettings** 순으로 읽으므로 환경변수에 값이 있으면 DB를 아예 보지 않는다. 즉 설정 화면에서 거래 모드나 KIS 자격증명을 저장해도 실제 동작에는 반영되지 않는 "동작하지 않는 UI"였다.
+
+### 함께 사라진 위험 3건
+- **임의 키 기록**: `POST /api/config`에 키 화이트리스트가 없어, 인증을 통과한 요청이 `DCA_LAST_RUN_MONTH`(월 1회 적립 멱등 가드)·`ADMIN_PASSWORD_HASH`를 포함한 임의 키를 `TB_APP_CONFIG`에 쓸 수 있었다. `Documents/reference/CONFIG_REFERENCE.md`에 알려진 문제로 기록돼 있던 항목이며, 엔드포인트 제거로 해소됐다.
+- **시크릿 평문 열람**: `GET /api/config/secret/{key}`는 크론용 `x-api-key`만으로도 앱키·시크릿·계좌번호 평문을 열람할 수 있었다(같은 날 세션 토큰 전용으로 좁혔다가, 엔드포인트 자체를 없앴다).
+- **시크릿 DB 저장 경로**: 시크릿을 DB에 적재하는 쓰기 경로 자체가 사라졌다.
+
+### 앞으로의 설정 변경 경로
+- **Render 환경변수 수정 + 재배포**가 유일한 경로다. 화면에서 바꾸는 수단은 없다.
+- 계좌 모드(LIVE/PAPER/SIM)와 마스킹된 계좌번호는 `GET /api/portfolio/summary`의 `accountMode`/`accountMasked`로 대시보드 상단 배지가 이미 보여준다.
+
+### 같은 날 선행 작업 (기동·저장 경로 강화)
+- `MASTER_KEY`가 없으면 경고만 남기고 뜨던 것을 **기동 거부**로 바꿨다(`Main`을 `int` 반환으로 전환해 종료 코드 전달). 키 없이 떠 있으면 암호문을 복호화하지 못해 빈 값이 되고, `SessionManager`가 "앱키 없음"으로 판단해 조용히 `SimBrokerClient`로 폴백한다 — 화면에는 체결이 찍히지만 실제로는 아무것도 사지 않는다.
+- `AppConfigManager.Set`의 **평문 저장 분기 삭제 → 저장 거부**. 한 번 DB에 들어간 평문은 스냅샷 때문에 회수할 수 없고, 계좌번호는 개인정보 취급 대상이다.
+
 ## 2026-08-04 — 실계좌 운영 첫 주 결함 정리와 화면 개편
 
 실계좌(LIVE)로 값이 실제로 채워지면서 "조용히 0이거나 비어 있어도 화면이 그럴듯하던" 결함들이 한꺼번에 드러난 날이다. 상세는 `Documents/worklog/[2026-08-04] 01·02`에 있다.
@@ -149,7 +173,7 @@ status: draft
 
 `IBrokerClient`/`KisBrokerClient`/`SimBrokerClient`, `SessionManager`(이제 브로커 생명주기만 — AI analyzer 분기 제거),
 `TradeHistoryDAO`, `NotificationService`(Resend HTTP API — Render의 SMTP 포트 차단 우회), `ExchangeRateService`, `DBManager`/`AppConfigManager`,
-`ConfigController`, `PortfolioController`, `HistoryController`, `TestController`(send-test-email만 — 실주문 경로 없음). 외부 크론잡이 `dca-run`을 호출하는 구조.
+`ConfigController`(→ 2026-08-06 제거), `PortfolioController`, `HistoryController`, `TestController`(send-test-email만 — 실주문 경로 없음). 외부 크론잡이 `dca-run`을 호출하는 구조.
 
 ### 6-5. 프론트엔드 재구성
 
@@ -159,9 +183,10 @@ status: draft
 | DcaConfig | `/dca-config` | 적립 설정 — 매수 템플릿(추가/복제/삭제/종목 수량·티커검증·예산) + 월별 배정 그리드 편집 (신규) |
 | Order | `/order` | 적립 실행 + 수동 주문 (재작성) |
 | History | `/history` | 거래 내역 (유지) |
-| Settings | `/settings` | 환경 설정 (유지) |
+| Settings | `/settings` | 환경 설정 (유지 → **2026-08-06 제거**) |
 
 네비게이션: **대시보드 / 적립 설정 / 주문·적립 / 거래 내역 / 설정**
+(이 시점 기록입니다. 설정은 2026-08-06에 제거되어 현재 네비게이션은 4개입니다.)
 
 ### 6-6. 참고 — 레거시 데이터 보존
 

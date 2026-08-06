@@ -19,7 +19,7 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 4. `.agents/rules/code-style-guide.md` — XML 주석, 예외 처리
 
 ## API Controller 작성 수칙
-- RESTful 규칙 준수 (`GET /api/orders`, `POST /api/config`)
+- RESTful 규칙 준수 (`GET /api/history/trades`, `PUT /api/dca/config`)
 - 비즈니스 로직은 컨트롤러에 직접 구현 금지 → `Core` 엔진을 DI로 주입받아 호출
 - 요청/응답은 표준 JSON으로 통일, 기존 컨트롤러 네이밍·응답 규격과 일치
 - 모든 public 액션 메서드에 XML 주석

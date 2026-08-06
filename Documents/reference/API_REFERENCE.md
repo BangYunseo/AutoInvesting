@@ -9,7 +9,7 @@ status: draft
 # AutoInvesting API 정의서
 
 ## 개요
-> `Controllers/`의 실제 구현(Phase 6 — DCA 적립 코어)을 기준으로 한 REST API 레퍼런스다. 판단 레이어(전략/퀀트/AI/모니터링/분할매도/백테스트/시뮬)는 Phase 6에서 제거되어 관련 엔드포인트는 **더 이상 존재하지 않는다.** 거시 브리핑(`/api/macro/briefing`)과 점검용 매수(`POST /api/test/buy`)도 2026-07-30에 제거되었다(각각 화면 미배선으로 소비자 0 / `manual`과 중복). 실행 중 자동 생성되는 OpenAPI 명세는 `/swagger`에서도 볼 수 있다.
+> `Controllers/`의 실제 구현(Phase 6 — DCA 적립 코어)을 기준으로 한 REST API 레퍼런스다. 판단 레이어(전략/퀀트/AI/모니터링/분할매도/백테스트/시뮬)는 Phase 6에서 제거되어 관련 엔드포인트는 **더 이상 존재하지 않는다.** 거시 브리핑(`/api/macro/briefing`)과 점검용 매수(`POST /api/test/buy`)도 2026-07-30에 제거되었다(각각 화면 미배선으로 소비자 0 / `manual`과 중복). 설정 API 3개(`GET`·`POST /api/config`, `GET /api/config/secret/{key}`)와 프론트 설정 화면은 2026-08-06에 제거되었다 — 운영 설정이 전부 Render 환경변수로 주입되어 있고 `AppConfigManager.Get()`이 환경변수를 먼저 집으므로 DB에 저장해도 읽히지 않는 무동작 UI였다. 설정 변경은 **Render 환경변수 수정 + 재배포**로만 한다. 실행 중 자동 생성되는 OpenAPI 명세는 `/swagger`에서도 볼 수 있다.
 
 ## 공통 사항
 
@@ -57,9 +57,6 @@ status: draft
 | 인증 | GET | `/api/auth/status` | 면제 |
 | 인증 | POST | `/api/auth/setup` | **필요** (`x-api-key`) |
 | 인증 | POST | `/api/auth/login` | 면제 |
-| 설정 | GET | `/api/config` | 필요 |
-| 설정 | POST | `/api/config` | 필요 |
-| 설정 | GET | `/api/config/secret/{key}` | 필요 |
 | 적립설정 | GET | `/api/dca/config` | 필요 |
 | 적립설정 | PUT | `/api/dca/config` | 필요 |
 | 주문 | POST | `/api/order/dca-run` | 필요 |
@@ -95,30 +92,6 @@ status: draft
 - 응답 `200`: `{ "token": "<서명 토큰>", "expiresAt": "<UTC 만료시각>" }`
 - 오류: `429`(실패 속도 상한 초과), `400`(미설정 시 `{error, needsSetup:true}` / 입력 누락), `401`(자격증명 불일치), `503`(설정 저장소 조회 실패), `500`(서명 키 `MASTER_KEY` 부재)
 - 실패 속도 상한: 서비스 전체에서 **분당 실패 20회**를 넘기면 그 창이 끝날 때까지 `429`. 비밀번호 검증(PBKDF2 12만 회)보다 앞에서 잘라내 CPU 소모 공격도 함께 막는다. 유효한 `x-api-key`를 동봉한 요청은 상한에서 면제된다(공격 중에도 소유자가 들어올 통로).
-
-### 설정 (`ConfigController`, `/api/config`)
-
-**`GET /api/config`** — 운영 설정 조회. 시크릿은 값 대신 설정 여부(`_SET`)만 반환.
-- 응답 `200`:
-```json
-{
-  "IS_PAPER_TRADING": "1",
-  "KIS_SERVER": "vps",
-  "KIS_APP_KEY_SET": "1",
-  "KIS_APP_SECRET_SET": "1",
-  "KIS_ACCOUNT_NO_SET": "1"
-}
-```
-- 오류: `500`
-
-**`POST /api/config`** — 설정 저장 + 세션 리셋(다음 호출부터 새 설정으로 브로커 재생성). 시크릿 키(`KIS_APP_KEY`·`KIS_APP_SECRET`·`KIS_ACCOUNT_NO`·`RESEND_API_KEY`·`API_ACCESS_KEY`)는 **빈 값으로 들어오면 기존 값 유지**(미변경).
-- 요청 본문: 키-값 딕셔너리, 예: `{ "IS_PAPER_TRADING": "0" }`
-- 응답 `200`: `{ "message": "설정이 성공적으로 저장되었습니다." }`
-- 오류: `500`
-
-**`GET /api/config/secret/{key}`** — 저장된 시크릿 평문 단건 조회(UI 눈 아이콘 확인용). 화이트리스트(`KIS_APP_KEY`·`KIS_APP_SECRET`·`KIS_ACCOUNT_NO`)만 허용하며 값은 로그에 남기지 않는다.
-- 응답 `200`: `{ "key": "KIS_APP_KEY", "value": "<평문>", "set": true }`
-- 오류: `400`(화이트리스트 밖 키), `500`
 
 ### 적립 설정 (`DcaController`, `/api/dca`)
 여러 매수 템플릿(예산 + 종목별 고정 수량)과 월(1~12)별 템플릿 배정을 편집한다. 적립 사이클은 현재(KST) 월에 배정된 템플릿대로 매수한다.

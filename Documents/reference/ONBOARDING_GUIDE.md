@@ -112,7 +112,9 @@ React SPA는 다음 네비게이션으로 구성됩니다.
 | 적립 설정 | `/dca-config` | 매수 템플릿·월별 배정 편집 (`GET/PUT /api/dca/config`) |
 | 주문·적립 | `/order` | 적립 사이클 실행(`/api/order/dca-run`) + 수동 매수/매도(`/api/order/manual`) |
 | 거래 내역 | `/history` | 체결 내역 조회 |
-| 설정 | `/settings` | 환경 설정 |
+
+설정 화면은 없습니다. 운영 설정은 전부 Render 환경변수로 주입되며 변경은 **환경변수 수정 + 재배포**로 합니다
+(2026-08-06 제거 — 자세한 경위는 `Documents/reference/DEVELOPMENT.md`, 복구 절차는 `RECOVERY.md`).
 
 ## 7. 참고: 레거시 데이터 (TB_MARKET_SNAPSHOT)
 

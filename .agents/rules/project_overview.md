@@ -46,7 +46,6 @@ AutoInvesting/
 │   ├── DcaController.cs               # /api/dca/config 매수 템플릿·월배정 조회·저장 (GET: {templates, monthMap, currentMonth, activeTemplateId} / PUT: {templates, monthMap})
 │   ├── PriceController.cs             # /api/price/{ticker} 현재가 조회 겸 티커 검증
 │   ├── AuthController.cs              # /api/auth status/setup/login (단일 관리자 인증, 서명 세션 토큰) — [PublicEndpoint]는 status/login만, setup은 인증 필요(x-api-key)
-│   ├── ConfigController.cs
 │   ├── PortfolioController.cs
 │   ├── HistoryController.cs
 │   └── TestController.cs              # send-test-email (메일 발송 점검용 — 실주문 경로 없음)
@@ -71,7 +70,7 @@ AutoInvesting/
 │   ├── ApiKeyAuthAttribute.cs          # 전역 인증 필터 (Bearer 세션토큰 또는 x-api-key)
 │   └── PublicEndpointAttribute.cs      # 인증 면제 마커 (로그인/초기설정용)
 │
-├── Frontend/                           # React SPA (로그인/대시보드/적립설정/주문·적립/거래내역/설정)
+├── Frontend/                           # React SPA (로그인/대시보드/적립설정/주문·적립/거래내역)
 ├── appsettings.json                    # 환경 설정 — Trading/Smtp/Resend/Kis/Security/Dca/Tax 섹션
 ├── README.md
 └── Documents/                     # 단일 문서 홈 (프로젝트 문서 전부)
@@ -79,7 +78,8 @@ AutoInvesting/
     │   ├── DEVELOPMENT.md          # 개발 진척도 및 변경 이력
     │   ├── ONBOARDING_GUIDE.md     # 신규 개발자용 아키텍처 가이드
     │   ├── CODE_READING_GUIDE.md   # DCA 적립 코어 코드 흐름 가이드
-    │   ├── CODE_MAP.md             # 코드 색인 (regen-codemap.ps1로 재생성)
+    │   ├── CODE_MAP.md             # 코드 색인
+    │   ├── RECOVERY.md             # 운영 복구 절차 (환경변수 이름·출처·순서 — 값 없음)
     │   └── API_REFERENCE.md         # REST API 레퍼런스 (인터랙티브 명세는 /swagger)
     ├── [YYYY-MM-DD] NN_*.md        # 분석·진단 문서 (프로젝트 개요/아키텍처 등)
     ├── modules/                    # 모듈별 이해 문서
@@ -100,6 +100,17 @@ AutoInvesting/
 > **Macro**(FRED 거시지표 국면 브리핑)는 프론트에 배선되지 않아 소비자가 0이었으므로 2026-07-30에
 > 코드째 제거했습니다(`MacroController`/`MacroBriefingService`/`FredClient`/DTO 2종/테스트). 다시
 > 필요해지면 화면과 함께 도입하고, 그때도 매수 의사결정에 값을 흘려보내지 않는 경계를 지킵니다.
+>
+> **설정(Config)** — 설정 화면(`Frontend/src/pages/Settings.jsx`)과 `ConfigController`
+> (`GET`/`POST /api/config`, `GET /api/config/secret/{key}`)는 2026-08-06에 코드째 제거했습니다.
+> 배포(Render)에 운영 설정이 **전부 환경변수로** 주입되어 있고 `AppConfigManager.Get()`은
+> 환경변수 → DB → appsettings 순으로 읽으므로, 화면에서 거래모드나 KIS 자격증명을 저장해도 DB 값은
+> 읽히지 않는 **동작하지 않는 UI**였습니다. 함께 사라진 위험: 키 화이트리스트가 없어 인증 통과 요청이
+> `DCA_LAST_RUN_MONTH`(월 1회 적립 멱등 가드)·`ADMIN_PASSWORD_HASH`를 포함한 임의 키를
+> `TB_APP_CONFIG`에 쓸 수 있었던 `POST /api/config`, 크론용 `x-api-key`만으로 앱키·시크릿·계좌번호
+> 평문을 열람할 수 있었던 시크릿 단건 조회, 그리고 시크릿을 DB에 저장하는 경로 자체입니다.
+> 설정 변경은 이제 **Render 환경변수 수정 + 재배포**로만 합니다(계좌 모드 LIVE/PAPER/SIM와 마스킹
+> 계좌번호는 대시보드 상단 배지가 `GET /api/portfolio/summary`의 `accountMode`/`accountMasked`로 표시).
  
 ## 핵심 인터페이스: IBrokerClient
  

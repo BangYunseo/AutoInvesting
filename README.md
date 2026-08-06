@@ -75,7 +75,6 @@ AutoInvesting/
 │
 ├── Controllers/                        # REST API 컨트롤러
 │   ├── AuthController.cs               # 단일 관리자 로그인 + 세션 토큰(7일) 발급
-│   ├── ConfigController.cs             # 환경 설정 API
 │   ├── HistoryController.cs            # 거래 내역 및 로그 API
 │   ├── PortfolioController.cs          # 잔고 조회 API
 │   ├── PriceController.cs              # 현재가 조회 겸 티커 검증 (/api/price/{ticker})
@@ -93,7 +92,7 @@ AutoInvesting/
 │
 ├── Frontend/                           # React SPA (Vite, Glassmorphism 디자인)
 │   └── src/
-│       ├── pages/                      # Login, Dashboard, DcaConfig, Order, History, Settings
+│       ├── pages/                      # Login, Dashboard, DcaConfig, Order, History
 │       └── components/                 # HoldingsTable
 │
 └── Documents/                          # 단일 문서 홈 (프로젝트 문서 전부)
@@ -230,7 +229,7 @@ AutoInvesting/
 - [x] `DcaTemplate` DTO — 매수 템플릿 (Id, Name, BudgetKrw, Quantities)
 - [x] `DailyExecutionService` → `RunDcaCycleAsync`만 유지 (구 AI 평가/일일 보고서 제거)
 - [x] `OrderController` → `POST /api/order/dca-run`(적립 사이클) + `POST /api/order/manual`(수동 주문)
-- [x] 프론트 재구성 — 네비: 대시보드 / 적립 설정 / 주문·적립 / 거래 내역 / 설정
+- [x] 프론트 재구성 — 네비: 대시보드 / 적립 설정 / 주문·적립 / 거래 내역
 - [x] 적립 설정 모델 전환 — 종목별 고정 수량(주) 직접 지정, 티커 실시간 검증·현재가 표시(`/api/price/{ticker}`), 비중·금액 자동 계산(읽기 전용)
 
 ---
@@ -291,6 +290,10 @@ docker run --rm -p 5000:5000 \
 
 > ⚠️ **보안(필수)**: API 키·시크릿·계좌번호·토큰·DB 접속문자열 등 **실제 값은 소스·커밋·이 문서에 절대 넣지 않습니다.**
 > 값은 환경변수 또는 `appsettings.local.json`(gitignore 대상)에만 두고, 아래는 **변수 이름**만 정리한 것입니다. (`.agents/rules/security.md`)
+
+> ⚙️ **운영 설정 변경 경로**: 설정 화면·설정 API는 없습니다(2026-08-06 제거). 거래 모드·KIS 자격증명 등 운영 설정은
+> **Render 환경변수를 수정하고 재배포**해서 바꿉니다 — 환경변수가 DB 값보다 우선이라 화면에서 저장해도 읽히지 않았기 때문입니다.
+> 현재 계좌 모드(LIVE/PAPER/SIM)와 마스킹된 계좌번호는 대시보드 상단 배지에서 확인합니다.
 
 | 변수 이름 | 용도 | 필수 여부 |
 | --- | --- | --- |

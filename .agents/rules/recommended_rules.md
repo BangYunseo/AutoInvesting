@@ -12,7 +12,7 @@
 ## 백그라운드 서비스 및 API 개발 규칙
  
 ### API Controller 작성 수칙
-1. 엔드포인트는 RESTful 규칙을 따릅니다 (예: `GET /api/orders`, `POST /api/config`).
+1. 엔드포인트는 RESTful 규칙을 따릅니다 (예: `GET /api/history/trades`, `PUT /api/dca/config`).
 2. 비즈니스 로직은 컨트롤러에 직접 구현하지 말고 `Core` 레이어의 엔진을 DI로 주입받아 호출합니다.
 3. 요청/응답 형식은 표준 JSON으로 통일합니다.
 
@@ -60,9 +60,12 @@
 - **전환 스위치는 `IS_PAPER_TRADING` 하나뿐이고, 값은 정확히 문자열 `0`이어야 한다.**
   `SessionManager`의 판정이 `AppConfigManager.Get("IS_PAPER_TRADING", "1") != "0"`이므로 `false`·`False`·`no`·
   앞뒤 공백은 전부 **모의**로 떨어진다. `bool` → `"1"`/`"0"` 변환은 appsettings 경로에만 있고 환경변수 경로에는 없다.
-- 🚫 **`KIS_SERVER` / `Kis:Server`를 바꿔도 실전으로 전환되지 않는다.** 이 값을 읽는 코드는
-  `ConfigController`의 화면 표시 한 곳뿐이며 도메인 분기에 쓰이지 않는다(죽은 설정). 과거 이 문서가
-  "KIS `Server`를 실전으로"를 요구했으나 무효한 지시였다(2026-08-03 정정).
+- 🚫 **`KIS_SERVER` / `Kis:Server`를 바꿔도 실전으로 전환되지 않는다.** 도메인 분기에 쓰이지 않는
+  죽은 설정이며, 유일한 소비자였던 `ConfigController`의 화면 표시마저 제거돼 이제 읽는 코드가 없다.
+  과거 이 문서가 "KIS `Server`를 실전으로"를 요구했으나 무효한 지시였다(2026-08-03 정정).
+- **설정 변경 경로는 Render 환경변수 수정 + 재배포뿐이다 — 화면에서 바꿀 수 없다.** 설정 화면과
+  `ConfigController`(`/api/config`)는 2026-08-06에 제거됐고, 환경변수가 DB 값을 덮으므로 DB에 써도
+  읽히지 않는다.
 - 전환 후 검증: 기동 로그 `[Session] KIS API 클라이언트 생성 (모드: 실전(prod))`, 대시보드 배지 `LIVE`,
   실전 자격증명(`KIS_APP_KEY`/`_SECRET`/`_ACCOUNT_NO` — 모의 앱키는 실전망에서 인증 실패)·예수금·체결.
   (`TestController`의 실주문 우회 경로 봉인은 **완료** — `POST /api/test/buy`를 2026-07-30에 제거해

@@ -76,8 +76,9 @@ status: draft
    - **핵심 포인트**: `GET /api/dca/config`로 **템플릿 목록 + 월배정 + 현재 월/활성 템플릿**(`{templates, monthMap, currentMonth, activeTemplateId}`)을 조회하고, `PUT /api/dca/config`로 템플릿·월배정을 저장합니다(`DcaSettings.SaveConfig` → DB 기록 → 다음 사이클 반영). 저장 전 템플릿 id 중복·예산·수량을 검증합니다.
 10. **`Controllers/AuthController.cs` / `PriceController.cs`**
     - `AuthController`: 단일 관리자 로그인(상태 조회·최초 설정·로그인). `PriceController`: `GET /api/price/{ticker}` 현재가 조회 겸 티커 검증(적립 설정 편집기에서 사용).
-11. **`Controllers/ConfigController.cs` / `PortfolioController.cs` / `HistoryController.cs`**
-    - 각각 환경 설정 변경, 잔고 조회, 거래 내역·시스템 로그 조회 API입니다.
+11. **`Controllers/PortfolioController.cs` / `HistoryController.cs`**
+    - 각각 잔고 조회, 거래 내역·시스템 로그 조회 API입니다.
+    - **참고**: 운영 설정을 화면에서 바꾸는 `ConfigController`와 설정 페이지는 2026-08-06에 제거되었습니다. 운영 설정은 배포 환경변수로만 주입되므로 코드 흐름에는 등장하지 않습니다.
 
 ---
 
