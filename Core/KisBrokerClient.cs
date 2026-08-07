@@ -180,7 +180,22 @@ namespace AutoInvest.Core
 
             var responseString = await response.Content.ReadAsStringAsync();
             var json = JsonSerializer.Deserialize<JsonElement>(responseString);
-            
+
+            // ⚠️ KIS는 업무 오류를 HTTP 200 + rt_cd≠"0"(output1 없음)으로 돌려준다 (2026-08-07 추가).
+            //    이걸 검사하지 않으면 빈 리스트가 "보유 0건"으로 조용히 통과한다. 그 결과가 위험한 건
+            //    체결 대사다 — ReconcileAsync가 없는 티커를 수량 0으로 읽어 전량 미체결로 오판하고,
+            //    수량 감소(anySold)도 없으니 실제로 체결된 달의 DCA_LAST_RUN_MONTH를 해제한다.
+            //    그러면 다음 크론이 템플릿 전량을 실자금으로 다시 매수하고, 스냅샷은 같은 패스에서
+            //    지워져 사후 재판정도 불가하다.
+            //    Polly(SendWithRetryAsync)는 예외/5xx/429/408만 재시도하므로 이 경로를 잡지 못한다.
+            //    → 예외로 올린다. 호출부의 catch가 스냅샷을 보존하고 다음 실행에서 재시도한다.
+            string rtCd = json.TryGetProperty("rt_cd", out var rc) ? (rc.GetString() ?? "") : "";
+            if (rtCd != "0")
+            {
+                string msg1 = json.TryGetProperty("msg1", out var m1) ? (m1.GetString() ?? "").Trim() : "";
+                throw new Exception($"보유 잔고 조회 에러 (rt_cd={rtCd}, msg1={msg1})");
+            }
+
             var list = new List<HoldingDto>();
             if (json.TryGetProperty("output1", out var output1) && output1.ValueKind == JsonValueKind.Array)
             {
