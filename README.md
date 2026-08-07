@@ -3,7 +3,7 @@ title: AutoInvesting
 date: 2026-07-23
 company: [개인]
 tags: [프로젝트개요, DCA적립, ETF, KIS]
-status: draft
+status: done
 ---
 
 # AutoInvesting
@@ -46,6 +46,11 @@ AutoInvesting/
 ├── appsettings.json                    # 통합 설정 파일 (Trading / Smtp / Resend / Kis / Security / Dca / Tax)
 ├── Dockerfile                          # 단일 컨테이너 (백엔드 + React 정적 서빙)
 │
+├── .github/workflows/                  # 유일한 실행 트리거 (순수 curl — checkout 없음)
+│   ├── daily-run.yml                   # 매일 KST 00:10 → POST /api/order/dca-run (월 1회는 엔진 가드가 보장)
+│   ├── reconcile.yml                   # 매일 UTC 21:30(미장 마감 후) → POST /api/order/reconcile
+│   └── gitleaks.yml                    # 시크릿 스캔 (트리거 아님)
+│
 ├── Core/                               # 핵심 비즈니스 로직
 │   ├── IBrokerClient.cs                # 증권사 API 추상화 인터페이스
 │   ├── SimBrokerClient.cs              # 시뮬레이션 구현체 (API 키 불필요)
@@ -79,7 +84,7 @@ AutoInvesting/
 │   ├── PortfolioController.cs          # 잔고 조회 API
 │   ├── PriceController.cs              # 현재가 조회 겸 티커 검증 (/api/price/{ticker})
 │   ├── DcaController.cs                # 적립 설정(매수 템플릿·월배정) 조회·저장 API
-│   ├── OrderController.cs              # 적립 사이클 실행 + 수동 주문 API
+│   ├── OrderController.cs              # dca-run(적립) · reconcile(체결 대사) · dca-schedule(당월 상태·추가적립 예약) · manual(수동 주문) · sell-preview(양도세 프리뷰)
 │   └── TestController.cs               # 개발/테스트 전용 API (send-test-email — 실주문 경로 없음)
 │
 ├── Utils/                              # 유틸리티 (모든 레이어 접근 가능)
@@ -87,13 +92,17 @@ AutoInvesting/
 │   ├── NotificationService.cs          # 이메일 알림 (Resend HTTP API — Render의 SMTP 포트 차단 대응)
 │   ├── ExchangeRateService.cs          # 환율 API (Frankfurter → ExchangeRate-API 폴백, 1시간 캐싱)
 │   ├── CryptoUtil.cs                   # 시크릿 AES-256-GCM 암복호화 · 비밀번호 PBKDF2 해시 · 세션 토큰
-│   ├── ApiKeyAuthAttribute.cs          # 전역 x-api-key 인증 필터
-│   └── PublicEndpointAttribute.cs      # 전역 인증 필터 면제 표시 (로그인 등 공개 엔드포인트)
+│   ├── ApiKeyAuthAttribute.cs          # 전역 인증 필터 (Bearer 세션토큰 또는 x-api-key)
+│   ├── LoginThrottle.cs                # 로그인 실패 전역 속도 상한 (분당 20회)
+│   └── PublicEndpointAttribute.cs      # 인증 면제 표시 (/api/auth/status·login 둘뿐)
+│
+├── Tests/                              # xUnit 테스트 (별도 AutoInvest.Tests.csproj — 웹 빌드에서 제외)
 │
 ├── Frontend/                           # React SPA (Vite, Glassmorphism 디자인)
 │   └── src/
 │       ├── pages/                      # Login, Dashboard, DcaConfig, Order, History
-│       └── components/                 # HoldingsTable
+│       ├── components/                 # HoldingsTable, AllocationDonut, ConfirmDialog
+│       └── utils/                      # dcaRuns.js (적립 실행 상태 조회)
 │
 └── Documents/                          # 단일 문서 홈 (프로젝트 문서 전부)
     ├── reference/                      # 상시 참조 문서 (고정 이름)
@@ -101,15 +110,13 @@ AutoInvesting/
     │   ├── ONBOARDING_GUIDE.md         # 신규 개발자용 아키텍처 가이드
     │   ├── CODE_READING_GUIDE.md       # DCA 적립 코어 코드 흐름 가이드
     │   ├── CODE_MAP.md                 # 코드 맵 (regen-codemap.ps1로 재생성)
+    │   ├── CONFIG_REFERENCE.md         # 설정 키 단일 진실 원천 (환경변수·DB 전용 키·실전 전환)
+    │   ├── RECOVERY.md                 # 운영 복구 절차 (이름·출처·순서 — 값 없음)
     │   └── API_REFERENCE.md            # REST API 레퍼런스 (인터랙티브 명세는 /swagger)
     ├── modules/                        # 모듈별 이해 문서
     ├── analysis/                       # 백테스트·절세 분석 산출물
     └── worklog/                        # 기능 단위 작업 인계 보고서
 ```
-
-> **참고 (레거시 데이터)**: `TB_MARKET_SNAPSHOT` 테이블은 과거 데이터 보존을 위해 DB 스키마에는
-> 남아 있으나, 판단 레이어 제거에 따라 **현재는 어디서도 기록·조회하지 않습니다** (과거 레거시
-> 데이터, 미사용). `DBManager`의 관련 ALTER 마이그레이션 코드는 중복이라 제거되었습니다.
 
 ---
 
@@ -117,16 +124,18 @@ AutoInvesting/
 
 - **ASP.NET Core Web API** 기반의 Headless 서버 구조
 - **순수 적립(DCA) 자동화 서버**
-- Linux 서버 / Docker 환경에서 24시간 무인 동작
+- Linux 서버 / Docker 단일 컨테이너로 동작하되 **상주 타이머(인앱 스케줄러)는 두지 않습니다** — 배포처(Render 무료 인스턴스)는 유휴 시 프로세스가 멈춰 `BackgroundService` 타이머가 오류 없이 죽습니다 (`.agents/rules/architecture.md`)
 
 ### 적립 실행 진입점
 
-- `DailyExecutionService.RunDcaCycleAsync()`가 로그인 → 매수 템플릿·월배정 로드
+- `DailyExecutionService.RunDcaCycleAsync()`가 **월 1회 멱등 가드**(DB 전용 `DCA_LAST_RUN_MONTH` — 조회 실패 시 매수 중단) → **적립 지정일 게이트**(`DCA_RUN_DAY`) → 로그인 → 매수 템플릿·월배정 로드
 - (`DcaSettings.Load` → 현재 월 템플릿 선택) → `DcaAccumulationEngine.AccumulateAsync()` 실행 → 이메일 보고서 발송을 수행
 
-### 외부 크론잡 트리거
+### 외부 크론잡 트리거 (GitHub Actions — 유일한 실행 경로)
 
-- 매수 주기(예: 매월 첫 거래일)에 외부 크론잡이 `POST /api/order/dca-run`을 호출하여 적립 사이클을 시작 (즉시 202 반환 후 백그라운드 처리)
+- `daily-run.yml` — **매일** KST 00:10(`10 15 1-31 * *`)에 `/api/health`로 잠든 인스턴스를 깨운 뒤 `POST /api/order/dca-run` 호출 (즉시 202 반환 후 백그라운드 처리)
+- **월 1회는 크론이 아니라 코드가 보장합니다** — 위 멱등 가드가 당월 1회만 통과시킵니다. 접수 0건인 날은 마커를 남기지 않아 다음 날 자동 재시도되므로, 크론 주기를 "매월 1일"로 바꾸지 마세요
+- `reconcile.yml` — 매일 UTC 21:30(미장 마감 후) `POST /api/order/reconcile` → `ReconcileAsync()`가 주문 전후 보유 수량 차이로 체결을 판정하고, **전량 미체결일 때만** 마커를 해제해 재시도를 허용
 
 ### REST API 컨트롤러
 
@@ -185,52 +194,9 @@ AutoInvesting/
 
 ---
 
-## 🚀 개발 로드맵
+## 🚀 개발 진척도
 
-### Phase 1 — 기반 (✅ 완료)
-
-- [x] 프로젝트 생성 및 PostgreSQL 연동
-- [x] DB 스키마 및 초기 마스터 데이터
-- [x] DTO / DAO 레이어
-- [x] 메인 대시보드 UI (사이드바, 카드, 로그)
-- [x] 설정 폼 / 거래 내역 폼
-
-### Phase 2 ~ 2.6 — 엔진 코어 + 퀀트 모듈 + 구조 리팩토링 (✅ 완료)
-
-- [x] `IBrokerClient` / `SimBrokerClient` / `SmartOrderEngine` / `SessionManager`
-- [x] 퀀트 엔진(`QuantIndicator`, `QuantFilter`, `BacktestEngine`, `RebalancingEngine`)
-- [x] Weight → Qty(수량 정수) 전환, 무료 환율 API(Frankfurter) 연동
-- [x] 멀티 Form → 단일 창 Panel(SPA) UI 전환, 레거시 Form 제거
-
-### Phase 3 — KIS 실거래 연동 (✅ 완료)
-
-- [x] `KisBrokerClient` — KIS REST API 실제 구현
-- [x] OAuth 토큰 발급 + 자동 갱신 (`KisTokenManager`)
-- [x] 실시간 시세/잔고 조회 및 주문 실행
-
-### Phase A / B / C — Web API 전환 · 운영 안정성 · React 연동 (✅ 완료)
-
-- [x] WinForms 레거시 완전 제거, Headless Web API로 전환
-- [x] KIS API 내결함성(Polly 지수 백오프) 적용, MailKit 체결/예외 알림
-- [x] React-Router 기반 SPA 프론트엔드 + Glassmorphism 디자인 시스템
-
-### Phase 4 ~ 5 — AI 시장분석 / 적응형 임계값 / 성과 피드백 (✅ 완료 → Phase 6에서 제거)
-
-- [x] Gemini 이중 에이전트(차트+펀더멘털) 합의, 확률 기반 합의 스코어링
-- [x] 종목별 적응형 임계값, AI 성과·토큰 비용 모니터링, 성과 피드백 루프
-- [x] **검증 결과 타이밍 판단의 실효성이 없음이 드러나 Phase 6에서 전부 제거됨**
-
-### Phase 6 — 판단 레이어 제거, DCA 적립 코어 전환 (✅ 완료)
-
-- [x] 퀀트/AI 판단 레이어(`SmartOrderEngine`, `Core/Quant/*`, `Core/Advisors/*`, AI 분석기) 전체 제거
-- [x] `DcaAccumulationEngine` — 종목별 고정 수량 적립 매수 엔진 (순수함수 `PlanPurchases` + `AccumulateAsync`)
-- [x] `DcaSettings` — 매수 템플릿(`DCA_TEMPLATES`)·월별 배정(`DCA_MONTH_MAP`)·예산 단일 관리 (DB `TB_APP_CONFIG` → 레거시 키/appsettings `Dca` 폴백, 자동 이관)
-- [x] `DcaController` — `GET/PUT /api/dca/config` 매수 템플릿·월별 배정 조회·저장
-- [x] `DcaTemplate` DTO — 매수 템플릿 (Id, Name, BudgetKrw, Quantities)
-- [x] `DailyExecutionService` → `RunDcaCycleAsync`만 유지 (구 AI 평가/일일 보고서 제거)
-- [x] `OrderController` → `POST /api/order/dca-run`(적립 사이클) + `POST /api/order/manual`(수동 주문)
-- [x] 프론트 재구성 — 네비: 대시보드 / 적립 설정 / 주문·적립 / 거래 내역
-- [x] 적립 설정 모델 전환 — 종목별 고정 수량(주) 직접 지정, 티커 실시간 검증·현재가 표시(`/api/price/{ticker}`), 비중·금액 자동 계산(읽기 전용)
+Phase 1~5(WinForms 기반 → 퀀트/AI 판단 레이어)와 Phase 6(판단 레이어 전면 제거 → DCA 적립 코어) 전체 이력은 `Documents/reference/DEVELOPMENT.md`에 있습니다. **현재 동작 아키텍처는 Phase 6 하나뿐이며, Phase 2~5의 산출물(`SmartOrderEngine`, `Core/Quant/*`, `Core/Advisors/*`, AI 분석기, 리밸런싱, WinForms)은 코드에 존재하지 않습니다.**
 
 ---
 
@@ -256,7 +222,7 @@ dotnet run          # ASP.NET Core 호스트 기동
 
 > 프론트 개발 서버(Vite)는 `/api` 요청을 `http://localhost:5000`으로 프록시합니다. 프론트와 함께 쓰려면 백엔드를 `:5000`으로 띄우세요 — 환경변수 `ASPNETCORE_URLS`를 `http://localhost:5000`으로 설정.
 
-> 증권사 API 키 없이도 `SimBrokerClient`(시뮬레이션 모드 — `IS_PAPER_TRADING` 기본 켜짐)로 전체 적립 흐름을 테스트할 수 있습니다.
+> `KIS_APP_KEY`가 비어 있으면 모드와 무관하게 `SimBrokerClient`(로컬 시뮬레이션)로 떨어지므로, 증권사 API 키 없이 전체 적립 흐름을 테스트할 수 있습니다. `IS_PAPER_TRADING`은 Sim/KIS 선택이 아니라 KIS 접속망 prod(`:9443`)/vps(`:29443`)만 고릅니다 — 키가 있는데 `1`이면 로컬 시뮬레이터가 아니라 실제 KIS 모의계좌로 주문이 갑니다.
 > 적립 실행은 `POST /api/order/dca-run`(또는 프론트 "주문·적립" 페이지)으로 트리거합니다.
 
 ### 2) 프론트엔드 (`Frontend/`)
@@ -284,41 +250,25 @@ docker run --rm -p 5000:5000 \
   autoinvesting
 ```
 
-- 실제 값은 아래 환경변수 표를 참고해 `-e 이름="값"`으로 주입합니다(값은 커밋 금지).
+- 실제 값은 아래 환경변수 절과 `Documents/reference/CONFIG_REFERENCE.md`를 참고해 `-e 이름="값"`으로 주입합니다(값은 커밋 금지).
 
 ### 4) 환경변수 (이름만 — 값은 여기에 적지 말 것)
 
-> ⚠️ **보안(필수)**: API 키·시크릿·계좌번호·토큰·DB 접속문자열 등 **실제 값은 소스·커밋·이 문서에 절대 넣지 않습니다.**
-> 값은 환경변수 또는 `appsettings.local.json`(gitignore 대상)에만 두고, 아래는 **변수 이름**만 정리한 것입니다. (`.agents/rules/security.md`)
+> ⚠️ **보안(필수)**: API 키·시크릿·계좌번호·토큰·DB 접속문자열의 **실제 값은 소스·커밋·이 문서에 절대 넣지 않습니다.** 값은 환경변수 또는 `appsettings.local.json`(gitignore 대상)에만 둡니다. (`.agents/rules/security.md`)
 
-> ⚙️ **운영 설정 변경 경로**: 설정 화면·설정 API는 없습니다(2026-08-06 제거). 거래 모드·KIS 자격증명 등 운영 설정은
-> **Render 환경변수를 수정하고 재배포**해서 바꿉니다 — 환경변수가 DB 값보다 우선이라 화면에서 저장해도 읽히지 않았기 때문입니다.
-> 현재 계좌 모드(LIVE/PAPER/SIM)와 마스킹된 계좌번호는 대시보드 상단 배지에서 확인합니다.
+로컬 기동에 필요한 최소 3개만 아래에 둡니다. **전체 설정 키 목록·조회 우선순위(환경변수 → DB → appsettings)·실전 전환 절차는 `Documents/reference/CONFIG_REFERENCE.md`가 단일 진실 원천입니다** — 키를 추가·삭제할 때는 그 문서만 고칩니다.
 
 | 변수 이름 | 용도 | 필수 여부 |
 | --- | --- | --- |
-| `DATABASE_URL` | PostgreSQL 접속 URI (미설정 시 `localhost` 기본 접속) | 선택 (로컬 기본값 사용 시 생략) |
-| `MASTER_KEY` | 시크릿 AES-256-GCM 암복호화 + 세션 토큰 서명 키 (base64 32바이트) | 권장 (미설정 시 시크릿 평문 저장·로그인 불가) |
-| `AUTH_TOKEN_SECRET` | 세션 토큰 서명 전용 키 (미설정 시 `MASTER_KEY`에서 파생) | 선택 |
-| `API_ACCESS_KEY` | 크론이 보내는 `x-api-key` 헤더를 검증하는 서버 측 키. **최초 관리자 설정(`POST /api/auth/setup`)의 유일한 통과 수단이기도 하다** | 크론 트리거 사용 시 + **새 환경 부트스트랩 시 필수** |
-| `IS_PAPER_TRADING` | 모의(`1`)/실전(`0`) 분기 (미설정 시 `appsettings.json > Trading:IsPaperTrading` = 모의) | 선택 |
-| `KIS_APP_KEY` | 한국투자증권 APP KEY | 실전 전환 시 필수 |
-| `KIS_APP_SECRET` | 한국투자증권 APP SECRET | 실전 전환 시 필수 |
-| `KIS_ACCOUNT_NO` | KIS 계좌번호 (개인정보 — 소스 금지) | 실전 전환 시 필수 |
-| `KIS_ACCOUNT_PROD` | KIS 계좌 상품코드 (기본 `01`) | 선택 |
-| `KIS_SERVER` | KIS 서버 구분 (기본 `vps`) | 선택 |
-| `RESEND_API_KEY` | 이메일 알림(Resend) API 키 | 선택 (알림 사용 시) |
-| `ADMIN_EMAIL` | 알림 수신자 이메일 (개인정보 — 소스 금지) | 선택 (알림 사용 시) |
-
-> `x-api-key` 값은 GitHub Actions에서 시크릿 `CRON_API_KEY`로 보관해 헤더로 전송하며, 서버는 이를 위 `API_ACCESS_KEY`와 비교합니다(두 값이 같아야 통과).
-
-**설정 예시** (값은 자리표시자 — 본인 값으로 교체, 커밋 금지):
+| `DATABASE_URL` | PostgreSQL 접속 URI (미설정 시 `localhost` 기본 접속) | 선택 |
+| `MASTER_KEY` | 시크릿 AES-256-GCM 암복호화 + 세션 토큰 서명 키 (base64 32바이트) | 권장 (미설정 시 로그인 불가) |
+| `API_ACCESS_KEY` | 크론의 `x-api-key` 검증 키. 최초 관리자 설정(`POST /api/auth/setup`)의 유일한 통과 수단 | 크론·부트스트랩 시 필수 |
 
 ```powershell
-# Windows PowerShell — 현재 세션에만 적용
+# Windows PowerShell — 현재 세션에만 적용 (값은 자리표시자)
 $env:MASTER_KEY     = "<your-base64-32byte-key>"
 $env:DATABASE_URL   = "<your-postgres-connection-uri>"
 $env:API_ACCESS_KEY = "<your-cron-api-key>"
 ```
 
-또는 `appsettings.local.json`(gitignore 대상)의 `Kis`/`Resend`/`Security` 섹션에 둘 수 있습니다.
+> 운영 설정 변경 경로는 **Render 환경변수 수정 + 재배포** 하나뿐입니다(설정 화면·설정 API는 2026-08-06 제거). 현재 계좌 모드(LIVE/PAPER/SIM)는 대시보드 상단 배지에서 확인합니다.
