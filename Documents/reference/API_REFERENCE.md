@@ -51,24 +51,9 @@ status: draft
 | `502` | 외부(주문) 거부/주문번호 없음 |
 | `503` | 의존성 미준비 — 브로커 로그인 실패, 또는 설정 저장소(DB) 조회 실패로 판정 불가 |
 
-### 엔드포인트 목록
-| 그룹 | Method | 경로 | 인증 |
-|------|--------|------|------|
-| 인증 | GET | `/api/auth/status` | 면제 |
-| 인증 | POST | `/api/auth/setup` | **필요** (`x-api-key`) |
-| 인증 | POST | `/api/auth/login` | 면제 |
-| 적립설정 | GET | `/api/dca/config` | 필요 |
-| 적립설정 | PUT | `/api/dca/config` | 필요 |
-| 주문 | POST | `/api/order/dca-run` | 필요 |
-| 주문 | POST | `/api/order/manual` | 필요 |
-| 주문 | GET | `/api/order/sell-preview` | 필요 |
-| 시세 | GET | `/api/price/{ticker}` | 필요 |
-| 포트폴리오 | GET | `/api/portfolio/holdings` | 필요 |
-| 포트폴리오 | GET | `/api/portfolio/summary` | 필요 |
-| 이력 | GET | `/api/history/trades` | 필요 |
-| 이력 | GET | `/api/history/logs` | 필요 |
-| 점검 | GET | `/api/test/send-test-email` | 필요 |
-| 헬스 | GET | `/api/health` | 면제 |
+### 엔드포인트
+
+아래 "본문"의 그룹별 절이 전체 목록이다. 손으로 정합을 맞추는 요약 표는 두지 않는다 — 2026-07-30에 같은 이유로 `API_REFERENCE_TABLE.md`를 삭제했는데 그 자리에 남긴 인라인 표도 결국 `reconcile`·`dca-schedule`을 놓쳤다. 인증은 위 규칙대로 **`/api/auth/status`·`/api/auth/login`·`/api/health`를 뺀 전부가 필요**하다.
 
 ## 본문
 
@@ -96,7 +81,7 @@ status: draft
 ### 적립 설정 (`DcaController`, `/api/dca`)
 여러 매수 템플릿(예산 + 종목별 고정 수량)과 월(1~12)별 템플릿 배정을 편집한다. 적립 사이클은 현재(KST) 월에 배정된 템플릿대로 매수한다.
 
-**`GET /api/dca/config`** — 템플릿 목록 + 월배정 + 현재 월/활성 템플릿 조회.
+**`GET /api/dca/config`** — 템플릿 목록 + 월배정 + 현재 월/활성 템플릿 + 적립 지정일 조회.
 - 응답 `200`:
 ```json
 {
@@ -105,37 +90,41 @@ status: draft
   ],
   "monthMap": { "1": "core", "2": "core" },
   "currentMonth": 7,
-  "activeTemplateId": "core"
+  "activeTemplateId": "core",
+  "runDay": 5,
+  "maxRunDay": 31
 }
 ```
+- `runDay`: 매월 적립을 시작할 날짜(KST). `0`이면 미설정 = 월초부터 시도. 그 달 말일보다 크면 말일로 보정된다.
 - 오류: `500`
 
-**`PUT /api/dca/config`** — 템플릿·월배정 저장(다음 사이클부터 반영).
-- 요청 본문:
-```json
-{
-  "templates": [
-    { "id": "core", "name": "코어", "budgetKrw": 1000000, "quantities": { "SPLG": 2, "QQQM": 1 } }
-  ],
-  "monthMap": { "1": "core", "7": "core" }
-}
-```
-- 검증: 템플릿 1개 이상, `id` 필수·중복 불가, `budgetKrw > 0`, 각 종목 수량 1 이상.
-- 응답 `200`: `{ "message": "적립 설정이 저장되었습니다. 다음 사이클부터 반영됩니다.", "templates": [...], "monthMap": {...} }`
-- 오류: `400`(검증 실패), `500`
+**`PUT /api/dca/config`** — 템플릿·월배정·지정일 저장(다음 사이클부터 반영). **부분 저장이다** — `templates`/`monthMap`/`runDay` 중 담아 보낸 것만 기록하고 빠뜨린 쪽은 손대지 않는다(셋 다 없으면 `400`).
+- 요청 본문(세 항목 모두 선택): `{ "templates": [ …GET과 같은 형태… ], "monthMap": { "1": "core", "7": "core" }, "runDay": 5 }`
+- 검증: 템플릿 1개 이상, `id` 필수·중복 불가, `budgetKrw > 0`, 각 종목 수량 1 이상, `runDay`는 `0`(해제) 또는 `1~maxRunDay`. **아직 저장되지 않은 템플릿 id에 배정된 달이 있으면 저장하지 않고 `400`**(조용히 버리면 그 달 매수가 스킵된다).
+- 응답 `200`: `{ "message": "<저장한 항목>이 저장되었습니다. 다음 사이클부터 반영됩니다.", "templates": [...], "monthMap": {...}, "runDay": 5 }`
+- 오류: `400`(저장할 내용 없음/검증 실패), `500`(저장 실패 — 지정일 저장 실패 시 "지금 상태로 두면 크론이 월초부터 매수합니다" 경고 포함)
 
 ### 주문 (`OrderController`, `/api/order`)
 
-**`POST /api/order/dca-run`** — 적립(DCA) 사이클을 백그라운드로 실행하고 **즉시 202** 반환. 외부 크론잡이 매수 주기에 호출한다(운영: `.github/workflows/daily-run.yml`, 매일 **KST 00:10**(UTC 15:10) — 엔진의 월 1회 멱등 가드가 당월 1회만 집행).
+**`POST /api/order/dca-run`** — 적립(DCA) 사이클을 백그라운드로 실행하고 **즉시 202** 반환. 외부 크론잡이 **매일** 호출한다(운영: `.github/workflows/daily-run.yml`, **KST 00:10**(UTC 15:10) — 엔진의 월 1회 멱등 가드가 당월 1회만 집행).
+- 요청 본문: 없음. 응답 `202`: `{ "message": "적립식 매수 사이클을 시작했습니다. 처리 결과는 서버 로그와 이메일로 확인하세요." }` (`force=true`면 "…강제로 시작했습니다 (당월 중복 여부와 무관)…"). 결과는 응답이 아니라 **서버 로그 + 이메일**로 확인한다.
 - `?force=true`: 당월 가드를 무시하고 추가 집행. 프론트의 즉시 실행 버튼이 사용한다(크론은 붙이지 않는다).
+- **매수하지 않고 끝나는 경우 3가지**(어느 경우든 응답은 `202`): ① 당월 이미 적립 완료(`DCA_LAST_RUN_MONTH`) ② 적립 지정일(`DCA_RUN_DAY`) 미도래 ③ 완료 표시를 읽지 못함(DB 조회 실패). ③은 같은 달 중복 매수를 막는 **안전 정지(fail-closed, 2026-08-07 추가)** 로 `?force=true`로도 넘어가지 않으며, 셋 중 유일하게 보고 메일을 발송한다.
 
 **`POST /api/order/reconcile`** — 장 마감 후 체결 대사를 백그라운드로 실행하고 **즉시 202** 반환. 운영: `.github/workflows/reconcile.yml`, 매일 **UTC 21:30**(미장 마감 후).
 - 주문 전후 보유 수량 차이로 체결을 판정하고 거래이력 상태를 `FILLED`/`PARTIAL`/`FAILED`로 갱신한다.
 - **전량 미체결**이면 `DCA_LAST_RUN_MONTH`를 해제해 다음 사이클이 재시도하게 한다.
 - 부분 체결이거나 수량이 줄어든 종목이 있으면 마커를 건드리지 않는다(중복 매수 방지).
-- 요청 본문: 없음
-- 응답 `202`: `{ "message": "적립식 매수 사이클을 시작했습니다. 처리 결과는 서버 로그와 이메일로 확인하세요." }`
-- 결과는 응답이 아니라 **서버 로그 + 이메일**로 확인.
+- 요청 본문: 없음. 응답 `202`: `{ "message": "체결 대사를 시작했습니다. 결과는 서버 로그와 이메일로 확인하세요." }` — 결과는 응답이 아니라 **서버 로그 + 이메일**로 확인한다.
+
+**`GET /api/order/dca-schedule`** — 이번 달(KST) 적립 상태와 추가 적립 예약 여부. 프론트가 확인 문구와 예약 토글을 그리는 데 쓴다.
+- 응답 `200`: `{ "month": "2026-08", "alreadyRan": true, "reserved": false, "lastRunDate": "2026-08-05", "activeTemplateName": "코어", "activeQuantities": { "SPLG": 2 } }`
+- `lastRunDate`는 표시 전용이며 이번 달 것이 아니면 빈 문자열이다. `activeTemplateName`·`activeQuantities`는 엔진과 같은 `DcaSettings.SelectTemplate`으로 고른다(화면 안내와 실제 매수가 어긋나지 않게).
+
+**`POST /api/order/dca-schedule`** — 추가 적립을 **다음 크론 실행 1회**에 예약/해제(`DCA_FORCE_RUN_MONTH`). 한국 낮에 즉시 실행을 누르면 미국장이 닫혀 거부되므로, 개장 직후에 도는 크론이 당월 가드를 한 번만 넘게 한다. 값이 **월**이라 달이 바뀌면 저절로 무효가 된다.
+- 쿼리: `reserve` — `true`=예약, 생략·`false`=해제
+- 응답 `200`: `{ "month": "2026-08", "reserved": true, "message": "..." }`
+- 오류: `500`(예약 상태 저장 실패 — 삼키지 않는다)
 
 **`POST /api/order/manual`** — 신호 판단 없이 즉시 매수/매도(KIS 연동 검증용). 매도 시 **보유 가드**(보유 수량 범위 내)와 **절세 가드**(과세 예상 매도인데 미확인 시 차단)가 적용된다.
 - 요청 본문 (`ManualOrderRequest`):
@@ -151,7 +140,7 @@ status: draft
 
 - 응답 `200`: `{ "message": "수동 BUY 주문이 실행되었습니다.", "ticker": "QQQM", "orderType": "BUY", "qty": 1, "price": 180.25, "orderNo": "..." }`
 - 오류: `400`(검증/보유 초과/미보유 매도), `409`(과세 매도 미확인 — 본문에 `taxEstimate` 포함), `502`(주문 거부/주문번호 없음), `503`(브로커 로그인 실패), `500`
-- 부수효과: 성공 시 `TB_TRADE_HISTORY`에 체결 기록.
+- 부수효과: 성공 시 `TB_TRADE_HISTORY`에 `STATUS='PENDING'`(접수)으로 기록 — 지정가 주문이라 접수가 곧 체결은 아니며, 체결 확정은 `POST /api/order/reconcile`이 `ORDER_NO`로 갱신한다.
 
 **`GET /api/order/sell-preview`** — 매도 예정 정보로 예상 양도소득세를 미리 계산(주문 없음, 정보 제공). ⚠️ 판단/타이밍 아님 — 세금 산수 기반 정보.
 - 쿼리: `ticker`(필수, 보유 종목), `qty`(필수), `price`(생략 시 현재가), `ytd`(올해 실현 양도차익, 기본 0)
@@ -203,5 +192,4 @@ status: draft
 - 인터랙티브 명세/시도: 서버 실행 후 `/swagger`
 - 응답 스키마는 구현 기준 요약이며, 실제 DTO 필드는 `Data/DTO/`(`HoldingDto`·`TradeHistoryDto`·`SellTaxEstimateDto`·`DcaTemplate`) 참조.
 - 인증 필터: `Utils/ApiKeyAuthAttribute.cs`, 면제 마커: `Utils/PublicEndpointAttribute.cs`.
-- 한눈에 보는 평면 표는 별도 유지하지 않는다(2026-07-30 `API_REFERENCE_TABLE.md` 삭제 — 이 문서의 진부분집합이라 손으로 정합을 맞추다 드리프트가 반복됨). 요약 조회는 위 "엔드포인트 목록" 표 또는 `/swagger`를 쓴다.
 - 본 문서는 `Controllers/` 변경 시 함께 갱신한다.

@@ -11,11 +11,7 @@ status: draft
 ## 개요
 > 개발자가 AutoInvesting의 전체 흐름과 각 구성요소를 빠르게 이해하고 즉시 기여할 수 있도록 돕는 문서다.
 >
-> **먼저 알아둘 것 (Phase 6 — DCA 적립 코어 전환)**: 이 시스템은 더 이상 "지금 사야 할까"를 판단하지
-> 않습니다. 정직한 백테스트(2012~현재) 결과 퀀트/AI 타이밍 판단이 단순 적립식(DCA)에 2.7~4배 열세였고,
-> 완벽한 타이밍조차 평균 대비 연 +0.3~0.9%에 불과(타이밍은 잘해야 본전)함이 드러났습니다. 그래서
-> **판단 레이어(SmartOrderEngine, 퀀트 엔진, AI 분석기, 합의 스코어링 등)를 전부 제거**하고, **현재 월에
-> 배정된 매수 템플릿대로 종목별 고정 수량을 매수하는 적립(DCA) 코어**로 전환했습니다. 핵심 가치는 "판단"이 아니라 **"자동화"**입니다.
+> **먼저 알아둘 것 (Phase 6)**: 타이밍 판단 레이어는 백테스트로 가치 없음이 확인돼 전부 제거됐습니다. 매수는 **현재 월에 배정된 매수 템플릿의 종목별 고정 수량**으로만 결정됩니다 — 배경·수치는 `.agents/rules/project_overview.md`, 지켜야 할 규칙은 `.agents/rules/recommended_rules.md`.
 
 ## 1. 프로젝트 아키텍처 개요 (Overview)
 
@@ -23,26 +19,26 @@ status: draft
 크게 다음과 같은 흐름으로 동작합니다.
 
 ```text
-[외부 크론잡 (매수 주기에 호출)]            [외부 요청 (Web UI, API Client)]
+[외부 크론잡 (매일 호출)]                   [외부 요청 (Web UI, API Client)]
       │ POST /api/order/dca-run                │ (x-api-key 인증 통과 시)
       ▼                                        ▼
 [ OrderController ] ──(202 즉시 반환)     [ Controllers ] (적립 설정 편집·잔고/내역 조회)
       │ 백그라운드 Task                         │
       ▼                                        └── (데이터 조회) ─▶ [ Data/DAO ] ─▶ PostgreSQL
 [ DailyExecutionService.RunDcaCycleAsync ]
-      │  로그인 → DcaSettings.Load → DcaAccumulationEngine.AccumulateAsync → 이메일 보고서
+      │  월1회 가드·지정일 게이트(DB 전용 마커, 조회 실패 시 매수 중단) → 로그인 → DcaSettings.Load → AccumulateAsync → 이메일 보고서
       ▼
 [ Core/DcaAccumulationEngine ] ──▶ [ SessionManager → 브로커(Sim/KIS) ] ──▶ 고정 수량 매수 + 기록
 ```
 
-- **적립 사이클 트리거**: 백그라운드 타이머 대신 **외부 크론잡**이 매수 주기(예: 매월 첫 거래일)에
-  `POST /api/order/dca-run`을 호출하는 구조입니다. 컨트롤러는 즉시 202를 반환하고 실제 처리는 백그라운드에서 진행됩니다.
+- **적립 사이클 트리거**: **외부 크론잡(GitHub Actions) 2개**가 전부입니다 — `daily-run.yml`이 **매일**(KST 00:10) `POST /api/order/dca-run`을, `reconcile.yml`이 미장 마감 후 `POST /api/order/reconcile`(체결 대사)을 호출합니다. 컨트롤러는 즉시 202를 반환하고 실제 처리는 백그라운드에서 진행됩니다. **매일 호출인데 월 1회만 집행되는 이유는 엔진의 멱등 가드와 지정일 게이트**입니다 (`CODE_READING_GUIDE.md` Step 2 참조).
+- 🚫 **인앱 스케줄러(`BackgroundService`)를 넣지 마세요** — Render 무료 인스턴스는 유휴 시 프로세스가 멈춰 타이머가 오류 없이 죽습니다. 근거와 예외 조건은 `.agents/rules/architecture.md`.
 
 ## 2. 생명주기와 의존성 주입 (Dependency Injection)
 
 프로젝트 핵심 인스턴스들은 `Program.cs`에서 등록되어 시스템 전역에서 생명주기가 관리됩니다.
 
-- `SessionManager` (싱글턴): 앱 내에서 브로커 세션(토큰 등)의 생명주기를 관리합니다. Controllers는 DI를 통해 주입받아 사용합니다. *(Phase 6에서 AI analyzer 분기 책임은 제거되어, 이제 브로커 생명주기만 담당합니다.)*
+- `SessionManager` (싱글턴): 앱 내에서 브로커 세션(토큰 등)의 생명주기를 관리합니다. Controllers는 DI를 통해 주입받아 사용합니다.
 - `DBManager` (싱글턴): PostgreSQL 커넥션(Npgsql) 관리를 책임집니다.
 - `DailyExecutionService` (Scoped): 적립 사이클 실행 진입점. `OrderController`가 `IServiceScopeFactory`로 Scope를 만들어 호출합니다.
 - **예시 흐름 (`/api/order/dca-run` 호출 시)**:
@@ -60,8 +56,7 @@ AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(�
 매수 결정은 타이밍 판단이 아니라 **현재 월에 배정된 매수 템플릿**으로만 이루어집니다. `DcaAccumulationEngine`의 흐름을 살펴봅시다.
 
 1. **설정 로드 (`DcaSettings.Load`)**: 여러 매수 템플릿(명명된 예산 + 종목별 고정 수량) 중 현재(KST) 월에 배정된 템플릿을 골라, 그 템플릿의 종목별 수량과 예산을 가져옵니다.
-   - 템플릿 선택(`SelectTemplate`, 순수 함수) 규칙: **월배정에 이번 달이 있으면 그 Id의 템플릿을 사용**(Id가 목록에 없으면 매수 스킵), **월배정이 비어 있으면 첫(기본) 템플릿을 매월 사용**(기존 단일 설정 동작 유지), **월배정은 있으나 이번 달 배정이 없으면 매수 스킵.**
-   - 우선순위: **DB(`TB_APP_CONFIG`의 `DCA_TEMPLATES` JSON, `DCA_MONTH_MAP` JSON) → 레거시 단일 설정(`DCA_QTYS`/`DCA_BUDGET_KRW`) → `appsettings.json`의 `Dca` 섹션 폴백.** 레거시 설정은 '기본' 템플릿 하나로 자동 이관되어 읽힙니다.
+   - 템플릿 선택 규칙(`SelectTemplate`)은 `.agents/rules/architecture.md`의 «적립(DCA) 배분 원칙», 설정 층별 조회 우선순위(환경변수 → DB → appsettings)는 `Documents/reference/CONFIG_REFERENCE.md`에 한 번만 적어 둡니다.
    - UI(`DcaController` → `PUT /api/dca/config`)에서 저장하면 DB에 기록되어 다음 사이클부터 반영됩니다.
 2. **시세 수집 (`AccumulateAsync`)**: 브로커에서 환율(USD→KRW)과 종목별 현재가를 조회합니다. 현재가를 못 가져오는 종목은 자동 제외하며, 나머지 종목은 비중 재조정 없이 설정된 고정 수량 그대로 매수합니다.
 3. **순수 매수 계획 (`PlanPurchases`)**:
@@ -98,9 +93,7 @@ AutoInvesting 엔진은 자신이 **가짜 돈(모의)을 쓰는지 진짜 돈(�
 - **사람/Web UI**: `AuthController`(`/api/auth/login`)로 로그인해 받은 **서명된 세션 토큰**을 `Authorization: Bearer <token>` 헤더로 전송합니다. 프론트엔드는 이 경로를 사용합니다.
 - **외부 크론잡**: 위에서 설정한 `Security:ApiAccessKey` 값을 HTTP 헤더 **`x-api-key`**에 담아 전송합니다.
 
-둘 중 하나로 통과하며, 어느 쪽도 없으면 `401 Unauthorized`로 비인가 접근을 차단합니다. 인증이 면제되는 것은 **상태 조회(`/api/auth/status`)와 로그인(`/api/auth/login`) 둘뿐**입니다.
-
-⚠️ **초기설정(`/api/auth/setup`)은 면제가 아닙니다.** 관리자 자리가 비어 보이는 순간에 아무나 관리자를 선점해 실주문까지 낼 수 있어 2026-08-04에 인증 대상으로 옮겼습니다. 새 환경의 최초 설정은 `x-api-key`를 붙여 호출해야 하므로 `API_ACCESS_KEY`가 부트스트랩 필수 조건입니다. 이 경계는 `Tests/PublicEndpointExposureTests.cs`가 리플렉션으로 고정하고 있어, 컨트롤러 클래스에 `[PublicEndpoint]`를 다시 붙이면 테스트가 깨집니다.
+둘 중 하나로 통과하며, 어느 쪽도 없으면 `401 Unauthorized`입니다. 면제는 **`/api/auth/status`와 `/api/auth/login` 둘뿐**이고 초기설정(`/api/auth/setup`)은 면제가 아니므로, 새 환경의 최초 관리자 생성에는 `x-api-key`(`API_ACCESS_KEY`)가 반드시 필요합니다. `[PublicEndpoint]`를 컨트롤러 클래스에 붙이지 말아야 하는 이유는 `.agents/rules/architecture.md`에 있습니다.
 
 ## 6. 프론트엔드 화면 구성
 
@@ -110,18 +103,8 @@ React SPA는 다음 네비게이션으로 구성됩니다.
 |------|------|------|
 | 대시보드 | `/` | 잔고·환율 등 현황 조회 |
 | 적립 설정 | `/dca-config` | 매수 템플릿·월별 배정 편집 (`GET/PUT /api/dca/config`) |
-| 주문·적립 | `/order` | 적립 사이클 실행(`/api/order/dca-run`) + 수동 매수/매도(`/api/order/manual`) |
+| 주문·적립 | `/order` | 적립 지정일(`DCA_RUN_DAY`)·추가 적립 예약 설정(`/api/order/dca-schedule`), 적립 사이클 강제 실행(`/api/order/dca-run?force=true`), 수동 매수/매도(`/api/order/manual`) |
 | 거래 내역 | `/history` | 체결 내역 조회 |
 
 설정 화면은 없습니다. 운영 설정은 전부 Render 환경변수로 주입되며 변경은 **환경변수 수정 + 재배포**로 합니다
 (2026-08-06 제거 — 자세한 경위는 `Documents/reference/DEVELOPMENT.md`, 복구 절차는 `RECOVERY.md`).
-
-## 7. 참고: 레거시 데이터 (TB_MARKET_SNAPSHOT)
-
-과거 AI 학습용으로 적재하던 `TB_MARKET_SNAPSHOT` 테이블은 **과거 데이터 보존을 위해
-`Data/sql/create_tables.sql`에 DDL만 남아 있고, Phase 6 이후 어디서도 기록·조회하지 않습니다**
-(레거시 데이터, 현재 미사용). 신규 개발 시 참조할 필요가 없습니다.
-
-`DBManager`의 관련 ALTER 마이그레이션 코드는 2026-07-30에 제거되었습니다. 현재 `DBManager`는
-커넥션 관리와 기동 시 `create_tables.sql` 실행만 담당하며, **마이그레이션 자동 실행 경로가 없습니다** —
-스키마 변경이 필요하면 `Data/sql/`에 별도 스크립트를 두고 수동 적용합니다.
