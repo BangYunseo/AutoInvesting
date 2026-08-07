@@ -116,9 +116,27 @@ namespace AutoInvest.Core
 
             // ── 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 스킵 ──
             // 예약(ForceRunMonthKey)이 이번 달로 걸려 있으면 크론 호출도 가드를 한 번 넘는다.
+            //
+            // 🚫 이 두 키를 AppConfigManager.Get으로 읽지 말 것 (2026-08-07 수정).
+            //    Get은 "DB 조회 실패"와 "값 없음"을 모두 기본값("")으로 뭉갠다. 배포 DB(Neon)는
+            //    autosuspend 후 첫 쿼리가 콜드 스타트이고 GetConnection에 재시도가 없으므로,
+            //    조회가 한 번 삐끗하면 lastRunMonth==""가 되어 가드가 통과되고 이미 매수한 달에
+            //    또 매수한다(실자금 중복 집행). Get은 환경변수를 DB보다 먼저 집기까지 해서,
+            //    동명 환경변수 하나로 가드가 영구 무력화된다.
+            //    두 키 모두 DB 전용(앱이 자동 기록)이므로 TryReadDb로 DB만 읽고,
+            //    조회 실패면 매수하지 않는다(fail-closed) — 판정을 못 하면 사는 쪽이 아니라 멈추는 쪽이 안전하다.
             string thisMonth = CurrentKstMonth();
-            string lastRunMonth = AppConfigManager.Get(LastRunMonthKey, "");
-            bool reserved = AppConfigManager.Get(ForceRunMonthKey, "") == thisMonth;
+            if (!AppConfigManager.TryReadDb(LastRunMonthKey, out string? lastRunRaw)
+                || !AppConfigManager.TryReadDb(ForceRunMonthKey, out string? forceRunRaw))
+            {
+                statusNote = "적립 완료 표시를 읽지 못해(DB 조회 실패) 이번 호출은 매수하지 않았습니다. "
+                    + "같은 달에 두 번 매수하는 것을 막기 위한 안전 정지이며, DB가 복구되면 다음 크론 호출에서 자동 재시도합니다.";
+                Logger.Error($"[DcaCycle] {LastRunMonthKey}/{ForceRunMonthKey} 조회 실패 — 중복 매수 방지를 위해 매수 중단(fail-closed)");
+                await SendDcaReportAsync(result, statusNote);
+                return statusNote;
+            }
+            string lastRunMonth = lastRunRaw ?? "";
+            bool reserved = (forceRunRaw ?? "") == thisMonth;
 
             // ── 지정일 게이트: 사람이 고른 날짜 전이면 크론 호출을 흘려보낸다 ──
             // 사람이 누른 즉시 실행(force)과 추가 적립 예약(reserved)은 명시적 의사이므로 통과시킨다.
