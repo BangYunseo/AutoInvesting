@@ -34,6 +34,8 @@ Data (Data/, Data/DTO/, Data/DAO/)
 - `DcaAccumulationEngine` — 적립식 매수 엔진. `PlanPurchases`(순수함수, 외부 I/O 없음 — 현재 월 템플릿의 종목별 고정 수량 매수 계획 + 총 매수금액 산출)와 `AccumulateAsync`(현재가·환율 조회 → 계획 → 주문 → 기록) 분리
 - `DcaSettings` — 매수 템플릿 목록·월별 배정·예산의 단일 읽기/쓰기 지점 (DB `TB_APP_CONFIG`: `DCA_TEMPLATES` JSON / `DCA_MONTH_MAP` 우선 → 레거시 `DCA_QTYS`/`DCA_BUDGET_KRW`/`appsettings.json > Dca` 폴백, 자동 이관)
 - `DailyExecutionService` — 적립 사이클 실행 진입점 (`RunDcaCycleAsync`, Scoped, `IServiceScopeFactory` 패턴)
+  - 월 1회 멱등 가드(`DCA_LAST_RUN_MONTH`)와 추가 적립 예약(`DCA_FORCE_RUN_MONTH`)은 `AppConfigManager.TryReadDb`로 **DB에서만** 읽는다. `Get`은 조회 실패와 값 없음을 같은 기본값으로 뭉개고 환경변수를 DB보다 먼저 집으므로, DB 조회 한 번의 실패나 동명 환경변수 하나로 가드가 뚫려 같은 달에 중복 매수가 난다. **조회 실패 시 매수하지 않는다(fail-closed).**
+- 🚫 **인앱 스케줄러(`BackgroundService`)를 도입하지 말 것.** Render 무료 인스턴스는 유휴 시 프로세스가 멈춰 타이머도 멈추고, 아무 오류도 남지 않는다 — "켜져 있는데 안 도는" 기능이 된다. 그래서 트리거는 외부 크론이며, 워크플로가 `/api/health`로 먼저 깨운다. 잠들지 않는(유료) 인스턴스로 옮기는 경우에만 재검토하고, 그때도 외부 크론과 발화 시각을 최소 2시간 띄운다 — `RunDcaCycleAsync`에 락이 없고 `dca-run`은 202를 먼저 반환하므로 겹치면 양쪽이 마커를 빈 값으로 읽어 **둘 다 매수한다**(2026-08-07 검토·보류)
 - `NotificationService` — 중요 알림(체결 내역, 예외) 외부 발송 (Resend HTTP API, 443 포트 — Render SMTP 차단 우회)
 - `ApiKeyAuthAttribute` — 전역 인증 필터. 모든 컨트롤러 **액션**에 적용되며 Bearer 세션 토큰(사람) 또는 `x-api-key`(크론) 중 하나로 통과. `[PublicEndpoint]` 표시 액션만 면제이며, 면제 대상은 **`/api/auth/status`와 `/api/auth/login` 둘뿐**이다
   - 🚫 **`[PublicEndpoint]`를 컨트롤러 클래스에 붙이지 말 것.** 클래스에 붙이면 그 안의 모든 액션이 한꺼번에 열린다. 과거 `AuthController`가 그 상태여서 `setup`까지 미인증 공개였고, 관리자 자리가 비어 보이는 순간 누구나 관리자를 선점해 실주문을 낼 수 있었다(2026-08-04 수정). `Tests/PublicEndpointExposureTests.cs`가 면제 목록을 리플렉션으로 고정한다

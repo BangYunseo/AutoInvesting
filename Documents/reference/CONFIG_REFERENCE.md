@@ -78,7 +78,6 @@ status: draft
 | `KIS_ACCOUNT_PROD` | `Core/SessionManager.cs` | `"01"` | 값이 `01`이면 환경변수 불필요 |
 | `ADMIN_EMAIL` | `Utils/NotificationService.cs` | appsettings 폴백 | 개인정보 — 소스에 두지 않음 |
 | `ASPNETCORE_URLS` | `Dockerfile` | .NET 기본 | 로컬은 Vite 프록시 대상 포트에 맞춰 수동 설정 |
-
 `IS_PAPER_TRADING`을 DB로 옮기면 **DB 조회 실패 시 appsettings 기본값(모의)으로 조용히 추락**한다. 실전 운영 중에는 환경변수가 안전한 쪽이다. 같은 이유로 `API_ACCESS_KEY`도 환경변수에 둔다 — DB 장애가 곧 크론 401이 되면 원인과 증상이 멀어져 진단이 어렵다.
 
 ### DB 전용 키
@@ -89,11 +88,26 @@ status: draft
 |---|---|---|
 | `DCA_TEMPLATES` | `Core/DcaSettings.cs` | 적립 설정 화면 (`PUT /api/dca/config`) |
 | `DCA_MONTH_MAP` | `Core/DcaSettings.cs` | 적립 설정 화면 (`PUT /api/dca/config`) |
+| `DCA_RUN_DAY` | `Core/DcaSettings.cs` | 적립 설정 화면 (`PUT /api/dca/config`) |
 | `DCA_LAST_RUN_MONTH` | `Core/DailyExecutionService.cs` | **없음 — 앱이 자동 관리** |
+| `DCA_FORCE_RUN_MONTH` | `Core/DailyExecutionService.cs` | **없음 — 앱이 자동 관리** (추가 적립 예약) |
+| `DCA_PENDING_SNAPSHOT` | `Core/DailyExecutionService.cs` | **없음 — 앱이 자동 관리** (체결 대사 기준점) |
+| `DCA_LAST_RUN_DATE` | `Core/DailyExecutionService.cs` | **없음 — 앱이 자동 관리** (표시 전용) |
 | `ADMIN_USERNAME` | `Controllers/AuthController.cs` | `POST /api/auth/setup` (최초 1회, 화면 없음) |
 | `ADMIN_PASSWORD_HASH` | `Controllers/AuthController.cs` | `POST /api/auth/setup` (최초 1회, 화면 없음) |
 
-`DCA_LAST_RUN_MONTH`가 가장 위험하다. 동명 환경변수가 존재하면 월 1회 멱등 가드가 영구 무력화되어 크론이 매일 매수하거나 적립이 영구 스킵된다. `Set`은 DB에 기록되고 성공 로그까지 남으므로 **증상만 보면 가드가 동작하는 것처럼 보인다.**
+#### 동명 환경변수 금지 — 가드를 무력화하는 두 키
+
+`DCA_LAST_RUN_MONTH`와 `DCA_FORCE_RUN_MONTH`는 **동명 환경변수를 만들면 월 1회 멱등 가드가 영구 무력화된다.** 둘 다 `Set`은 DB에 기록되고 성공 로그까지 남으므로 **증상만 보면 가드가 동작하는 것처럼 보인다.**
+
+| 키 | 동명 환경변수가 있으면 |
+|---|---|
+| `DCA_LAST_RUN_MONTH` | 값이 당월이면 **적립이 영구 스킵**(메일도 안 옴 — 스킵 경로가 보고서 발송 위에서 return한다). 값이 당월이 아니면 크론이 **매일 매수** |
+| `DCA_FORCE_RUN_MONTH` | 값이 당월이면 지정일 게이트와 월 마커를 **둘 다** 건너뛰어 크론이 **매일 매수** |
+
+> **2026-08-07 수정 이후**: `RunDcaCycleAsync`의 가드는 이 두 키를 `AppConfigManager.TryReadDb`로 **DB에서만** 읽는다. 따라서 동명 환경변수는 더 이상 가드를 가리지 못하고, DB 조회가 실패하면 매수하지 않는다(fail-closed). 그 전에는 `Get`이 환경변수를 먼저 집었고, 조회 실패와 값 없음을 같은 기본값으로 뭉개 **Neon 콜드 스타트 한 번으로 같은 달에 중복 매수**가 가능했다.
+>
+> 플랫폼 이전·CI 변수 설정처럼 환경변수를 대량으로 만드는 작업 중에는 이 표의 키 이름을 그대로 쓰지 않는지 확인한다.
 
 ### appsettings 섹션 전용
 
