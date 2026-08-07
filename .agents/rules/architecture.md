@@ -30,7 +30,7 @@ Data (Data/, Data/DTO/, Data/DAO/)
   - 구현체: `SimBrokerClient` (시뮬레이션), `KisBrokerClient` (KIS 실거래, Polly 내결함성 적용)
   - 새 증권사 추가 시 반드시 이 인터페이스를 구현
 - `SessionManager` — 브로커 인스턴스 생명주기 관리
-  - `IS_PAPER_TRADING` 설정값에 따라 SimBroker 또는 KisBroker 분기
+  - `KIS_APP_KEY`가 비어 있으면 모드와 무관하게 `SimBrokerClient`로 떨어진다. 키가 있으면 `KisBrokerClient`이고, `IS_PAPER_TRADING`은 Sim/KIS 선택이 아니라 접속망 prod(`:9443`)/vps(`:29443`)만 고른다(정확히 문자열 `"0"`일 때만 실전)
 - `DcaAccumulationEngine` — 적립식 매수 엔진. `PlanPurchases`(순수함수, 외부 I/O 없음 — 현재 월 템플릿의 종목별 고정 수량 매수 계획 + 총 매수금액 산출)와 `AccumulateAsync`(현재가·환율 조회 → 계획 → 주문 → 기록) 분리
 - `DcaSettings` — 매수 템플릿 목록·월별 배정·예산의 단일 읽기/쓰기 지점 (DB `TB_APP_CONFIG`: `DCA_TEMPLATES` JSON / `DCA_MONTH_MAP` 우선 → 레거시 `DCA_QTYS`/`DCA_BUDGET_KRW`/`appsettings.json > Dca` 폴백, 자동 이관)
 - `DailyExecutionService` — 적립 사이클 실행 진입점 (`RunDcaCycleAsync`, Scoped, `IServiceScopeFactory` 패턴)
@@ -67,7 +67,7 @@ ASP.NET Core Host (Program.cs)
 - **타이밍 판단·신호·임계값·합의 스코어링 없음** — 백테스트로 가치 없음이 확인되어 제거됨
 
 ## 새 기능 추가 순서
-1. DTO → DAO → Core 로직 → API Controller 또는 BackgroundService 순서로 구현
+1. DTO → DAO → Core 로직 → API Controller 순서로 구현
 2. 인터페이스-구현체 분리 원칙 유지
 3. 비즈니스 로직은 반드시 `Core/` 하위에 배치
 4. 외부 연동부(HTTP API, SMTP)는 `Utils` 또는 `Core` 통신 계층에 배치

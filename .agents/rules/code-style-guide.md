@@ -10,10 +10,9 @@
 | 클래스/구조체 | PascalCase | `DcaAccumulationEngine`, `DcaTemplate` |
 | 인터페이스 | `I` + PascalCase | `IBrokerClient` |
 | public 메서드/프로퍼티 | PascalCase | `GetCurrentPriceAsync()`, `IsLoggedIn` |
-| private 필드 | `_camelCase` | `_broker`, `_rangeDays` |
-| 지역 변수/파라미터 | camelCase | `exchangeRate`, `investAmount` |
-| 상수 / static readonly | PascalCase | `DcaSettings.TemplatesKey` |
-| enum 값 | UPPER_SNAKE_CASE | `ORDER_TYPE_BUY` |
+| private 필드 | `_camelCase` | `_broker`, `_session` |
+| 지역 변수/파라미터 | camelCase | `exchangeRate`, `budgetKrw` |
+| 상수 / static readonly | PascalCase | `DcaSettings.TemplatesKey`, `DcaSettings.MaxRunDay` |
 | 비동기 메서드 | `~Async` 접미사 | `LoginAsync()`, `PlaceBuyOrderAsync()` |
 
 ## 파일 배치 규칙 (MUST)
@@ -64,7 +63,7 @@ var plan = PlanPurchases(quantities, exchangeRate, priceUsd, out decimal totalCo
 
 ### TODO 주석
 ```csharp
-// TODO [운영] 실거래 전환 시 KIS Server를 실전으로 변경
+// TODO [운영] <무엇을·왜> — 대괄호는 담당 영역([운영]/[성능] 등)
 ```
 
 ## DTO 작성 규칙
@@ -120,7 +119,6 @@ public static List<TradeHistoryDto> GetRecent(int count = 50)
 | DAO | catch → `Logger.Error()` + 빈 결과 반환 또는 재throw |
 | Core/Engine | catch → `Logger.Error()` + 안전한 기본값 반환 + 필요시 NotificationService 연동 |
 | Controllers | 전역 예외 처리 미들웨어 사용 또는 catch → HTTP 500 응답 반환 |
-| Background | catch → `Logger.Error()` 후 다음 주기 실행까지 대기 |
 | Program.cs | 전역 catch → `Logger.Fatal()` |
 
 ```csharp

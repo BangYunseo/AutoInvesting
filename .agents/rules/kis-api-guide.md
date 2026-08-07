@@ -50,42 +50,21 @@ tr_id: {TR_CODE}
 > 주문용 `OVRS_EXCG_CD`(NASD/NYSE/AMEX)로 매핑합니다 — 매핑을 건너뛰면 "해당종목정보가 없습니다"로 거부됩니다.
 
 ## 실전 vs 모의투자 분기
-`SessionManager`에서 `IS_PAPER_TRADING` 설정으로 분기:
-
-| 설정값 | 구현체 | 도메인 |
-|--------|--------|--------|
-| `"1"` | `SimBrokerClient` | (로컬 시뮬레이션) |
-| `"0"` | `KisBrokerClient` | `openapi.koreainvestment.com:9443` |
+`SessionManager.GetClient()`는 `KIS_APP_KEY`가 비어 있으면 **모드와 무관하게** `SimBrokerClient`(로컬 시뮬레이션)를 만든다. 키가 있으면 항상 `KisBrokerClient`이고, `IS_PAPER_TRADING`은 Sim/KIS 선택이 아니라 **접속 도메인만** 고른다 — 정확히 `"0"`이면 실전(`:9443`), 그 외 값은 전부 모의(`:29443`).
 
 ## Rate Limit
-- API별 초당 호출 제한 존재
-- 연속 호출 시 최소 **200ms** 딜레이 삽입
+- API별 초당 호출 제한 존재 (신규 키 초당 3건)
+- 연속 호출 시 **400ms** 딜레이 삽입 (`Core/KisBrokerClient.cs`의 `Task.Delay(400)`)
 - 429 응답 시 지수 백오프(Exponential Backoff) 적용
 - 모의투자 환경은 Rate Limit이 더 낮으므로 주의
 
 ## 구현 패턴
-```csharp
-// HttpClient는 반드시 재사용 (static 또는 싱글턴)
-private static readonly HttpClient _httpClient = new HttpClient();
 
-public async Task<decimal> GetCurrentPriceAsync(string ticker)
-{
-    await _tokenManager.EnsureValidTokenAsync();
-
-    var request = new HttpRequestMessage(HttpMethod.Get, url);
-    request.Headers.Add("authorization", $"Bearer {_token}");
-    request.Headers.Add("appkey", _appKey);
-    request.Headers.Add("appsecret", _appSecret);
-    request.Headers.Add("tr_id", "HHDFS00000300");
-
-    var response = await _httpClient.SendAsync(request);
-    response.EnsureSuccessStatusCode();
-    // ...
-}
-```
+`HttpClient`는 재사용한다(`Core/KisBrokerClient.cs`의 `private static readonly HttpClient`). 새 호출은 그 파일의 순서를 그대로 따른다 — `_tokenManager.EnsureValidTokenAsync()` → `CreateRequest`(공통 헤더+`tr_id`) → `SendWithRetryAsync`(Polly) → `rt_cd` 검사.
 
 ## 에러 처리
 - 응답의 `rt_cd` 필드로 성공/실패 판단: `"0"` = 성공, 그 외 = 실패
+- 🚫 **`EnsureSuccessStatusCode`만으로 성공을 판정하지 말 것.** KIS는 업무 오류를 HTTP 200 + `rt_cd`≠`"0"`(`output1` 없음)으로 돌려주고 Polly(`SendWithRetryAsync`)는 예외·5xx·429·408만 재시도하므로, `rt_cd`를 빼면 빈 배열이 "0건 조회"로 조용히 통과한다. `GetHoldingsAsync`는 `rt_cd`≠`"0"`이면 예외를 던진다(2026-08-07) — 빈 잔고를 체결 대사가 전량 미체결로 오판하면 `DCA_LAST_RUN_MONTH`가 해제되고 다음 크론이 템플릿 전량을 재매수한다.
 - 실패 시 `msg_cd`와 `msg1` 필드로 에러 내용 확인
 - HTTP 4xx/5xx → 로그 + 재시도 (최대 3회)
 - 토큰 만료(401) → 자동 재발급 후 재시도

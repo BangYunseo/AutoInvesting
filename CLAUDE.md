@@ -54,30 +54,13 @@ status: draft
 |------|------------|
 | 빌드 | `dotnet build` |
 | 실행 | `dotnet run` (ASP.NET Core 호스트) |
-| 신규 로직 검증 | `appsettings.json`의 `IS_PAPER_TRADING="1"`로 **SimBroker 모드 우선 검증** |
+| 신규 로직 검증 | `appsettings.json`의 `Trading:IsPaperTrading: true`(또는 환경변수 `IS_PAPER_TRADING="1"`)로 **SimBroker 모드 우선 검증** |
 | 배분 로직 검증 | `DcaAccumulationEngine.PlanPurchases`(순수 함수)를 입력/기대출력 시나리오로 단위 검증 |
 | 적립 사이클 트리거 | `POST /api/order/dca-run` (헤더 `x-api-key`, 202 즉시 반환 후 백그라운드 처리) |
 | 프론트엔드 | `Frontend/` → `npm install` / `npm run dev` |
 
 ---
 
-## 커밋 규칙 (요약 — 상세는 `git-conventions.md`)
-
-- 형식: `<type>: <subject>` (scope 금지), 제목 50자 이내, **한국어**로 작성
-- 기능 단위로 끊어서 커밋 (한 번에 전체 커밋 금지)
-- 커밋 전 `security.md`의 시크릿/개인정보 체크포인트 확인
-
----
-
 ## 서브에이전트 (위임)
 
-`persona.md`의 리드+서브 에이전트 구조를 Claude Code 서브에이전트로 구현해 `.claude/agents/`에 둡니다.
-각 에이전트는 `persona.md`와 **동일 내용으로 동기화**되어야 합니다 (역할/책임 변경 시 `persona.md`와 `.claude/agents/`를 같은 커밋에서 함께 수정).
-
-| 에이전트 | 담당 |
-|---------|------|
-| `core-developer` | DcaAccumulationEngine, DailyExecutionService, 세션 관리 |
-| `data-developer` | DTO/DAO/DBManager, PostgreSQL(Npgsql) |
-| `api-developer` | Controllers, React 연동, Polly/알림 |
-| `kis-integration` | KisBrokerClient, TokenManager, KIS 연동 |
-| `quant-analyst` | DcaAccumulationEngine 배분 로직, 매수 수량 설계, 백테스트 검증 |
+`.claude/agents/`의 `core-developer`·`data-developer`·`api-developer`·`kis-integration`·`quant-analyst`가 `persona.md`의 서브 에이전트 5역할에 1:1로 대응합니다 (변경 시 두 곳을 같은 커밋에서 함께 수정 — 위 "규칙 SSOT" 참조).

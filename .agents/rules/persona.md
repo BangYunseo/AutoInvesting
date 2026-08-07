@@ -62,13 +62,3 @@
 1. `project_overview.md` — 현재 디렉토리 구조, Phase 상태 확인
 2. `architecture.md` — 레이어 규칙, 아키텍처 흐름 확인
 3. 작업 관련 규칙 파일 추가 확인 (예: API 연동이면 `kis-api-guide.md` + `security.md`)
-
-## 절대 금지 (리드·서브 에이전트 공통)
-
-| 항목 | 설명 |
-|------|------|
-| 🚫 API KEY 노출 | 소스 코드, 로그, 커밋에 키/시크릿 포함 금지 (appsettings.json 사용) |
-| 🚫 동기 블로킹 I/O | API/DB 호출 시 `Task.Wait()` 또는 `.Result` 절대 금지 (교착상태 유발) |
-| 🚫 빈 catch 블록 | `catch { }` 금지 → 최소한 `Logger.Error()` + 알림 로직 포함 |
-| 🚫 IBrokerClient 우회 | 증권사 API 직접 호출 금지 → 인터페이스를 통해서만 연동 |
-| 🚫 레이어 역방향 의존 | Core → API Controller, Data → Core 참조 금지 |
