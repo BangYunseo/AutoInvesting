@@ -178,7 +178,9 @@ IS_PAPER_TRADING = 0
 | `API_ACCESS_KEY` | **사실상 필수** | 크론 트리거뿐 아니라 **최초 관리자 설정(`POST /api/auth/setup`)의 유일한 통과 수단**이다. 관리자가 없는 새 환경에서 이 값이 없으면 Bearer도 못 받고 `x-api-key`도 못 써 관리자를 만들 수 없다(복구: 환경변수/`appsettings.local.json`에 추가 후 재기동, 또는 `TB_APP_CONFIG`에 행 직접 삽입) |
 | Resend 키 | 불필요 | 알림 미사용 시 |
 
-로컬 시크릿은 `appsettings.local.json`에 둔다. `.gitignore`와 `.dockerignore` 양쪽에서 제외된다. 템플릿은 `appsettings.example.json`을 복사해 쓴다.
+로컬 시크릿은 `appsettings.local.json`에 둔다. `.gitignore`와 `.dockerignore` 양쪽에서 제외된다. 템플릿 파일은 없다 — 위 표의 키만 넣으면 되고, 필요한 최소 항목은 `MASTER_KEY` 하나다.
+
+> `appsettings.example.json`은 2026-08-07에 삭제했다. 스스로를 `appsettings.local.json`으로 복사하라고 지시하면서 `Dca.Quantities`에 실제 종목·수량(`SPLG`/`QQQM`)을 담고 있었다 — 복사하면 로드되는 파일이 되고, DB 조회 실패 시 그 값으로 폴백해 의도하지 않은 종목을 실계좌에 매수할 수 있었다. 키 목록은 이 문서가 더 정확하므로 템플릿을 따로 두지 않는다.
 
 **로컬에 `DATABASE_URL`을 운영 DB 주소로 넣지 않는다.** 넣으면 DB에서 `IS_PAPER_TRADING="0"`과 실전 KIS 키를 읽어 **로컬 실행이 실계좌에 주문**할 수 있다. 로컬 개발용 `MASTER_KEY`는 운영 값과 다른 값을 쓴다.
 
@@ -223,7 +225,7 @@ DB 스키마 변경은 자동 적용 경로가 없다. `DBManager.RunMigration`�
 - `Core/SessionManager.cs`, `Core/DcaSettings.cs`, `Core/DailyExecutionService.cs`, `Core/TaxEstimator.cs`
 - `Utils/CryptoUtil.cs`, `Utils/NotificationService.cs`, `Utils/ApiKeyAuthAttribute.cs`
 - `Controllers/AuthController.cs`, `Controllers/DcaController.cs`, `Controllers/PortfolioController.cs`
-- `appsettings.json`, `appsettings.example.json`, `Dockerfile`, `.gitignore`, `.dockerignore`
+- `appsettings.json`, `Dockerfile`, `.gitignore`, `.dockerignore`
 - `.agents/rules/security.md`, `.agents/rules/recommended_rules.md`
 - `Documents/worklog/[2026-08-03] 01_실전 전환 첫날 준비와 설정 표면 정리.md`
 - `Documents/worklog/[2026-08-03] 02_크론 지연으로 월 경계를 넘긴 첫 적립 집행.md`
