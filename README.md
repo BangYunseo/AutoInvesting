@@ -8,6 +8,8 @@ status: done
 
 # AutoInvesting
 
+[소개 요약](https://claude.ai/code/artifact/ce0c73db-1b4f-4c6a-9af2-392a73cb827a)
+
 ## 개요
 > 해외 ETF 자동 적립(DCA) 투자 시스템 — ASP.NET Core Web API (.NET 8.0). 여러 매수 템플릿을 월별로 배정해 현재 월 템플릿대로 기계적으로 적립 매수하는 Headless 서비스다.
 
