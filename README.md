@@ -8,16 +8,11 @@ status: done
 
 # AutoInvesting
 
-[소개 요약](https://claude.ai/code/artifact/ce0c73db-1b4f-4c6a-9af2-392a73cb827a)
-
 ## 개요
-> 해외 ETF 자동 적립(DCA) 투자 시스템 — ASP.NET Core Web API (.NET 8.0). 여러 매수 템플릿을 월별로 배정해 현재 월 템플릿대로 기계적으로 적립 매수하는 Headless 서비스다.
+> 해외 ETF 자동 적립(DCA) 투자 시스템 — ASP.NET Core Web API (.NET 8.0). 여러 매수 템플릿(종목별 고정 수량 + 예산)을 월별로 배정해, 현재 월 템플릿대로 기계적으로 적립 매수하는 Headless 서비스다. **"판단"이 아니라 "자동화"** 프로그램.
 
-## 📌 프로젝트 개요
-
-- **해외 ETF 자동 적립 매수 프로그램**
-- 여러 매수 템플릿(종목별 고정 수량 + 예산)을 정의하고 월별로 배정해, 현재 월 템플릿대로 자동 적립 매수하는 Headless 백그라운드 서비스
-- "판단"이 아니라 **"자동화"** 프로그램
+**▶ [소개 페이지 — 화면·동작 흐름](https://bangyunseo.github.io/AutoInvesting/)**
+`docs/`를 GitHub Pages로 서빙합니다 (저장소 public 전환 + Pages 활성화 후 열립니다). 스크린샷의 금액·수량은 마스킹 처리된 것입니다.
 
 ### 핵심 목적
 
@@ -105,6 +100,8 @@ AutoInvesting/
 │       ├── pages/                      # Login, Dashboard, DcaConfig, Order, History
 │       ├── components/                 # HoldingsTable, AllocationDonut, ConfirmDialog
 │       └── utils/                      # dcaRuns.js (적립 실행 상태 조회)
+│
+├── docs/                               # GitHub Pages 소개 페이지 (index.html — 스크린샷 인라인, 금액 마스킹)
 │
 └── Documents/                          # 단일 문서 홈 (프로젝트 문서 전부)
     ├── reference/                      # 상시 참조 문서 (고정 이름)
