@@ -100,7 +100,7 @@ AutoInvesting/
 │       ├── components/                 # HoldingsTable, AllocationDonut, ConfirmDialog
 │       └── utils/                      # dcaRuns.js (적립 실행 상태 조회)
 │
-├── docs/                               # GitHub Pages 소개 페이지 (index.html — 스크린샷 인라인, 금액 마스킹)
+├── docs/                               # GitHub Pages 소개 페이지 (index.html + style.css + assets/ — 스크린샷 금액 마스킹)
 │
 └── Documents/                          # 단일 문서 홈 (프로젝트 문서 전부)
     ├── reference/                      # 상시 참조 문서 (고정 이름)
