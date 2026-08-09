@@ -9,10 +9,9 @@ status: done
 # AutoInvesting
 
 ## 개요
-> 해외 ETF 자동 적립(DCA) 투자 시스템 — ASP.NET Core Web API (.NET 8.0). 여러 매수 템플릿(종목별 고정 수량 + 예산)을 월별로 배정해, 현재 월 템플릿대로 기계적으로 적립 매수하는 Headless 서비스다. **"판단"이 아니라 "자동화"** 프로그램.
 
-**▶ [소개 페이지 — 화면·동작 흐름](https://bangyunseo.github.io/AutoInvesting/)**
-`docs/`를 GitHub Pages로 서빙합니다 (저장소 public 전환 + Pages 활성화 후 열립니다). 스크린샷의 금액·수량은 마스킹 처리된 것입니다.
+[프로젝트 소개](https://bangyunseo.github.io/AutoInvesting/)
+
 
 ### 핵심 목적
 
