@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoInvesting - 자동 ETF 투자</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">개인 프로젝트</p>
+    <h1>자동 적립하는 투자 앱</h1>
+    <p class="lede">매달 정해둔 설정으로 해외 주식을 자동으로 매수합니다.</p>
+  </div>
+</header>
+
+<section class="stack" id="stack">
+  <div class="wrap">
+    <p class="section-label">기술 스택</p>
+    <dl class="stack-groups">
+      <div class="sg">
+        <dt>언어 · 백엔드</dt>
+        <div class="row">
+          <span class="badge key">C#</span>
+          <span class="badge key">ASP.NET Core</span>
+          <span class="badge">.NET 8</span>
+        </div>
+      </div>
+      <div class="sg">
+        <dt>프론트엔드</dt>
+        <div class="row">
+          <span class="badge key">React</span>
+          <span class="badge">Vite</span>
+          <span class="badge">PWA</span>
+        </div>
+      </div>
+      <div class="sg">
+        <dt>데이터베이스</dt>
+        <div class="row">
+          <span class="badge key">PostgreSQL</span>
+          <span class="badge">Neon</span>
+        </div>
+      </div>
+      <div class="sg">
+        <dt>증권사 연동</dt>
+        <div class="row">
+          <span class="badge key">한국투자증권 REST API</span>
+        </div>
+      </div>
+      <div class="sg">
+        <dt>인프라 · 배포</dt>
+        <div class="row">
+          <span class="badge key">Render</span>
+          <span class="badge key">GitHub Actions</span>
+          <span class="badge">cron</span>
+        </div>
+      </div>
+      <div class="sg">
+        <dt>안정성 · 알림</dt>
+        <div class="row">
+          <span class="badge">Polly</span>
+          <span class="badge">Resend</span>
+        </div>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<section id="dashboard">
+  <div class="wrap">
+    <figure class="shot hero-shot">
+      <div class="frame"><img src="assets/dashboard.PNG" alt="대시보드 — 총자산·주식 평가금액·예수금·보유 종목별 수익률"></div>
+      <figcaption><b>내 자산, 한 화면에</b><span>지금 얼마가 어떻게 굴러가고 있는지</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="gallery">
+  <div class="wrap">
+    <p class="section-label">화면 둘러보기</p>
+    <div class="gallery">
+      <figure class="shot">
+        <div class="frame"><img src="assets/login.PNG" alt="로그인 화면 — 관리자 인증"></div>
+        <figcaption><b>아무나 못 들어옵니다</b><span>관리자 인증을 통과해야 열리는 화면</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame"><img src="assets/config.PNG" alt="적립 설정 — 매수 템플릿과 종목·수량·예산"></div>
+        <figcaption><b>종목·수량만 정해두면 끝</b><span>매달 뭘 얼마나 살지 한 번만 설정</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame"><img src="assets/order.PNG" alt="적립식 매수 실행 화면"></div>
+        <figcaption><b>이번 달 적립, 자동 실행</b><span>정한 대로 알아서 매수</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="frame"><img src="assets/history.PNG" alt="거래 내역 — 체결된 매수 기록"></div>
+        <figcaption><b>산 기록은 전부 남습니다</b><span>언제, 무엇을, 얼마에</span></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="mobile">
+  <div class="wrap mobile-wrap">
+    <p class="section-label">폰에서도 그대로</p>
+    <figure class="shot">
+      <div class="frame phone"><img src="assets/mobile.png" alt="모바일 화면 — 홈 화면에 앱처럼 설치"></div>
+      <figcaption><b>홈 화면에 앱처럼 설치</b><span>PWA — 스토어 없이 바로</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="hook">
+  <div class="wrap">
+    <p class="hook-line">AI로 <em>'언제 살지'</em>를 계산하는 기능을 만들었다가, 백테스트로 확인하고 전부 지웠습니다.</p>
+
+    <div class="bt">
+      <table>
+        <caption>VOO · QQQ · SPY / 15년(2011~2026) / 매달 $1,000 적립 · 세금·수수료 미반영 — 거래가 잦은 타이밍 전략에 오히려 유리한 가정입니다.</caption>
+        <thead>
+          <tr>
+            <th>전략</th>
+            <th>단순 적립 대비</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>완벽한 타이밍</b><span>매달 장중 최저가에 매수 — 사후에만 알 수 있는 값</span></td>
+            <td class="pos">연 +0.4%p</td>
+          </tr>
+          <tr>
+            <td><b>추세추종 (SMA200)</b><span>200일 이동평균 위일 때만 매수</span></td>
+            <td class="neg">연 −2.0 ~ −2.4%</td>
+          </tr>
+          <tr>
+            <td><b>밸류애버리징</b><span>목표 대비 부족분만 매수, 나머지는 현금 대기</span></td>
+            <td class="neg">최종 자산 46~50%</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="bt-note">도달할 수 없는 <b>완벽한 타이밍조차 연 +0.4%p</b>에 그쳤고, 실제로 구현 가능한 규칙은 단순 적립에 졌습니다. 타이밍을 맞히는 일에는 천장이 있습니다.</p>
+    </div>
+
+    <div class="diff">
+      <pre><span class="del">- AI 타이밍 판단 · 퀀트 지표 · 리밸런싱</span><span class="add">+ '언제'가 아닌 '무엇을'에 집중해 매수합니다</span></pre>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="section-label">어떻게 돌아가나</p>
+    <div class="steps">
+      <div class="step">
+        <div class="n">01 · 깨우기</div>
+        <b>매일 정해진 시각에 자동 실행</b>
+        <p>GitHub Actions의 cron이 서버를 호출합니다. 앱 안에 타이머를 두지 않아, 서버가 잠들어도 놓치지 않습니다.</p>
+        <div class="tech"><span>GitHub Actions</span><span>cron</span></div>
+      </div>
+      <div class="step">
+        <div class="n">02 · 매수</div>
+        <b>이번 달 몫만큼 주문</b>
+        <p>Render에 올린 .NET 서버가 한국투자증권 REST API로, 설정해 둔 종목·수량대로 매수합니다.</p>
+        <div class="tech"><span>.NET 8</span><span>Render</span><span>한국투자증권 API</span></div>
+      </div>
+      <div class="step">
+        <div class="n">03 · 기록 · 보고</div>
+        <b>남기고, 알려줌</b>
+        <p>체결 내역을 PostgreSQL에 저장하고, 결과를 이메일로 보고합니다.</p>
+        <div class="tech"><span>PostgreSQL</span><span>Resend 메일</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>AutoInvesting · 개인 프로젝트 · 2026</p>
+  </div>
+</footer>
+</body>
+</html>
