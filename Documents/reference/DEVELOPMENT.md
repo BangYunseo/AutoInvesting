@@ -159,7 +159,7 @@ Render 배포에는 운영 설정 10개가 **전부 환경변수로** 주입되�
 |------|----------|
 | `Core/DailyExecutionService.cs` | `RunDcaCycleAsync`만 유지 — 월 1회 멱등 가드(`DCA_LAST_RUN_MONTH`) → 로그인 → `DcaSettings.Load` → `AccumulateAsync` → 이메일 보고서. (구 `RunDailyCycleAsync`/AI 평가/일일 보고서 제거) |
 | `Controllers/OrderController.cs` | `POST /api/order/dca-run`(적립 사이클, 202 즉시 반환) + `POST /api/order/manual`(판단 없는 수동 매수/매도, SELL 시 보유수량·절세 서버 가드) + `GET /api/order/sell-preview`(매도 양도세 프리뷰)만 남김. (구 `execute`/`analyze`/`daily-run` 제거) |
-| `appsettings.json` | `Trading`/`Smtp`/`Resend`/`Kis`/`Security`/`Dca`/`Tax` 섹션 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { MonthlyBudgetKrw, Quantities:{SPLG:3,QQQM:2,SCHD:5,GLD:1} }` (레거시 폴백용 — 실동작은 DB의 `DCA_TEMPLATES`/`DCA_MONTH_MAP`). `Smtp`는 `SenderName`/`AdminEmail` 폴백 2개만 유지(발송은 Resend HTTP API) |
+| `appsettings.json` | `Trading`/`Smtp`/`Resend`/`Kis`/`Security`/`Dca`/`Tax` 섹션 유지. `Rebalance`/`Consensus`/`FxAdvisor`/`Ai` 섹션 제거. `Dca = { MonthlyBudgetKrw, Quantities:{SPLG:3,QQQ:2,VTI:5,GLD:1} }` (레거시 폴백용 — 실동작은 DB의 `DCA_TEMPLATES`/`DCA_MONTH_MAP`). `Smtp`는 `SenderName`/`AdminEmail` 폴백 2개만 유지(발송은 Resend HTTP API) |
 
 ### 6-3. 제거된 파일·개념
 

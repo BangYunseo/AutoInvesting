@@ -24,8 +24,8 @@ namespace AutoInvest.Core
         /// </summary>
         private readonly Dictionary<string, decimal> _basePrices = new Dictionary<string, decimal>
         {
-            { "SCHD",  32.39m },
-            { "QQQM", 293.42m },
+            { "VTI",  32.39m },
+            { "QQQ", 293.42m },
             { "GLD",  378.13m },
             { "JEPI",  56.71m },
             { "SPLG",  80.00m }

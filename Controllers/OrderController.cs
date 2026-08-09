@@ -349,7 +349,7 @@ namespace AutoInvest.Controllers
     /// </summary>
     public class ManualOrderRequest
     {
-        /// <summary>종목 코드 (예: QQQM)</summary>
+        /// <summary>종목 코드 (예: QQQ)</summary>
         public string Ticker { get; set; } = string.Empty;
 
         /// <summary>주문 수량 (1 이상)</summary>

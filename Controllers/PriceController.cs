@@ -25,7 +25,7 @@ namespace AutoInvest.Controllers
         /// <summary>
         /// 지정한 티커의 현재가(USD)와 환율 환산 원화가를 반환합니다.
         /// </summary>
-        /// <param name="ticker">종목 코드 (예: QQQM)</param>
+        /// <param name="ticker">종목 코드 (예: QQQ)</param>
         [HttpGet("{ticker}")]
         public async Task<IActionResult> GetPrice(string ticker)
         {

@@ -426,7 +426,7 @@ const DcaConfig = () => {
                     onChange={e => setTicker(idx, e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') validateRow(selectedId, idx, row.ticker); }}
                     onBlur={() => { if (row.ticker && (row.status === 'idle' || row.status === 'saved')) validateRow(selectedId, idx, row.ticker); }}
-                    placeholder="티커 (예: QQQM)" style={{ flex: '2 1 150px', minWidth: 130 }}
+                    placeholder="티커 (예: QQQ)" style={{ flex: '2 1 150px', minWidth: 130 }}
                   />
                   <button className="btn btn--outline" onClick={() => validateRow(selectedId, idx, row.ticker)} style={{ padding: '8px 12px', flexShrink: 0 }} title="현재가 확인">🔍</button>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>

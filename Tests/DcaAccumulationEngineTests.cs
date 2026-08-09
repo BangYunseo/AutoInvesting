@@ -17,48 +17,48 @@ namespace AutoInvest.Tests
         [Fact]
         public void PlanPurchases_지정수량을_그대로_담는다()
         {
-            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQM"] = 2 };
-            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQM"] = 200m };
+            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQ"] = 2 };
+            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQ"] = 200m };
 
             var plan = DcaAccumulationEngine.PlanPurchases(quantities, Rate, prices, out _);
 
             Assert.Equal(2, plan.Count);
             Assert.Equal(3, plan["SPLG"]);
-            Assert.Equal(2, plan["QQQM"]);
+            Assert.Equal(2, plan["QQQ"]);
         }
 
         /// <summary>현재가가 없는 종목은 계획에서 제외해야 한다.</summary>
         [Fact]
         public void PlanPurchases_현재가없는종목은_제외한다()
         {
-            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQM"] = 2 };
-            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m }; // QQQM 가격 없음
+            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQ"] = 2 };
+            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m }; // QQQ 가격 없음
 
             var plan = DcaAccumulationEngine.PlanPurchases(quantities, Rate, prices, out _);
 
             Assert.True(plan.ContainsKey("SPLG"));
-            Assert.False(plan.ContainsKey("QQQM"));
+            Assert.False(plan.ContainsKey("QQQ"));
         }
 
         /// <summary>현재가가 0 이하인 종목은 계획에서 제외해야 한다.</summary>
         [Fact]
         public void PlanPurchases_현재가0이하종목은_제외한다()
         {
-            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQM"] = 2 };
-            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQM"] = 0m };
+            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQ"] = 2 };
+            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQ"] = 0m };
 
             var plan = DcaAccumulationEngine.PlanPurchases(quantities, Rate, prices, out _);
 
             Assert.True(plan.ContainsKey("SPLG"));
-            Assert.False(plan.ContainsKey("QQQM"));
+            Assert.False(plan.ContainsKey("QQQ"));
         }
 
         /// <summary>수량이 0 이하인 종목은 계획에서 제외해야 한다.</summary>
         [Fact]
         public void PlanPurchases_수량0이하종목은_제외한다()
         {
-            var quantities = new Dictionary<string, int> { ["SPLG"] = 0, ["QQQM"] = -1, ["GLD"] = 1 };
-            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQM"] = 200m, ["GLD"] = 190m };
+            var quantities = new Dictionary<string, int> { ["SPLG"] = 0, ["QQQ"] = -1, ["GLD"] = 1 };
+            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQ"] = 200m, ["GLD"] = 190m };
 
             var plan = DcaAccumulationEngine.PlanPurchases(quantities, Rate, prices, out _);
 
@@ -70,8 +70,8 @@ namespace AutoInvest.Tests
         [Fact]
         public void PlanPurchases_총매수금액을_정확히_합산한다()
         {
-            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQM"] = 2 };
-            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQM"] = 200m };
+            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQ"] = 2 };
+            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m, ["QQQ"] = 200m };
 
             DcaAccumulationEngine.PlanPurchases(quantities, Rate, prices, out decimal total);
 
@@ -83,12 +83,12 @@ namespace AutoInvest.Tests
         [Fact]
         public void PlanPurchases_제외종목은_총액에_포함되지_않는다()
         {
-            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQM"] = 2 };
-            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m }; // QQQM 제외
+            var quantities = new Dictionary<string, int> { ["SPLG"] = 3, ["QQQ"] = 2 };
+            var prices = new Dictionary<string, decimal> { ["SPLG"] = 60m }; // QQQ 제외
 
             DcaAccumulationEngine.PlanPurchases(quantities, Rate, prices, out decimal total);
 
-            // 3 × 60 × 1300 = 234,000 (QQQM 미포함)
+            // 3 × 60 × 1300 = 234,000 (QQQ 미포함)
             Assert.Equal(234_000m, total);
         }
 

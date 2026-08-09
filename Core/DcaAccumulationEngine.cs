@@ -35,7 +35,7 @@ namespace AutoInvest.Core
         /// 현재가가 있는 종목만 설정 수량 그대로 계획에 포함하고, 총 매수금액(원)을 함께 반환합니다.
         /// 예산은 여기서 고려하지 않습니다 — 초과 경고는 호출부(AccumulateAsync)에서 처리합니다.
         /// </summary>
-        /// <param name="quantities">종목별 매수 수량 (예: QQQM=2, SPLG=3)</param>
+        /// <param name="quantities">종목별 매수 수량 (예: QQQ=2, SPLG=3)</param>
         /// <param name="exchangeRate">USD→KRW 환율</param>
         /// <param name="priceUsd">종목별 현재가 (USD)</param>
         /// <param name="totalCostKrw">계획 전체의 매수금액 합계 (원)</param>
@@ -69,7 +69,7 @@ namespace AutoInvest.Core
         /// 실패·경고를 개별 메일로 즉시 보내지 않고 결과에 모으는 이유: 사이클 종료 시 호출부에서
         /// 한 통의 종합 보고서로 발송하기 위함입니다(종목별 실패 메일 난발 방지).
         /// </summary>
-        /// <param name="quantities">종목별 매수 수량 맵 (예: QQQM=2, SPLG=3)</param>
+        /// <param name="quantities">종목별 매수 수량 맵 (예: QQQ=2, SPLG=3)</param>
         /// <param name="budgetKrw">이번 사이클 예산 (원, 초과 경고용 상한)</param>
         /// <returns>체결·실패·예산경고를 담은 사이클 결과 (매수 대상이 없으면 빈 결과)</returns>
         public async Task<DcaCycleResult> AccumulateAsync(

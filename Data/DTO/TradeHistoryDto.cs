@@ -15,7 +15,7 @@ namespace AutoInvest.Data.DTO
         // 거래 일시
         public DateTime TradeDate { get; set; }
 
-        // 종목 코드 (예: "QQQM")
+        // 종목 코드 (예: "QQQ")
         public string Ticker { get; set; } = string.Empty;
 
         // 주문 유형 ("BUY" = 매수, "SELL" = 매도)

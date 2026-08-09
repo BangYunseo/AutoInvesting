@@ -8,7 +8,7 @@ namespace AutoInvest.Data.DTO
     /// </summary>
     public class SellTaxEstimateDto
     {
-        /// <summary>종목 코드 (예: QQQM)</summary>
+        /// <summary>종목 코드 (예: QQQ)</summary>
         public string Ticker { get; set; } = string.Empty;
 
         /// <summary>매도 수량 (주)</summary>

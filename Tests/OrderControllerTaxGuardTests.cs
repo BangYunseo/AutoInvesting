@@ -46,12 +46,12 @@ namespace AutoInvest.Tests
         [Fact]
         public async Task ManualSell_과세인데_미확인이면_409차단_주문미실행()
         {
-            var broker = new FakeBrokerClient(Holding("QQQM", Qty, AvgUsd), PriceUsd, Fx);
+            var broker = new FakeBrokerClient(Holding("QQQ", Qty, AvgUsd), PriceUsd, Fx);
             var ctrl = BuildController(broker);
 
             var result = await ctrl.PlaceManualOrder(new ManualOrderRequest
             {
-                Ticker = "QQQM",
+                Ticker = "QQQ",
                 Qty = Qty,
                 OrderType = "SELL",
                 Price = PriceUsd,
@@ -76,7 +76,7 @@ namespace AutoInvest.Tests
         [Fact]
         public async Task ManualSell_미보유종목이면_400()
         {
-            var broker = new FakeBrokerClient(Holding("QQQM", Qty, AvgUsd), PriceUsd, Fx);
+            var broker = new FakeBrokerClient(Holding("QQQ", Qty, AvgUsd), PriceUsd, Fx);
             var ctrl = BuildController(broker);
 
             var result = await ctrl.PlaceManualOrder(new ManualOrderRequest
@@ -95,12 +95,12 @@ namespace AutoInvest.Tests
         [Fact]
         public async Task ManualSell_보유수량초과면_400()
         {
-            var broker = new FakeBrokerClient(Holding("QQQM", 10, AvgUsd), PriceUsd, Fx);
+            var broker = new FakeBrokerClient(Holding("QQQ", 10, AvgUsd), PriceUsd, Fx);
             var ctrl = BuildController(broker);
 
             var result = await ctrl.PlaceManualOrder(new ManualOrderRequest
             {
-                Ticker = "QQQM",
+                Ticker = "QQQ",
                 Qty = 25, // 보유 10주 초과
                 OrderType = "SELL",
                 Price = PriceUsd,
@@ -116,10 +116,10 @@ namespace AutoInvest.Tests
         [Fact]
         public async Task SellPreview_과세매도_계산값검증()
         {
-            var broker = new FakeBrokerClient(Holding("QQQM", Qty, AvgUsd), PriceUsd, Fx);
+            var broker = new FakeBrokerClient(Holding("QQQ", Qty, AvgUsd), PriceUsd, Fx);
             var ctrl = BuildController(broker);
 
-            var result = await ctrl.PreviewSell("QQQM", Qty, price: null, ytd: 0m);
+            var result = await ctrl.PreviewSell("QQQ", Qty, price: null, ytd: 0m);
 
             var ok = Assert.IsType<OkObjectResult>(result);
             var est = Assert.IsType<SellTaxEstimateDto>(ok.Value);
@@ -136,10 +136,10 @@ namespace AutoInvest.Tests
         [Fact]
         public async Task SellPreview_취득가불명이면_추정스킵()
         {
-            var broker = new FakeBrokerClient(Holding("QQQM", Qty, avg: 0m), PriceUsd, Fx);
+            var broker = new FakeBrokerClient(Holding("QQQ", Qty, avg: 0m), PriceUsd, Fx);
             var ctrl = BuildController(broker);
 
-            var result = await ctrl.PreviewSell("QQQM", Qty, price: null, ytd: 0m);
+            var result = await ctrl.PreviewSell("QQQ", Qty, price: null, ytd: 0m);
 
             var ok = Assert.IsType<OkObjectResult>(result);
             var est = Assert.IsType<SellTaxEstimateDto>(ok.Value);
@@ -152,10 +152,10 @@ namespace AutoInvest.Tests
         public async Task SellPreview_손실매도면_비과세_무제한()
         {
             // 취득 $200 → 현재 $180 (손실)
-            var broker = new FakeBrokerClient(Holding("QQQM", Qty, avg: 200m), currentPrice: 180m, exchangeRate: Fx);
+            var broker = new FakeBrokerClient(Holding("QQQ", Qty, avg: 200m), currentPrice: 180m, exchangeRate: Fx);
             var ctrl = BuildController(broker);
 
-            var result = await ctrl.PreviewSell("QQQM", Qty, price: null, ytd: 0m);
+            var result = await ctrl.PreviewSell("QQQ", Qty, price: null, ytd: 0m);
 
             var ok = Assert.IsType<OkObjectResult>(result);
             var est = Assert.IsType<SellTaxEstimateDto>(ok.Value);
@@ -168,7 +168,7 @@ namespace AutoInvest.Tests
         [Fact]
         public async Task SellPreview_미보유종목이면_400()
         {
-            var broker = new FakeBrokerClient(Holding("QQQM", Qty, AvgUsd), PriceUsd, Fx);
+            var broker = new FakeBrokerClient(Holding("QQQ", Qty, AvgUsd), PriceUsd, Fx);
             var ctrl = BuildController(broker);
 
             var result = await ctrl.PreviewSell("SPLG", 1, price: null, ytd: 0m);

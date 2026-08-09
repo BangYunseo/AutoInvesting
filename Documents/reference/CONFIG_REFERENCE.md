@@ -180,7 +180,7 @@ IS_PAPER_TRADING = 0
 
 로컬 시크릿은 `appsettings.local.json`에 둔다. `.gitignore`와 `.dockerignore` 양쪽에서 제외된다. 템플릿 파일은 없다 — 위 표의 키만 넣으면 되고, 필요한 최소 항목은 `MASTER_KEY` 하나다.
 
-> `appsettings.example.json`은 2026-08-07에 삭제했다. 스스로를 `appsettings.local.json`으로 복사하라고 지시하면서 `Dca.Quantities`에 실제 종목·수량(`SPLG`/`QQQM`)을 담고 있었다 — 복사하면 로드되는 파일이 되고, DB 조회 실패 시 그 값으로 폴백해 의도하지 않은 종목을 실계좌에 매수할 수 있었다. 키 목록은 이 문서가 더 정확하므로 템플릿을 따로 두지 않는다.
+> `appsettings.example.json`은 2026-08-07에 삭제했다. 스스로를 `appsettings.local.json`으로 복사하라고 지시하면서 `Dca.Quantities`에 실제 종목·수량(`SPLG`/`QQQ`)을 담고 있었다 — 복사하면 로드되는 파일이 되고, DB 조회 실패 시 그 값으로 폴백해 의도하지 않은 종목을 실계좌에 매수할 수 있었다. 키 목록은 이 문서가 더 정확하므로 템플릿을 따로 두지 않는다.
 
 **로컬에 `DATABASE_URL`을 운영 DB 주소로 넣지 않는다.** 넣으면 DB에서 `IS_PAPER_TRADING="0"`과 실전 KIS 키를 읽어 **로컬 실행이 실계좌에 주문**할 수 있다. 로컬 개발용 `MASTER_KEY`는 운영 값과 다른 값을 쓴다.
 
@@ -195,7 +195,7 @@ IS_PAPER_TRADING = 0
 | **웹 SQL Editor** | `console.neon.tech` → SQL Editor. `psql` 없이 브라우저에서 쿼리 가능 |
 | **브랜치 스냅샷** | `DELETE`·`ALTER` 전에 브랜치를 떠두면 완전한 롤백 수단이 된다 |
 
-첫 번째가 실제 사고로 이어질 수 있었다. `DCA_TEMPLATES` 조회가 실패하면 레거시 폴백을 타고 의도하지 않은 종목·수량으로 실계좌 매수가 나갈 수 있었다. 2026-08-03에 DB 레거시 키(`DCA_QTYS`·`DCA_BUDGET_KRW`·`DCA_TARGETS`)를 삭제하고 `appsettings.json`의 `Dca:Quantities`를 비워 **폴백이 "잘못 사기"가 아니라 "안 사기"로 끝나게** 바꿨다. 삭제 직전 실측한 `DCA_QTYS` 값은 `{"GLD":1,"SCHD":1,"SPYM":1}`로 당월 템플릿과 종목·수량이 전부 달랐다 — 폴백이 발동했다면 의도와 다른 바스켓을 샀을 것이다.
+첫 번째가 실제 사고로 이어질 수 있었다. `DCA_TEMPLATES` 조회가 실패하면 레거시 폴백을 타고 의도하지 않은 종목·수량으로 실계좌 매수가 나갈 수 있었다. 2026-08-03에 DB 레거시 키(`DCA_QTYS`·`DCA_BUDGET_KRW`·`DCA_TARGETS`)를 삭제하고 `appsettings.json`의 `Dca:Quantities`를 비워 **폴백이 "잘못 사기"가 아니라 "안 사기"로 끝나게** 바꿨다. 삭제 직전 실측한 `DCA_QTYS` 값은 `{"GLD":1,"VTI":1,"VOO":1}`로 당월 템플릿과 종목·수량이 전부 달랐다 — 폴백이 발동했다면 의도와 다른 바스켓을 샀을 것이다.
 
 ### 알려진 함정
 

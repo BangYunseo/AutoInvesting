@@ -23,7 +23,7 @@ namespace AutoInvest.Tests
         [Fact]
         public void Estimate_차익_240만원이면_세금없음()
         {
-            var r = TaxEstimator.Estimate("QQQM", avgPriceUsd: 7_000_000m, sellPriceUsd: 9_400_000m,
+            var r = TaxEstimator.Estimate("QQQ", avgPriceUsd: 7_000_000m, sellPriceUsd: 9_400_000m,
                 qty: 1, exchangeRate: 1m, ytdRealizedGainKrw: 0m, settings: Defaults());
 
             Assert.Equal(2_400_000m, r.GainKrw);
@@ -35,7 +35,7 @@ namespace AutoInvest.Tests
         [Fact]
         public void Estimate_차익_260만원이면_초과분만_과세()
         {
-            var r = TaxEstimator.Estimate("QQQM", avgPriceUsd: 7_000_000m, sellPriceUsd: 9_600_000m,
+            var r = TaxEstimator.Estimate("QQQ", avgPriceUsd: 7_000_000m, sellPriceUsd: 9_600_000m,
                 qty: 1, exchangeRate: 1m, ytdRealizedGainKrw: 0m, settings: Defaults());
 
             Assert.Equal(2_600_000m, r.GainKrw);
@@ -61,7 +61,7 @@ namespace AutoInvest.Tests
         [Fact]
         public void Estimate_공제소진이면_전액과세()
         {
-            var r = TaxEstimator.Estimate("QQQM", avgPriceUsd: 1_000_000m, sellPriceUsd: 2_000_000m,
+            var r = TaxEstimator.Estimate("QQQ", avgPriceUsd: 1_000_000m, sellPriceUsd: 2_000_000m,
                 qty: 1, exchangeRate: 1m, ytdRealizedGainKrw: 2_500_000m, settings: Defaults());
 
             Assert.Equal(0m, r.RemainingDeductionKrw);
@@ -74,7 +74,7 @@ namespace AutoInvest.Tests
         public void Estimate_비과세최대수량_경계계산()
         {
             // 주당 차익 500,000원, 남은공제 2,500,000원 → 최대 5주까지 비과세
-            var r = TaxEstimator.Estimate("QQQM", avgPriceUsd: 1_000_000m, sellPriceUsd: 1_500_000m,
+            var r = TaxEstimator.Estimate("QQQ", avgPriceUsd: 1_000_000m, sellPriceUsd: 1_500_000m,
                 qty: 10, exchangeRate: 1m, ytdRealizedGainKrw: 0m, settings: Defaults());
 
             Assert.Equal(5, r.MaxTaxFreeQty);
@@ -84,7 +84,7 @@ namespace AutoInvest.Tests
         [Fact]
         public void Estimate_취득가불명이면_추정스킵()
         {
-            var r = TaxEstimator.Estimate("QQQM", avgPriceUsd: 0m, sellPriceUsd: 200m,
+            var r = TaxEstimator.Estimate("QQQ", avgPriceUsd: 0m, sellPriceUsd: 200m,
                 qty: 5, exchangeRate: 1_300m, ytdRealizedGainKrw: 0m, settings: Defaults());
 
             Assert.True(r.CostBasisUnknown);

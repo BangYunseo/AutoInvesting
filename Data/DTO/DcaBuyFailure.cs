@@ -6,7 +6,7 @@ namespace AutoInvest.Data.DTO
     /// </summary>
     public class DcaBuyFailure
     {
-        /// <summary>실패한 종목 코드 (예: "QQQM").</summary>
+        /// <summary>실패한 종목 코드 (예: "QQQ").</summary>
         public string Ticker { get; set; } = string.Empty;
 
         /// <summary>매수 시도 수량 (주).</summary>

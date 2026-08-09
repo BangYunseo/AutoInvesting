@@ -86,7 +86,7 @@ status: draft
 ```json
 {
   "templates": [
-    { "id": "core", "name": "코어", "budgetKrw": 1000000, "quantities": { "SPLG": 2, "QQQM": 1 } }
+    { "id": "core", "name": "코어", "budgetKrw": 1000000, "quantities": { "SPLG": 2, "QQQ": 1 } }
   ],
   "monthMap": { "1": "core", "2": "core" },
   "currentMonth": 7,
@@ -138,7 +138,7 @@ status: draft
 | `acknowledgeTax` | bool | | (매도) 과세 예상을 확인했는지. false면 과세 매도 차단 |
 | `ytdRealizedGainKrw` | decimal | | (매도) 올해 이미 실현한 양도차익(원). 공제 계산용, 기본 0 |
 
-- 응답 `200`: `{ "message": "수동 BUY 주문이 실행되었습니다.", "ticker": "QQQM", "orderType": "BUY", "qty": 1, "price": 180.25, "orderNo": "..." }`
+- 응답 `200`: `{ "message": "수동 BUY 주문이 실행되었습니다.", "ticker": "QQQ", "orderType": "BUY", "qty": 1, "price": 180.25, "orderNo": "..." }`
 - 오류: `400`(검증/보유 초과/미보유 매도), `409`(과세 매도 미확인 — 본문에 `taxEstimate` 포함), `502`(주문 거부/주문번호 없음), `503`(브로커 로그인 실패), `500`
 - 부수효과: 성공 시 `TB_TRADE_HISTORY`에 `STATUS='PENDING'`(접수)으로 기록 — 지정가 주문이라 접수가 곧 체결은 아니며, 체결 확정은 `POST /api/order/reconcile`이 `ORDER_NO`로 갱신한다.
 
@@ -150,7 +150,7 @@ status: draft
 ### 시세 (`PriceController`, `/api/price`)
 
 **`GET /api/price/{ticker}`** — 현재가(USD) + 환율 환산 원화가. 적립 설정 화면에서 티커 검증 겸용.
-- 응답 `200`: `{ "ticker": "QQQM", "priceUsd": 180.25, "exchangeRate": 1380.5, "priceKrw": 248835.1 }`
+- 응답 `200`: `{ "ticker": "QQQ", "priceUsd": 180.25, "exchangeRate": 1380.5, "priceKrw": 248835.1 }`
 - 오류: `400`(티커 누락), `404`(현재가 0 이하 = 미존재/조회 실패, 본문 `{error, ticker}`), `500`
 
 ### 포트폴리오 (`PortfolioController`, `/api/portfolio`)

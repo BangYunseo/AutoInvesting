@@ -6,7 +6,7 @@ namespace AutoInvest.Data.DTO
     /// </summary>
     public class HoldingDto
     {
-        // 종목 코드 (예: "QQQM")
+        // 종목 코드 (예: "QQQ")
         public string Ticker { get; set; } = string.Empty;
 
         // 보유 수량 (주)

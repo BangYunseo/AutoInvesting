@@ -18,7 +18,7 @@ namespace AutoInvest.Data.DTO
         /// <summary>월 예산 (원, 초과 경고용 상한).</summary>
         public decimal BudgetKrw { get; set; }
 
-        /// <summary>종목별 고정 매수 수량 (예: QQQM=2, SPLG=3).</summary>
+        /// <summary>종목별 고정 매수 수량 (예: QQQ=2, SPLG=3).</summary>
         public Dictionary<string, int> Quantities { get; set; } = new();
     }
 }
