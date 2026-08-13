@@ -900,6 +900,11 @@ const Order = () => {
           </div>
         )}
 
+        {/* 종목은 왼쪽 열, 수량·가격 입력은 오른쪽 열에 위아래로 둔다.
+            좁은 화면에서는 두 열이 접혀 위아래가 된다(order-picker의 flex-wrap). */}
+        <div className="order-picker">
+        <div className="order-picker__list">
+
         {/* 종목: 보유종목 목록 (매도 전체 / 매수 'hold' 모드) */}
         {!isBuyNew && (
           <div className="form-group">
@@ -1015,9 +1020,11 @@ const Order = () => {
           </div>
         )}
 
-        {/* 수량 / 가격 */}
-        <div style={{ display: "flex", gap: 10 }}>
-          <div className="form-group" style={{ flex: 1 }}>
+        </div>{/* /order-picker__list */}
+
+        {/* 수량 / 가격 — 오른쪽 열, 위아래로 */}
+        <div className="order-picker__inputs">
+          <div className="form-group">
             <label>
               수량
               {orderType === "SELL" && selectedHolding
@@ -1032,7 +1039,7 @@ const Order = () => {
               onChange={handleQtyChange}
             />
           </div>
-          <div className="form-group" style={{ flex: 1 }}>
+          <div className="form-group">
             <label>가격 (USD, 비우면 현재가)</label>
             <input
               type="number"
@@ -1047,20 +1054,21 @@ const Order = () => {
               }
             />
           </div>
-        </div>
 
-
-        {orderType === "SELL" && (
-          <button
-            type="button"
-            className="btn btn--outline"
-            style={{ fontSize: "0.8rem", padding: "4px 10px", marginBottom: 8 }}
-            onClick={() => setQty(maxSellQty)}
-            disabled={maxSellQty <= 0}
-          >
-            전량({maxSellQty}주)
-          </button>
-        )}
+          {/* 전량 버튼은 수량을 채우는 동작이라 입력칸 열에 둔다 */}
+          {orderType === "SELL" && (
+            <button
+              type="button"
+              className="btn btn--outline"
+              style={{ fontSize: "0.8rem", padding: "4px 10px" }}
+              onClick={() => setQty(maxSellQty)}
+              disabled={maxSellQty <= 0}
+            >
+              전량({maxSellQty}주)
+            </button>
+          )}
+        </div>{/* /order-picker__inputs */}
+        </div>{/* /order-picker */}
 
         <button
           className="btn btn--primary"
