@@ -26,6 +26,9 @@ const DcaConfig = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null); // null | 'templates' | 'months' — 저장은 둘이 독립
   const [deleteTarget, setDeleteTarget] = useState(null); // 삭제 확인 대기 중인 템플릿 (null = 닫힘)
+  // 저장 성공을 눌린 버튼 자리에서 잠깐 보여준다. 성공 배너는 카드 맨 위에 뜨는데 저장 버튼은
+  // 한참 아래라, 배너만으로는 눌러도 아무 일이 없는 것처럼 보였다.
+  const [savedFlash, setSavedFlash] = useState(null); // null | 'templates' | 'months'
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   // 월별 실행 로그: 매수 기록(TB_TRADE_HISTORY)과 오른쪽에서 볼 연·월
@@ -238,6 +241,25 @@ const DcaConfig = () => {
   const hasCash = cashUsd > 0 && exchangeRate > 0;
   const overCash = hasCash && totalCost > cashKrw;
 
+  // ── 집행 가능 판정 ──
+  // 예산과 예수금은 성격이 다르다. 예산은 경고용 상한이라 초과해도 수량을 줄이지 않고 그대로 매수하지만
+  // (architecture.md), 예수금이 부족하면 실제로 주문이 거부돼 그 종목이 빠진다. 그 차이를 한 줄로 못 박는다.
+  const verdict = !hasCash
+    ? { color: 'var(--text-muted)', icon: 'ℹ️', text: '예수금을 확인할 수 없어 집행 가능 여부를 판정하지 못했습니다.' }
+    : overCash
+      ? {
+          color: 'var(--loss-red)',
+          icon: '❌',
+          text: `예수금이 ${won(totalCost - cashKrw)} 부족합니다 — 이 구성으로 집행하면 일부 종목이 매수되지 않습니다.`,
+        }
+      : overBudget
+        ? {
+            color: 'var(--warn-amber)',
+            icon: '⚠️',
+            text: `예산을 ${won(totalCost - budgetNum)} 초과했지만 예수금은 충분합니다 — 예산은 경고용 상한이라 수량을 줄이지 않고 그대로 매수합니다.`,
+          }
+        : { color: 'var(--profit-green)', icon: '✅', text: '예산 이내이고 예수금도 충분합니다.' };
+
   // ── 저장 ──
   // 템플릿과 월별 배정은 서로 독립적으로 저장한다. 한쪽만 담아 보내면 서버는 다른 쪽을 건드리지 않는다.
   // 저장 후 loadConfig()로 되읽지 않는 것도 같은 이유다 — 되읽으면 저장하지 않은 쪽의 편집분이 날아간다.
@@ -289,18 +311,27 @@ const DcaConfig = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `저장 실패 (${res.status})`);
       setNotice((data.message || '저장되었습니다.') + extraNotice);
+      setSavedFlash(target);
+      setTimeout(() => setSavedFlash(null), 2500);
     } catch (err) {
       setError(err.message);
+      scrollToMessage();
     } finally {
       setSaving(null);
     }
   };
 
+  // 실패 문구는 카드 맨 위에 뜨므로, 아래쪽 버튼을 눌렀을 때 놓치지 않도록 위로 올려준다.
+  const scrollToMessage = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
   const saveTemplates = async () => {
     setError(null);
     setNotice(null);
     const built = buildTemplates();
-    if (!built) return;
+    if (!built) {
+      scrollToMessage(); // 검증 실패 문구가 위쪽에 뜨므로 함께 올려준다
+      return;
+    }
     // 빠진 템플릿을 조용히 삭제하면 "내가 만든 게 사라졌다"가 된다. 무엇이 왜 빠졌는지 남긴다.
     await put(
       { templates: built.payloadTemplates },
@@ -417,27 +448,33 @@ const DcaConfig = () => {
 
           <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: '0.9rem' }}>ETF 설정</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+            {/* 종목은 왼쪽, 수량은 오른쪽, 현재가·매수금액은 수량 바로 아래 오른쪽 정렬.
+                좁은 화면에서는 두 덩어리가 위아래로 접힌다(wrap). */}
             {selected.rows.map((row, idx) => (
-              <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {/* 좁은 화면에서는 티커 줄과 수량 줄로 접힌다 — wrap이 없으면 티커 입력이 찌그러진다 */}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                {/* 좌: 티커 + 검증 */}
+                <div style={{ display: 'flex', gap: 8, flex: '2 1 200px', minWidth: 170 }}>
                   <input
                     type="text" className="input-field" value={row.ticker}
                     onChange={e => setTicker(idx, e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') validateRow(selectedId, idx, row.ticker); }}
                     onBlur={() => { if (row.ticker && (row.status === 'idle' || row.status === 'saved')) validateRow(selectedId, idx, row.ticker); }}
-                    placeholder="티커 (예: QQQ)" style={{ flex: '2 1 150px', minWidth: 130 }}
+                    placeholder="티커 (예: QQQ)" style={{ flex: 1, minWidth: 0 }}
                   />
                   <button className="btn btn--outline" onClick={() => validateRow(selectedId, idx, row.ticker)} style={{ padding: '8px 12px', flexShrink: 0 }} title="현재가 확인">🔍</button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                </div>
+
+                {/* 우: 수량, 그 아래 현재가·매수금액 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginLeft: 'auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <button className="btn btn--outline" onClick={() => stepQty(idx, -1)} style={{ padding: '8px 12px' }} title="감소">−</button>
                     <input type="number" className="input-field" min="1" step="1" value={row.qty} onChange={e => setQty(idx, e.target.value)} style={{ width: 60, textAlign: 'center' }} />
                     <button className="btn btn--outline" onClick={() => stepQty(idx, 1)} style={{ padding: '8px 12px' }} title="증가">+</button>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>주</span>
+                    <button className="btn btn--outline" onClick={() => removeRow(idx)} style={{ padding: '8px 12px', flexShrink: 0 }} title="삭제">✕</button>
                   </div>
-                  <button className="btn btn--outline" onClick={() => removeRow(idx)} style={{ padding: '8px 12px', flexShrink: 0, marginLeft: 'auto' }} title="삭제">✕</button>
+                  <div style={{ fontSize: '0.78rem', textAlign: 'right', wordBreak: 'keep-all' }}>{statusLine(row)}</div>
                 </div>
-                <div style={{ fontSize: '0.78rem', paddingLeft: 2 }}>{statusLine(row)}</div>
               </div>
             ))}
             {selected.rows.length === 0 && (
@@ -467,6 +504,20 @@ const DcaConfig = () => {
                   : '예수금이 0원이거나 조회되지 않음 — 예산 기준으로 표시 중'}
               </div>
             )}
+
+            {/* 저장 버튼 바로 위에서 "이 구성으로 실제 집행이 되는가"를 한 줄로 판정한다 */}
+            <div
+              style={{
+                color: verdict.color,
+                fontWeight: 600,
+                paddingTop: 6,
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                wordBreak: 'keep-all',
+                lineHeight: 1.6,
+              }}
+            >
+              {verdict.icon} {verdict.text}
+            </div>
           </div>
         </div>
       )}
@@ -477,7 +528,11 @@ const DcaConfig = () => {
         disabled={saving !== null}
         style={{ width: '100%', padding: '12px', fontSize: '0.95rem', marginBottom: 28 }}
       >
-        {saving === 'templates' ? '⏳ 저장 중...' : '💾 템플릿 저장'}
+        {saving === 'templates'
+          ? '⏳ 저장 중...'
+          : savedFlash === 'templates'
+            ? '✅ 저장됨'
+            : '💾 템플릿 저장'}
       </button>
 
       {/* 월별 템플릿 배정 */}
@@ -641,7 +696,11 @@ const DcaConfig = () => {
         disabled={saving !== null}
         style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}
       >
-        {saving === 'months' ? '⏳ 저장 중...' : '💾 월별 배정 저장'}
+        {saving === 'months'
+          ? '⏳ 저장 중...'
+          : savedFlash === 'months'
+            ? '✅ 저장됨'
+            : '💾 월별 배정 저장'}
       </button>
 
       {deleteTarget && (
