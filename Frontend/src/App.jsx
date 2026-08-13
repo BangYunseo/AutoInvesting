@@ -21,7 +21,7 @@ function Shell() {
   }
 
   return (
-    <div className="app-layout">
+    <div>
       {/* ── 네비게이션 바 (로그인 화면 제외) ── */}
       {!isLogin && (
         <nav className="app-nav">

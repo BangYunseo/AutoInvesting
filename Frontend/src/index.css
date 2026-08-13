@@ -4,9 +4,7 @@
 :root {
   /* 색상 */
   --bg-primary: #0b0e14;
-  --bg-secondary: #111620;
   --bg-card: rgba(17, 22, 32, 0.85);
-  --bg-card-hover: rgba(24, 31, 46, 0.9);
   --bg-elevated: #1a2235;
   --bg-input: #141b2a;
 
@@ -33,7 +31,6 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.15);
-  --shadow-glow-purple: 0 0 20px rgba(139, 92, 246, 0.1);
 
   /* 타이포그래피 */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -43,13 +40,11 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 20px;
 
   /* 트랜지션 */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --transition-fast: 150ms var(--ease-out);
   --transition-normal: 250ms var(--ease-out);
-  --transition-slow: 400ms var(--ease-out);
 
   font-family: var(--font-sans);
   color-scheme: dark;
@@ -596,7 +591,6 @@ a:hover {
 }
 
 .form-group input,
-.form-group select,
 .input-field {
   width: 100%;
   padding: 10px 14px;
@@ -611,51 +605,9 @@ a:hover {
 }
 
 .form-group input:focus,
-.form-group select:focus,
 .input-field:focus {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 2px var(--accent-blue-glow);
-}
-
-/* ── 셀렉트(드롭다운) 고급화 ── */
-/* 네이티브 화살표를 없애고 커스텀 셰브런 + 호버/포커스 상태를 입혀 테마와 일관되게 만든다. */
-.form-group select,
-select.input-field {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  padding-right: 40px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  background-size: 16px;
-  cursor: pointer;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.form-group select:hover,
-select.input-field:hover {
-  border-color: var(--accent-blue);
-}
-
-.form-group select:focus,
-select.input-field:focus {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-}
-
-/* 마우스 클릭으로 남는 포커스 강조 제거 — 키보드(Tab) 포커스일 때만 링을 유지 */
-.form-group select:focus:not(:focus-visible),
-select.input-field:focus:not(:focus-visible) {
-  border-color: var(--border-primary);
-  box-shadow: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-}
-
-/* 드롭다운 옵션 목록(브라우저 지원 범위 내) — 다크 테마에 맞춤 */
-.form-group select option,
-select.input-field option {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
 }
 
 /* ── 선택 칩 (네이티브 select 대체) ──
@@ -945,19 +897,6 @@ select.input-field option {
   border-radius: 6px;
   font-weight: 600;
   letter-spacing: 0.02em;
-}
-
-.badge.active {
-  background: var(--accent-blue-glow);
-  color: var(--accent-blue);
-}
-.badge.completed {
-  background: var(--profit-green-bg);
-  color: var(--profit-green);
-}
-.badge.cancelled {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
 }
 
 /* ── 반응형 ── */
