@@ -1,5 +1,5 @@
 ---
-title: AutoInvesting — Claude Code 작업 지침
+title: AutoInvesting
 date: 2026-09-02
 company: [개인]
 tags: [작업지침, DCA적립, 규칙SSOT, 아키텍처]
@@ -27,16 +27,17 @@ status: active
 
 ## 빌드 · 실행 · 검증
 
-| 작업               | 명령 / 방법                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| 빌드               | `dotnet build`                                                                                                           |
-| 실행               | `dotnet run` (ASP.NET Core 호스트)                                                                                       |
-| 신규 로직 검증     | `appsettings.json`의 `Trading:IsPaperTrading: true`(또는 환경변수 `IS_PAPER_TRADING="1"`)로 **SimBroker 모드 우선 검증** |
-| 배분 로직 검증     | `DcaAccumulationEngine.PlanPurchases`(순수 함수)를 입력/기대출력 시나리오로 단위 검증                                    |
-| 적립 사이클 트리거 | `POST /api/order/dca-run` (헤더 `x-api-key`, 202 즉시 반환 후 백그라운드 처리)                                           |
-| 프론트엔드         | `Frontend/` → `npm install` / `npm run dev`                                                                              |
+| 작업       | 명령 / 방법                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 빌드       | 저장소 루트에서 `dotnet build` (오류 0 확인)                                                                                         |
+| 테스트     | 저장소 루트에서 `dotnet test` — `AutoInvest.sln`이 웹·테스트 두 프로젝트를 함께 빌드하고 xUnit을 돌린다 (`Tests/`는 웹 빌드에서 제외) |
+| 실행       | `dotnet run` — **선행조건: `MASTER_KEY`(base64 32바이트)가 환경변수 또는 `appsettings.local.json`에 있어야 한다. 없으면 기동 즉시 `[FTL]`로 중단된다.** 기본 리스닝 `http://localhost:5000` (`launchSettings.json` 없음 — Kestrel 기본값) |
+| 프론트엔드 | `Frontend/` → `npm install` / `npm run dev` — dev 서버가 `/api`를 `http://localhost:5000`으로 프록시하므로 **백엔드를 먼저 띄운다**   |
 
----
+> 로직 검증 절차(배분 로직 단위 검증, SimBroker 사이클 확인)는 `/sim-verify` 스킬과
+> `.agents/rules/recommended_rules.md`(테스트 규칙)에 있다 — 여기에 다시 쓰지 않는다.
+> 적립 사이클 트리거(`POST /api/order/dca-run`)·크론 구성은 `.agents/rules/architecture.md`와
+> `recommended_rules.md`(실거래 전환)에 있다.
 
 ## 서브 에이전트 (위임)
 
