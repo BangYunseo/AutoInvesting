@@ -1,9 +1,6 @@
 using AutoInvest.Data;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 
 namespace AutoInvest.Core
@@ -49,8 +46,7 @@ namespace AutoInvest.Core
         public const decimal DefaultBudgetKrw = 1_000_000m;
 
         /// <summary>
-        /// 현재(KST) 월에 적용할 종목별 매수 수량과 예산을 반환합니다 (엔진 진입점).
-        /// 적용할 템플릿이 없으면 빈 수량(예산 0)을 반환해 호출부가 매수를 스킵하게 합니다.
+        /// 종목별 매수 수량, 예산 반환(월 단위)
         /// </summary>
         public static (Dictionary<string, int> Quantities, decimal BudgetKrw) Load()
         {
@@ -76,16 +72,12 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 주어진 월(1~12)에 적용할 템플릿을 고릅니다 (순수 함수 — 외부 I/O 없음, 검증 대상).
-        /// 규칙:
-        ///   · 해당 월이 월배정에 있으면 그 Id의 템플릿을 선택(Id가 목록에 없으면 null → 스킵).
-        ///   · 월배정이 비어 있으면 첫(기본) 템플릿을 매월 사용(기존 단일 설정 동작 유지).
-        ///   · 월배정은 있으나 해당 월에 배정이 없으면 null → 매수 스킵.
+        /// 적용할 템플릿 선택(월 단위)
         /// </summary>
         /// <param name="templates">템플릿 목록</param>
-        /// <param name="monthMap">월(1~12)→템플릿Id 배정</param>
-        /// <param name="month">적용할 월(1~12)</param>
-        /// <returns>선택된 템플릿, 없으면 null(매수 스킵)</returns>
+        /// <param name="monthMap">템플릿 Id</param>
+        /// <param name="month">적용 월</param>
+        /// <returns>선택된 템플릿이 없으면 null(매수 스킵)</returns>
         public static DcaTemplate? SelectTemplate(
             IReadOnlyList<DcaTemplate> templates,
             IReadOnlyDictionary<int, string> monthMap,
@@ -94,15 +86,21 @@ namespace AutoInvest.Core
             if (templates == null || templates.Count == 0) return null;
 
             if (monthMap != null && monthMap.TryGetValue(month, out var tid) && !string.IsNullOrWhiteSpace(tid))
+            {
                 return templates.FirstOrDefault(t => t.Id == tid);
+            }
 
             if (monthMap == null || monthMap.Count == 0)
-                return templates.FirstOrDefault(); // 스케줄 미설정 → 첫(기본) 템플릿을 매월 사용
+            {
+                return templates.FirstOrDefault();
+            } 
 
-            return null; // 월배정은 있으나 이번 달 배정 없음 → 스킵
+            return null; 
         }
 
-        /// <summary>템플릿 목록을 반환합니다 (DB → 없으면 레거시 단일 설정을 '기본' 템플릿으로 이관).</summary>
+        /// <summary>
+        /// 템플릿 목록 반환(DB → 없으면 '기본' 템플릿)
+        /// </summary>
         public static List<DcaTemplate> LoadTemplates()
         {
             string json = AppConfigManager.Get(TemplatesKey, "");
@@ -113,17 +111,21 @@ namespace AutoInvest.Core
                     var parsed = JsonSerializer.Deserialize<List<DcaTemplate>>(json);
                     if (parsed != null)
                     {
-                        var clean = parsed.Where(t => t != null && !string.IsNullOrWhiteSpace(t.Id)).ToList();
+                        var clean = new List<DcaTemplate>(); 
+                        foreach (var t in parsed)
+                        {
+                            if (t != null && !string.IsNullOrWhiteSpace(t.Id)) clean.Add(t);
+                        }
                         if (clean.Count > 0) return clean;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Logger.Error($"[DcaSettings] DCA_TEMPLATES 파싱 실패 — 레거시/appsettings로 폴백: {ex.Message}");
+                    Logger.Error($"[DCA] DCA_TEMPLATES 파싱 실패 : 레거시/appsettings로 폴백: {ex.Message}");
                 }
             }
 
-            // 마이그레이션: 레거시 단일 설정(DCA_QTYS/appsettings)을 '기본' 템플릿 하나로
+            // 기본 템플릿
             return new List<DcaTemplate>
             {
                 new DcaTemplate
@@ -198,12 +200,15 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 매월 적립을 시작할 날짜(KST)를 반환합니다. 미설정·범위 밖이면 0(월초부터 시도).
+        /// 적립 시작할 날짜(KST) 반환
         /// </summary>
         public static int LoadRunDay()
         {
             string raw = AppConfigManager.Get(RunDayKey, "");
-            if (int.TryParse(raw, out int day) && day >= 1 && day <= MaxRunDay) return day;
+            if (int.TryParse(raw, out int day) && day >= 1 && day <= MaxRunDay)
+            {
+                return day;
+            }
             return 0;
         }
 
