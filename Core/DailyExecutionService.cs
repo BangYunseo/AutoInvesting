@@ -12,13 +12,11 @@ using System.Threading.Tasks;
 namespace AutoInvest.Core
 {
     /// <summary>
-    /// 외부 크론잡(Cron-job.org, GitHub Actions 등)에 의해 매수 주기마다 호출되는 적립식 사이클 실행기.
-    ///
-    /// 백테스트 결과 "타이밍 판단은 잘해야 본전, 실제로는 손해"로 검증되어 퀀트/AI 판단 레이어를
-    /// 제거하고, 정해진 날 설정 종목을 정수 단위로 매수→기록→메일 발송만 수행합니다.
+    /// 매수 주기마다 적립
     /// </summary>
     public class DailyExecutionService
     {
+
         private readonly SessionManager _session;
 
         public DailyExecutionService(SessionManager session)
@@ -26,69 +24,20 @@ namespace AutoInvest.Core
             _session = session;
         }
 
-        /// <summary>
-        /// 적립은 KST 월 1회만 실행합니다. 이미 적립한 월은 TB_APP_CONFIG의
-        /// DCA_LAST_RUN_MONTH("yyyy-MM")에 기록되며, 같은 달 재호출은 스킵됩니다.
-        /// 거래이력이 아니라 전용 마커를 쓰는 이유: 수동 단일 매수가 월 적립을 오판하지 않게 하기 위함.
-        /// </summary>
-        public const string LastRunMonthKey = "DCA_LAST_RUN_MONTH";
+        public const string LastRunMonthKey = "DCA_LAST_RUN_MONTH";         // 마지막 적립 월
+        public const string ForceRunMonthKey = "DCA_FORCE_RUN_MONTH";       // 예약된 추가 적립 월
+        public const string LastRunDateKey = "DCA_LAST_RUN_DATE";           // 마지막 적립 일자
+        public const string PendingSnapshotKey = "DCA_PENDING_SNAPSHOT";    // 체결 스냅샷(주문 직전 보유 수량 + 접수한 주문 수량)
 
-        /// <summary>
-        /// 추가 적립 예약 마커. 값은 예약이 유효한 월("yyyy-MM", KST)이며, 이 값이 현재 월과 같으면
-        /// 당월 멱등 가드를 한 번 넘긴다.
-        ///
-        /// 사람이 화면에서 누르는 즉시 실행은 한국 낮 시간대라 미국장이 닫혀 있어 주문이 거부된다.
-        /// 그렇다고 크론에 강제 실행을 상시로 걸면 매일 중복 매수가 된다. 그래서 "다음 크론 실행 1회만
-        /// 강제"를 예약해 두고, 이미 미국장 안에서 도는 크론(매일 14:40 UTC = 개장 직후)이 집행한다.
-        ///
-        /// 월을 값으로 쓰는 이유: 예약이 소진되지 않은 채 달을 넘기면 다음 달 정기 적립에 얹혀
-        /// 2회 매수가 된다. 월이 바뀌면 저절로 무효가 되도록 만든다.
-        /// </summary>
-        public const string ForceRunMonthKey = "DCA_FORCE_RUN_MONTH";
-
-        /// <summary>
-        /// 마지막으로 적립을 집행한 날짜("yyyy-MM-dd", KST). <b>표시 전용</b>이다.
-        ///
-        /// 판정에는 쓰지 않는다 — 멱등 가드는 월 단위(<see cref="LastRunMonthKey"/>)로 그대로 두고,
-        /// 이 키는 "이번 달 언제 샀는지"를 화면에 보여주기 위해서만 함께 기록한다. 값 형식을 바꾸거나
-        /// 가드 조건에 끌어들이면 과매수 방지 로직이 달라지므로 그렇게 쓰지 않는다.
-        /// </summary>
-        public const string LastRunDateKey = "DCA_LAST_RUN_DATE";
-
-        /// <summary>
-        /// 체결 대사용 스냅샷. 주문 직전 보유 수량과 이번에 접수한 주문을 함께 담는다.
-        ///
-        /// 접수만으로 그 달을 완료로 세면, 지정가가 안 붙어 장 마감에 소멸해도 완료로 남아
-        /// 그 달 적립이 조용히 누락된다. 장 마감 후 <see cref="ReconcileAsync"/>가 이 스냅샷의
-        /// "주문 전 수량"과 현재 보유 수량을 비교해 실제로 붙었는지 판정한다.
-        ///
-        /// 체결내역 API를 쓰지 않는 이유: 보유 수량 변화만으로 충분하고, tr_id·파라미터를
-        /// 새로 맞출 필요가 없다. 대신 대사 전에 사람이 같은 종목을 매도하면 판정이 흐려지므로,
-        /// 수량이 줄어든 종목이 있으면 마커를 건드리지 않고 사람에게 넘긴다.
-        /// </summary>
-        public const string PendingSnapshotKey = "DCA_PENDING_SNAPSHOT";
-
-        /// <summary>현재(KST=UTC+9) 월을 "yyyy-MM"으로 반환합니다.</summary>
+        // 한국 표준시 기준 월
         public static string CurrentKstMonth() => DateTime.UtcNow.AddHours(9).ToString("yyyy-MM");
 
         /// <summary>
-        /// 오늘(KST)이 적립을 시도할 날인지 판정합니다 (순수 함수 — 외부 I/O 없음).
-        ///
-        /// runDay가 0(미설정)이면 월초부터 매일 시도합니다(기존 동작).
-        /// 지정일이 있으면 "그 날부터" 시도합니다 — 그 날에만 시도하지 않는 이유:
-        /// 지정일이 주말·미국 휴장이면 그날은 접수 0건이 되고, 월 1회 마커가 남지 않아
-        /// 다음 날 크론이 재시도해 자동으로 다음 영업일에 1회 집행된다. 지정일에만 시도하면
-        /// 그 달 적립이 통째로 빠진다.
-        ///
-        /// 29~31일도 고를 수 있다. 그 날이 없는 달(2월 30일 등)에는 <b>말일로 당겨</b> 판정하므로
-        /// 적립이 빠지는 달은 없다 — 31을 고르면 사실상 "매월 말일부터"가 된다. 달의 일수는
-        /// 외부 달력 API가 아니라 DateTime.DaysInMonth로 구한다(윤년 포함).
-        ///
-        /// 날짜 기준은 KST다. 사람이 8월 1일에 적립하기로 정했으면 미국 체결일이 7월 31일로
-        /// 찍히더라도 그것은 표기 문제이며, 기준은 쓰는 사람이 사는 시간대를 따른다.
+        /// 적립 지정일 판단
         /// </summary>
-        /// <param name="kstNow">현재 KST 시각</param>
-        /// <param name="runDay">지정일(1~31). 0이면 미설정</param>
+        /// <param name="kstNow"></param>
+        /// <param name="runDay"></param>
+        /// <returns></returns>
         public static bool IsOnOrAfterRunDay(DateTime kstNow, int runDay)
         {
             if (runDay <= 0) return true;
@@ -97,93 +46,74 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 적립식(DCA) 자동 매수 사이클을 실행합니다 (판단 없는 단순 자동화).
-        /// 퀀트/AI 판단을 하지 않고, 설정한 종목별 고정 수량(Dca:Quantities)을 그대로 매수합니다.
-        ///
-        /// 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 매수하지 않고 스킵합니다.
-        /// 크론이 매일(월초부터) 호출해도 처음 성공하는 날 1회만 적립되고, 성공 후 그 달 남은
-        /// 호출은 모두 스킵되며, 실패(접수 0건)한 날은 마커가 남지 않아 다음 날 자동 재시도됩니다.
+        /// 적립식 매수 사이클 실행
         /// </summary>
         /// <param name="force">
-        /// true면 당월 가드를 무시하고 한 번 더 적립합니다 (사람이 화면에서 명시적으로 추가 매수할 때).
-        /// 가드는 크론의 매일 재호출을 막기 위한 것이므로, 크론 경로는 이 값을 넘기지 않습니다.
         /// </param>
         public async Task<string> RunDcaCycleAsync(bool force = false)
         {
-            Logger.Info("[DcaCycle] ▶ 적립식 자동 매수 사이클이 시작되었습니다.");
+            Logger.Info("[DCA] 자동 매수를 시작합니다.");
+
             var result = new DcaCycleResult();
             string statusNote = "";
-
-            // ── 월 1회 멱등 가드: 이번 달(KST) 이미 적립했으면 스킵 ──
-            // 예약(ForceRunMonthKey)이 이번 달로 걸려 있으면 크론 호출도 가드를 한 번 넘는다.
-            //
-            // 🚫 이 두 키를 AppConfigManager.Get으로 읽지 말 것 (2026-08-07 수정).
-            //    Get은 "DB 조회 실패"와 "값 없음"을 모두 기본값("")으로 뭉갠다. 배포 DB(Neon)는
-            //    autosuspend 후 첫 쿼리가 콜드 스타트이고 GetConnection에 재시도가 없으므로,
-            //    조회가 한 번 삐끗하면 lastRunMonth==""가 되어 가드가 통과되고 이미 매수한 달에
-            //    또 매수한다(실자금 중복 집행). Get은 환경변수를 DB보다 먼저 집기까지 해서,
-            //    동명 환경변수 하나로 가드가 영구 무력화된다.
-            //    두 키 모두 DB 전용(앱이 자동 기록)이므로 TryReadDb로 DB만 읽고,
-            //    조회 실패면 매수하지 않는다(fail-closed) — 판정을 못 하면 사는 쪽이 아니라 멈추는 쪽이 안전하다.
             string thisMonth = CurrentKstMonth();
+            
             if (!AppConfigManager.TryReadDb(LastRunMonthKey, out string? lastRunRaw)
                 || !AppConfigManager.TryReadDb(ForceRunMonthKey, out string? forceRunRaw))
             {
-                statusNote = "적립 완료 표시를 읽지 못해(DB 조회 실패) 이번 호출은 매수하지 않았습니다. "
-                    + "같은 달에 두 번 매수하는 것을 막기 위한 안전 정지이며, DB가 복구되면 다음 크론 호출에서 자동 재시도합니다.";
-                Logger.Error($"[DcaCycle] {LastRunMonthKey}/{ForceRunMonthKey} 조회 실패 — 중복 매수 방지를 위해 매수 중단(fail-closed)");
+                statusNote = "DB 조회 실패로 매수를 시도하지 않았습니다.";
+                Logger.Error($"[DCA] {LastRunMonthKey}/{ForceRunMonthKey} 중복 매수 방지를 위해 매수 중단");
                 await SendDcaReportAsync(result, statusNote);
                 return statusNote;
             }
             string lastRunMonth = lastRunRaw ?? "";
             bool reserved = (forceRunRaw ?? "") == thisMonth;
 
-            // ── 지정일 게이트: 사람이 고른 날짜 전이면 크론 호출을 흘려보낸다 ──
-            // 사람이 누른 즉시 실행(force)과 추가 적립 예약(reserved)은 명시적 의사이므로 통과시킨다.
+            // 적립일, 시간 기록
             int runDay = DcaSettings.LoadRunDay();
             var kstNow = DateTime.UtcNow.AddHours(9);
             if (!force && !reserved && !IsOnOrAfterRunDay(kstNow, runDay))
             {
-                statusNote = $"이번 달 적립 지정일({runDay}일)이 아직 오지 않아 매수를 건너뜁니다. (오늘 KST {kstNow:MM-dd})";
-                Logger.Info($"[DcaCycle] 적립 지정일 {runDay}일 미도래 (오늘 {kstNow:yyyy-MM-dd} KST) — 매수 스킵");
+                statusNote = $"적립 지정일({runDay}일)이 되지 않아 매수를 건너뜁니다. (KST {kstNow:MM-dd})";
+                Logger.Info($"[DCA] 적립 지정일({runDay}일) 미도래 ({kstNow:yyyy-MM-dd} KST) : 매수 스킵");
                 return statusNote;
             }
 
             if (lastRunMonth == thisMonth && !force && !reserved)
             {
                 statusNote = $"이번 달({thisMonth}) 적립이 이미 완료되어 매수를 건너뜁니다.";
-                Logger.Info($"[DcaCycle] 이번 달({thisMonth}) 적립 완료 상태 — 매수 스킵");
+                Logger.Info($"[DCA] 이번 달({thisMonth}) 적립 이미 완료 : 매수 스킵");
                 return statusNote;
             }
             if (lastRunMonth == thisMonth)
-                Logger.Warn($"[DcaCycle] {(reserved ? "예약된" : "강제")} 실행 — 이번 달({thisMonth}) 적립 완료 상태에서 추가 매수를 진행합니다.");
+            {
+                Logger.Warn($"[DCA] {(reserved ? "예약된" : "강제")} 실행 : 이번 달({thisMonth}) 적립 완료 상태에서 추가 매수를 진행합니다.");
+            }
 
             try
             {
                 var client = _session.GetClient();
                 if (!client.IsLoggedIn)
                 {
+                    // 로그인 시도
                     var loginOk = await client.LoginAsync();
                     if (!loginOk)
                     {
-                        statusNote = "브로커 로그인에 실패하여 오늘은 적립식 매수를 건너뛰었습니다.";
-                        Logger.Error("[DcaCycle] 로그인 실패 — 매수 스킵");
-                        return statusNote; // finally에서 보고서 발송 후 반환
+                        statusNote = "로그인에 실패했습니다. 매수를 스킵합니다.";
+                        Logger.Error("[DCA] 로그인 실패 : 매수 스킵");
+                        return statusNote; 
                     }
                 }
 
-                // ── 종목별 매수 수량·예산 로드 (DB 우선 → appsettings 폴백) ──
+                // 종목별 매수 수량·예산 로드
                 var (quantities, budget) = DcaSettings.Load();
-
                 if (quantities.Count == 0)
                 {
-                    statusNote = "적립 수량(DCA Quantities) 설정이 비어 있어 오늘은 매수를 건너뛰었습니다.";
-                    Logger.Warn("[DcaCycle] 매수 수량 없음 — 매수 스킵");
+                    statusNote = "적립할 수량이 존재하지 않습니다. 매수를 스킵합니다.";
+                    Logger.Warn("[DCA] 매수 수량 없음 : 매수 스킵");
                 }
                 else
                 {
-                    // 주문 직전 보유 수량을 찍어 둔다 — 장 마감 후 대사에서 "실제로 늘었는가"의 기준점이 된다.
-                    // 실패해도 매수는 진행하되, 스냅샷이 없으면 그날은 대사를 못 하고 접수 기준으로 남는다.
                     Dictionary<string, int> beforeQty;
                     try
                     {
@@ -194,12 +124,12 @@ namespace AutoInvest.Core
                     catch (Exception ex)
                     {
                         beforeQty = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                        Logger.Warn($"[DcaCycle] 주문 전 보유 수량 조회 실패 — 이번 건은 체결 대사 불가: {ex.Message}");
+                        Logger.Warn($"[DCA] 주문 전 보유 수량 조회 실패 — 이번 건은 체결 대사 불가: {ex.Message}");
                     }
 
                     var engine = new DcaAccumulationEngine(client);
                     result = await engine.AccumulateAsync(quantities, budget);
-                    Logger.Info($"[DcaCycle] ✔ 적립식 주문 접수 완료 — {result.Accepted.Count}개 종목");
+                    Logger.Info($"[DCA] 주문 접수 완료 — {result.Accepted.Count}개 종목");
 
                     SavePendingSnapshot(thisMonth, beforeQty, result);
 
@@ -532,7 +462,7 @@ namespace AutoInvest.Core
                             $"수량 : {g.Sum(x => x.Qty)}주",
                             $"소계 : {g.Sum(x => x.Qty * x.Price) * result.ExchangeRate:N0}원",
                             $"주문번호 : {string.Join(", ", g.Select(x => string.IsNullOrEmpty(x.OrderNo) ? "미수신" : x.OrderNo))}"));
-                    body.Append("<p>✅ <strong>오늘의 적립식 주문 접수 내역:</strong></p>" + string.Join("", cards)
+                    body.Append("<p><strong>주문 접수 내역:</strong></p>" + string.Join("", cards)
                         + "<p style='color:#8a8a8a; font-size:12px; margin:4px 0 12px 0;'>"
                         + "지정가 주문이므로 접수 ≠ 체결입니다. 실제 체결 여부는 증권사 앱의 체결내역에서 확인하세요.</p>");
                 }
@@ -541,9 +471,9 @@ namespace AutoInvest.Core
                 if (result.Failures.Count > 0)
                 {
                     var failCards = result.Failures
-                        .Select(f => BuildCard("실패", "#c0392b", "#fdf5f4", "#f0d0cc", f.Ticker,
+                        .Select(f => BuildCard("실패", "#ff0000", "#ffffff", "#ffdddd", f.Ticker,
                             $"수량 : {f.Qty}주", $"사유 : {f.Error}"));
-                    body.Append("<p style='color:#c0392b;'>❌ <strong>매수 실패 내역:</strong></p>" + string.Join("", failCards));
+                    body.Append("<p style='color:#ff0000;'><strong>매수 실패 내역:</strong></p>" + string.Join("", failCards));
                 }
 
                 await NotificationService.SendEmailAsync("적립식 매수 보고서", body.ToString());
