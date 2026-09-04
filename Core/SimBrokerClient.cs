@@ -1,26 +1,18 @@
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace AutoInvest.Core
 {
     /// <summary>
-    /// 시뮬레이션 브로커 클라이언트.
-    /// 한국투자증권(KIS) API 키 없이도 DcaAccumulationEngine, DailyExecutionService 등
-    /// 전체 적립 사이클 로직을 검증할 수 있도록 가상 데이터를 반환합니다.
+    /// 시뮬레이션 클라이언트
     /// </summary>
     public class SimBrokerClient : IBrokerClient
     {
-        // 로그인 상태 여부
+        // 로그인 여부
         private bool _isLoggedIn;
 
         /// <summary>
-        /// ETF별 기준가 (USD). <see cref="GetCurrentPriceAsync"/>가 이 값을 그대로(랜덤 없이) 반환한다.
-        /// 실거래 없이 적립 사이클을 실제처럼 검증하기 위한 대략적 최근 스냅샷(2026-07 기준, 수동 갱신)이며
-        /// 실시간 시세가 아니다. 표에 없는 티커는 <see cref="GetBasePrice"/>에서 $100으로 폴백한다.
+        /// 시뮬레이션 기준가
         /// </summary>
         private readonly Dictionary<string, decimal> _basePrices = new Dictionary<string, decimal>
         {

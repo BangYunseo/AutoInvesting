@@ -1,41 +1,34 @@
 using AutoInvest.Data.DTO;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace AutoInvest.Core
 {
     /// <summary>
-    /// 증권사 API 추상화 인터페이스.
-    /// SimBrokerClient(시뮬레이션) 또는 KisBrokerClient(한국투자증권 실거래)를 구현체로 사용.
+    /// 증권사 API 인터페이스
     /// </summary>
     public interface IBrokerClient
     {
-        // ─── 인증 ───────────────────────────────────────
-        /// <summary>로그인 (토큰 발급)</summary>
+        // 로그인 토큰
         Task<bool> LoginAsync();
 
-        /// <summary>현재 로그인 상태</summary>
+        // 현재 로그인 상태
         bool IsLoggedIn { get; }
 
-        // ─── 시세 조회 ── KIS [해외주식] 시세 ──
-        /// <summary>현재가 조회 (USD)</summary>
+        // 현재가 조회(USD) 
         Task<decimal> GetCurrentPriceAsync(string ticker);
 
-        // ─── 잔고 ── KIS [해외주식] 계좌 ─────────────
-        /// <summary>환율 조회 (USD → KRW)</summary>
+        // 환율 조회 
         Task<decimal> GetExchangeRateAsync();
 
-        /// <summary>보유 종목 목록 조회</summary>
+        // 보유 종목 목록 조회
         Task<List<HoldingDto>> GetHoldingsAsync();
 
-        /// <summary>예수금(현금 잔고) 조회 (USD)</summary>
+        // 예수금 조회(USD)
         Task<decimal> GetCashBalanceAsync();
 
-        // ─── 주문 ── KIS [해외주식] 주문 ─────────────
-        /// <summary>매수 주문. 성공 시 주문번호 반환</summary>
+        // 매수 주문. 성공 시 주문번호 반환
         Task<string> PlaceBuyOrderAsync(string ticker, int qty, decimal price);
 
-        /// <summary>매도 주문. 성공 시 주문번호 반환</summary>
+        // 매도 주문. 성공 시 주문번호 반환
         Task<string> PlaceSellOrderAsync(string ticker, int qty, decimal price);
     }
 }

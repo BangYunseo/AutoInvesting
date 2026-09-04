@@ -47,15 +47,6 @@ CREATE TABLE IF NOT EXISTS TB_MARKET_SNAPSHOT (
     CREATED_AT      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- (Phase 6 정리) 판단 레이어 제거 잔재는 신규 DB 생성 대상에서 제외했다.
---   · 제외 완료: TB_SELL_PLAN · TB_TOKEN_USAGE · TB_AI_PERFORMANCE (2026-07-23)
---   · 제외 완료: TB_ASSET_MASTER · TB_INVEST_STRATEGY 및 초기 전략/자산 시드 (2026-07-30)
---     — 코드 참조 0건(해당 DAO 없음). 죽은 앱설정 시드(INVEST_AMOUNT_KRW·ACTIVE_STRATEGY·
---       STRATEGY_TYPE·ORDER_SCHEDULE·REBALANCE_*)도 읽는 코드가 없어 함께 제외.
---   · 보존: TB_MARKET_SNAPSHOT (과거 누적 데이터 — 임의 삭제·수정 금지, recommended_rules.md)
---   이 파일에서 빠진 것은 "신규 DB에 더 만들지 않는다"는 의미일 뿐, 기존 운영 DB의 테이블·데이터는
---   무변경이다. 물리 DROP은 백업·건수 확인 후 별도 작업으로만 수행한다.
-
 -- 시스템 로그 영구 저장 테이블 (Render 휘발성 파일시스템 대체 — 재시작에도 보존)
 CREATE TABLE IF NOT EXISTS TB_SYSTEM_LOG (
     LOG_ID      SERIAL PRIMARY KEY,

@@ -1,41 +1,26 @@
 using AutoInvest.Data;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
-using System;
 using System.Globalization;
 
 namespace AutoInvest.Core
 {
     /// <summary>
-    /// 해외 ETF(미국 상장 직접투자) 매도 시 예상 양도소득세·수수료를 계산하는 세금 추정기.
-    ///
-    /// ⚠️ 이것은 매수/매도 "타이밍 판단"이 아니라 **세금 산수 + 정보 제공**입니다.
-    /// 백테스트로 무가치가 확인된 판단 레이어(신호/AI 타이밍) 재도입과 무관합니다(recommended_rules.md).
-    ///
-    /// 계산은 외부 I/O 없는 순수 함수(<see cref="Estimate"/>)로 분리되어 단위 검증이 가능합니다
-    /// (DcaAccumulationEngine.PlanPurchases 패턴과 동일). 설정값 로딩(<see cref="TaxSettings.Load"/>)만
-    /// I/O를 담당합니다.
+    /// 예상 양도소득세·수수료를 계산(세금 추정기)
     /// </summary>
     public static class TaxEstimator
     {
         /// <summary>
-        /// 매도 예정 정보로 예상 양도차익·세금·수수료·비과세 최대수량을 계산합니다 (순수 함수 — 외부 I/O 없음).
+        /// 예상 양도차익·세금·수수료·비과세 최대수량 계산
         /// </summary>
         /// <param name="ticker">종목 코드</param>
-        /// <param name="avgPriceUsd">평균 매입단가(취득가, USD). 0 이하이면 취득가 불명으로 처리.</param>
+        /// <param name="avgPriceUsd">평균 매입단가(USD)</param>
         /// <param name="sellPriceUsd">매도 단가(USD)</param>
         /// <param name="qty">매도 수량(주)</param>
-        /// <param name="exchangeRate">USD→KRW 환율</param>
+        /// <param name="exchangeRate">환율</param>
         /// <param name="ytdRealizedGainKrw">올해 이미 실현한 양도차익 합계(원). 남은 공제 계산에 사용.</param>
         /// <param name="settings">공제액·세율·수수료율 설정</param>
-        public static SellTaxEstimateDto Estimate(
-            string ticker,
-            decimal avgPriceUsd,
-            decimal sellPriceUsd,
-            int qty,
-            decimal exchangeRate,
-            decimal ytdRealizedGainKrw,
-            TaxSettings settings)
+        public static SellTaxEstimateDto Estimate(string ticker, decimal avgPriceUsd, decimal sellPriceUsd, int qty, decimal exchangeRate, decimal ytdRealizedGainKrw, TaxSettings settings)
         {
             settings ??= new TaxSettings();
 

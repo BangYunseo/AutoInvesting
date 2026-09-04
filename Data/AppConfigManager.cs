@@ -49,7 +49,7 @@ namespace AutoInvest.Data
 
         /// <summary>
         /// 설정값 조회
-        /// 우선순위 : 환경변수 > DB 테이블(TB_APP_CONFIG) > appsettings.json > 기본값.
+        /// 우선순위 : 환경변수 > DB 테이블(TB_APP_CONFIG) > appsettings.json > 기본값
         /// </summary>
         public static string Get(string key, string defaultValue = "")
         {
@@ -59,11 +59,11 @@ namespace AutoInvest.Data
                 string? envValue = Environment.GetEnvironmentVariable(key);
                 if (!string.IsNullOrEmpty(envValue)) return envValue;
 
-                // DB 테이블(TB_APP_CONFIG) — DB 장애 시 null 반환 -> appsettings.json 기본값 폴백
+                // DB 테이블(TB_APP_CONFIG) : DB 장애 시 null 반환 -> appsettings.json 기본값 폴백
                 string? dbValue = TryGetFromDb(key);
                 if (!string.IsNullOrEmpty(dbValue)) return dbValue;
 
-                // appsettings.json (키 매핑: IS_PAPER_TRADING → Trading:IsPaperTrading 등)
+                // appsettings.json (키 매핑)
                 if (_configuration != null)
                 {
                     string? configValue = ResolveFromConfiguration(key);
