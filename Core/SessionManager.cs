@@ -31,36 +31,43 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 현재 활성 브로커 클라이언트를 반환합니다.
-        /// 없으면 설정에 따라 새로 생성합니다.
+        /// 활성 브로커 클라이언트 반환
         /// </summary>
         public IBrokerClient GetClient()
         {
-            if (_client != null)
-                return _client;
+            if (_client != null) return _client;
 
-            // 거래 모드(IS_PAPER_TRADING)를 모의/실전의 단일 기준으로 사용한다.
-            //   "0"  → 실전투자(prod), 그 외 → 모의투자(vps)
-            var isPaperTrading = AppConfigManager.Get("IS_PAPER_TRADING", "1") != "0";
+            // 0 실전투자, 1 모의투자
+            bool isPaperTrading;
+            if (AppConfigManager.Get("IS_PAPER_TRADING", "1") == "0")
+            {
+                isPaperTrading = false;
+                Logger.Info("[Session] 거래 모드: 실전투자");
+            }
+            else
+            {
+                isPaperTrading = true;
+                Logger.Info("[Session] 거래 모드: 모의투자");
+            }
+            
+            // KIS API 키 미확인 시 시뮬레이션 동작(실거래 불가)
             var kisAppKey = AppConfigManager.Get("KIS_APP_KEY", "");
-
-            // KIS 키가 없으면 모드와 무관하게 시뮬레이션으로 동작(실거래 불가).
             if (string.IsNullOrEmpty(kisAppKey))
             {
-                Logger.Info("[Session] KIS API 키가 없어 시뮬레이션 모드(SimBrokerClient)로 시작합니다.");
+                Logger.Info("[Session] KIS API 키가 없습니다. 시뮬레이션 모드로 동작합니다.");
                 _client = new SimBrokerClient();
                 return _client;
             }
 
-            var appSecret = AppConfigManager.Get("KIS_APP_SECRET", "");
-            var accountNo = AppConfigManager.Get("KIS_ACCOUNT_NO", "");
-            var accountProd = AppConfigManager.Get("KIS_ACCOUNT_PROD", "01");
+            var appSecret = AppConfigManager.Get("KIS_APP_SECRET", "");         // 자격증명
+            var accountNo = AppConfigManager.Get("KIS_ACCOUNT_NO", "");         // 계좌
+            var accountProd = AppConfigManager.Get("KIS_ACCOUNT_PROD", "01");   // 계좌상품코드
 
-            string baseUrl = isPaperTrading
-                ? "https://openapivts.koreainvestment.com:29443"
-                : "https://openapi.koreainvestment.com:9443";
-
-            Logger.Info($"[Session] KIS API 클라이언트 생성 (모드: {(isPaperTrading ? "모의(vps)" : "실전(prod)")})");
+            string baseUrl;
+            if (isPaperTrading) baseUrl = "https://openapivts.koreainvestment.com:29443";
+            else baseUrl = "https://openapi.koreainvestment.com:9443";
+            
+            Logger.Info($"[Session] KIS API 클라이언트 생성 ({(isPaperTrading ? "모의" : "실전")} 모드)");
             _client = new KisBrokerClient(baseUrl, kisAppKey, appSecret, accountNo, accountProd, isPaperTrading);
             return _client;
         }
