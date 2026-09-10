@@ -124,7 +124,7 @@ namespace AutoInvest.Core
                     catch (Exception ex)
                     {
                         beforeQty = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                        Logger.Warn($"[DCA] 주문 전 보유 수량 조회 실패 — 이번 건은 체결 대사 불가: {ex.Message}");
+                        Logger.Warn($"[DCA] 주문 전 보유 수량 조회 실패 : 체결 대사 불가: {ex.Message}");
                     }
 
                     var engine = new DcaAccumulationEngine(client);

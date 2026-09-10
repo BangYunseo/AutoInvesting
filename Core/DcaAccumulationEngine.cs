@@ -1,24 +1,11 @@
 using AutoInvest.Data.DAO;
 using AutoInvest.Data.DTO;
 using AutoInvest.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace AutoInvest.Core
 {
     /// <summary>
-    /// 적립식(DCA) 자동 매수 엔진.
-    ///
-    /// 퀀트/AI 판단을 일절 하지 않습니다. 백테스트 결과 "타이밍 판단은 잘해야 본전,
-    /// 실제로는 손해"로 검증되었기에, 이 엔진은 오직 다음만 수행합니다:
-    ///   사람이 종목별로 지정한 "고정 매수 주수"를 매 사이클 그대로 매수 + 거래 기록.
-    ///
-    /// 비중(%)·매수금액은 사람이 정하지 않습니다 — 수량×현재가로 환산해 화면에서 보여주는
-    /// 표시용 값일 뿐입니다. 예산은 초과 여부를 경고하는 상한일 뿐 수량을 줄이지 않습니다.
-    ///
-    /// 매수 계획(PlanPurchases)은 순수 함수(외부 I/O 없음)로 분리되어 단위 검증이 가능합니다.
+    /// 적립식(DCA) 자동 매수 엔진
     /// </summary>
     public class DcaAccumulationEngine
     {
@@ -31,14 +18,12 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 고정 수량 매수 계획을 산출합니다 (순수 함수 — 외부 I/O 없음, 검증 대상).
-        /// 현재가가 있는 종목만 설정 수량 그대로 계획에 포함하고, 총 매수금액(원)을 함께 반환합니다.
-        /// 예산은 여기서 고려하지 않습니다 — 초과 경고는 호출부(AccumulateAsync)에서 처리합니다.
+        /// 고정 수량 매수 계획 산출
         /// </summary>
-        /// <param name="quantities">종목별 매수 수량 (예: QQQ=2, SPLG=3)</param>
-        /// <param name="exchangeRate">USD→KRW 환율</param>
-        /// <param name="priceUsd">종목별 현재가 (USD)</param>
-        /// <param name="totalCostKrw">계획 전체의 매수금액 합계 (원)</param>
+        /// <param name="quantities">종목별 매수 수량</param>
+        /// <param name="exchangeRate">환율</param>
+        /// <param name="priceUsd">종목별 현재가</param>
+        /// <param name="totalCostKrw">계획 전체의 매수금액 합계</param>
         /// <returns>종목별 매수 수량 (현재가가 있고 수량이 1주 이상인 종목만)</returns>
         public static Dictionary<string, int> PlanPurchases(
             IReadOnlyDictionary<string, int> quantities,
@@ -63,15 +48,11 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 설정한 종목별 고정 수량을 매수 주문합니다.
-        /// 접수된 주문은 TB_TRADE_HISTORY에 <c>PENDING</c>으로 기록되며(접수 ≠ 체결),
-        /// 접수/실패/예산경고를 하나의 결과 객체로 반환합니다.
-        /// 실패·경고를 개별 메일로 즉시 보내지 않고 결과에 모으는 이유: 사이클 종료 시 호출부에서
-        /// 한 통의 종합 보고서로 발송하기 위함입니다(종목별 실패 메일 난발 방지).
+        /// 고정 수량 매수 주문 후 객체들을 종합 보고서로 발송
         /// </summary>
-        /// <param name="quantities">종목별 매수 수량 맵 (예: QQQ=2, SPLG=3)</param>
-        /// <param name="budgetKrw">이번 사이클 예산 (원, 초과 경고용 상한)</param>
-        /// <returns>체결·실패·예산경고를 담은 사이클 결과 (매수 대상이 없으면 빈 결과)</returns>
+        /// <param name="quantities">종목별 매수 수량 맵</param>
+        /// <param name="budgetKrw">이번 사이클 예산</param>
+        /// <returns>체결·실패·예산경고를 담은 사이클 결과</returns>
         public async Task<DcaCycleResult> AccumulateAsync(
             Dictionary<string, int> quantities,
             decimal budgetKrw)
@@ -80,25 +61,25 @@ namespace AutoInvest.Core
 
             if (quantities == null || quantities.Count == 0)
             {
-                Logger.Warn("[DCA] 매수 수량(quantities)이 비어 있어 매수를 건너뜁니다.");
+                Logger.Warn("[DCA] 매수 수량이 없어 매수를 건너뜁니다.");
                 return result;
             }
 
             decimal exchangeRate = await _broker.GetExchangeRateAsync();
             if (exchangeRate <= 0)
             {
-                Logger.Error("[DCA] 환율 조회 실패(0 이하) — 매수 중단");
+                Logger.Error("[DCA] 환율 조회에 실패해 매수를 건너뜁니다.");
                 return result;
             }
 
-            // ── 현재가 수집 ──
+            // 현재가
             var priceUsd = new Dictionary<string, decimal>();
             foreach (var ticker in quantities.Keys)
             {
                 decimal px = await _broker.GetCurrentPriceAsync(ticker);
                 if (px <= 0)
                 {
-                    Logger.Warn($"[DCA] {ticker} 현재가 조회 실패(0 이하) — 이 종목은 제외");
+                    Logger.Warn($"[DCA] {ticker} 조회 실패 : {ticker}는 매수를 건너뜁니다.");
                     continue;
                 }
                 priceUsd[ticker] = px;
@@ -106,29 +87,32 @@ namespace AutoInvest.Core
 
             if (priceUsd.Count == 0)
             {
-                Logger.Error("[DCA] 유효한 현재가가 있는 종목이 없어 매수 중단");
+                Logger.Error("[DCA] 유효한 현재가가 있는 종목이 없어 매수를 건너뜁니다.");
                 return result;
             }
 
-            // ── 순수 매수 계획 산출 (고정 수량) ──
+            // 순수 매수 계획 산출 (고정 수량)
+            // ponytail: totalCostKrw는 조회 시점 추정치
+            // 지정가라 미체결이면 0원 / 환율은 주문 시각 vs 환전 시점이 다름(실제 비용 차이 발생) / 수수료·제세금 제외
+            // 실제 비용 필요 시 체결 대사에서 체결가를 받은 뒤 TB_TRADE_HISTORY 데이터 저장
             var plan = PlanPurchases(quantities, exchangeRate, priceUsd, out decimal totalCostKrw);
 
             // 보고서 표시용으로만 결과에 담는다(주문 결정에는 관여하지 않음).
             result.TotalCostKrw = totalCostKrw;
             result.ExchangeRate = exchangeRate;
 
-            Logger.Info($"[DCA] === 적립식(고정수량) 매수 시작 (예산 {budgetKrw:N0}원, 환율 {exchangeRate:N0}, 종목 {plan.Count}개) ===");
+            Logger.Info($"[DCA] ===== 매수 진행 (예산 {budgetKrw:N0}원, 환율 {exchangeRate:N0}, 종목 {plan.Count}개) =====");
 
-            // 예산 초과 시 경고만 (수량은 그대로 진행) — 개별 메일 대신 사이클 보고서에 종합
+            // 예산 초과 시 경고
             if (budgetKrw > 0 && totalCostKrw > budgetKrw)
             {
-                string msg = $"총 매수금액 {totalCostKrw:N0}원이 예산 {budgetKrw:N0}원을 초과합니다 " +
-                    $"(초과 {totalCostKrw - budgetKrw:N0}원). 설정 수량 그대로 진행합니다.";
+                string msg = $"총 매수금액 {totalCostKrw:N0}원이 예산 {budgetKrw:N0}원을 초과합니다.\n" +
+                    $"(초과 {totalCostKrw - budgetKrw:N0}원)\n";
                 Logger.Warn($"[DCA] ⚠ {msg}");
                 result.BudgetWarning = msg;
             }
 
-            // ── 계획대로 주문 실행 + 기록 ──
+            // 주문 실행 및 기록
             foreach (var (ticker, qty) in plan)
             {
                 decimal price = priceUsd[ticker];
@@ -136,8 +120,7 @@ namespace AutoInvest.Core
                 {
                     var orderNo = await _broker.PlaceBuyOrderAsync(ticker, qty, price);
 
-                    // 접수 성공(rt_cd=="0")까지만 확인된 상태다. 지정가 주문이므로 미체결로 끝날 수 있어
-                    // PENDING으로 기록한다. 체결 확인 후 FILLED로 갱신하는 것은 별도 대사 경로가 담당한다.
+                    // 접수 성공까지만 확인(지정가 주문은 미체결로 끝날 수 있어 PENDING 기록 / 체결 후 FILLED 갱신)
                     var trade = new TradeHistoryDto
                     {
                         TradeDate = DateTime.Now,
@@ -149,9 +132,6 @@ namespace AutoInvest.Core
                         OrderNo = orderNo
                     };
                     TradeHistoryDAO.Insert(trade);
-
-                    // ODNO 미수신이어도 접수는 된 상태다. 실패로 돌리면 다음 날 재시도해 중복 매수가 되므로
-                    // 접수 목록에 넣어 당월 멱등 마커가 찍히게 한다(대사는 증권사 앱에서 사람이 확인).
                     result.Accepted.Add(trade);
 
                     if (string.IsNullOrEmpty(orderNo))
@@ -162,8 +142,12 @@ namespace AutoInvest.Core
                 catch (Exception ex)
                 {
                     Logger.Error($"[DCA] {ticker} 매수 실패: {ex.Message}");
-                    // 개별 실패 메일 대신 결과에 적재 — 사이클 종료 시 보고서 1통에 종합
-                    result.Failures.Add(new DcaBuyFailure { Ticker = ticker, Qty = qty, Error = ex.Message });
+                    // 결과 적재
+                    result.Failures.Add(new DcaBuyFailure {
+                        Ticker = ticker,
+                        Qty = qty,
+                        Error = ex.Message
+                    });
                 }
             }
 

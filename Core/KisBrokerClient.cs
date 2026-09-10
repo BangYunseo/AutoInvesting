@@ -95,10 +95,7 @@ namespace AutoInvest.Core
         private static readonly string[] UsPriceExchanges = { "NAS", "NYS", "AMS" };
 
         /// <summary>
-        /// 현재가 API의 EXCD → 주문/잔고 API의 OVRS_EXCG_CD 매핑.
-        /// KIS는 시세 조회(HHDFS00000300)와 주문(TTTT1002U 등)에서 거래소 코드 체계가 다르다.
-        /// (예: NYSE Arca ETF인 GLD/SCHD는 시세=AMS, 주문=AMEX. 주문에 시세 코드 "NAS"를 그대로
-        ///  쓰면 "해당종목정보가 없습니다"로 거부된다.)
+        /// 현재가 API의 EXCD → 주문/잔고 API의 OVRS_EXCG_CD 매핑
         /// </summary>
         private static readonly Dictionary<string, string> PriceToOrderExchange = new()
         {
@@ -301,16 +298,14 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 주문에 사용할 거래소 코드(OVRS_EXCG_CD)를 종목별로 결정합니다.
-        /// 현재가 조회에서 확인된 EXCD가 있으면 매핑해 쓰고, 없으면 현재가를 1회 조회해 확인합니다.
-        /// 그래도 확인되지 않으면 나스닥(NASD)을 기본값으로 사용합니다.
+        /// 주문에 사용할 거래소 코드(OVRS_EXCG_CD) 결정
         /// </summary>
         /// <param name="ticker">종목 코드</param>
         private async Task<string> ResolveOrderExchangeAsync(string ticker)
         {
             if (!_tickerPriceExchange.TryGetValue(ticker, out var excd))
             {
-                // 아직 이 종목의 거래소가 확인되지 않았다면 현재가 조회로 캐시를 채운다(부수효과).
+                // 거래소가 확인되지 않은 경우 현재가 조회
                 await GetCurrentPriceAsync(ticker);
                 _tickerPriceExchange.TryGetValue(ticker, out excd);
             }
@@ -320,7 +315,7 @@ namespace AutoInvest.Core
                 return orderExcg;
             }
 
-            Logger.Warn($"[KisBroker] {ticker} 거래소 미확인 — 주문 거래소 코드를 기본값 NASD로 적용");
+            Logger.Warn($"[KisBroker] {ticker} 거래소 미확인 : 기본값 NASD 적용");
             return "NASD";
         }
 
@@ -328,11 +323,12 @@ namespace AutoInvest.Core
         {
             await _tokenManager.EnsureValidTokenAsync();
 
-            // 종목이 실제 상장된 거래소 코드로 주문한다(하드코딩 금지). 시세=EXCD → 주문=OVRS_EXCG_CD 매핑.
+            // 거래소 코드로 주문
             string ovrsExcgCd = await ResolveOrderExchangeAsync(ticker);
 
-            await Task.Delay(400); // Rate limit 방지 (초당 3건 제한)
+            await Task.Delay(400);
 
+            // 미국 매수 모의 : 실전 / 미국 매도 모의 : 실전 구분
             string trId = isBuy
                 ? (_isPaperTrading ? "VTTT1002U" : "TTTT1002U")
                 : (_isPaperTrading ? "VTTT1006U" : "TTTT1006U");
@@ -371,10 +367,36 @@ namespace AutoInvest.Core
                 throw new Exception($"주문 에러: {msg}");
             }
 
-            // ODNO(증권사 주문번호)는 체결 대사의 유일한 매칭 키다.
+            // ODNO(증권사 주문번호)를 못 받아도 빈 문자열을 반환하고 판단은 호출부에 맡긴다.
+            // rt_cd=="0"이므로 주문 자체는 접수된 상태다 — 실패로 치면 다음 날 재시도해 중복 매수가 된다.
             // 과거에는 추출 실패 시 Guid로 가짜 번호를 만들어 넣었으나, 그 번호는 KIS 조회 결과에
-            // 존재하지 않아 대사가 영구히 "미체결"로 오판한다. 없으면 없다고 빈 문자열을 반환하고
-            // 판단은 호출부에 맡긴다(rt_cd=="0"이므로 주문 자체는 접수된 상태다 — 실패로 치면 중복 주문 위험).
+            // 존재하지 않아 대사가 영구히 "미체결"로 오판했다. 모르면 모른다고 두는 쪽이 맞다.
+            //
+            // ── ODNO 미수신의 실제 영향 (2026-09-10 코드 확인) ──
+            // 체결 "판정"에는 ODNO가 쓰이지 않는다. DailyExecutionService.ReconcileAsync는
+            // 티커별 보유 수량 차이(now - before)로만 판정한다. ODNO는 그 결과를 DB에 기록하는
+            // TradeHistoryDAO.UpdateStatusByOrderNo의 WHERE 절에서만 쓴다.
+            //   · 오매칭 위험은 없다 — UpdateStatusByOrderNo가 빈 값이면 즉시 0을 반환하고,
+            //     Insert는 빈 ODNO를 ''가 아니라 DBNull로 저장한다.
+            //   · 대신 그 행의 STATUS가 영구히 PENDING으로 남는다. 실제로는 체결됐을 수 있다.
+            //
+            // ── 더 큰 문제: 스냅샷이 종목 단위로 뭉개진다 ──
+            // SavePendingSnapshot은 result.Accepted를 티커로 GroupBy한 뒤 OrderNo는
+            // "비어있지 않은 첫 번째" 하나만 남긴다. 같은 종목을 한 사이클에 두 번 주문하면
+            // (자동 + 수동, force 재실행 등) DB에는 행이 2개인데 스냅샷에는 1개뿐이라,
+            // 대사가 갱신하는 것도 1개다. 나머지 행은 ODNO 유무와 무관하게 PENDING으로 남는다.
+            //
+            // ── 고칠 방향 ──
+            // KIS 주문체결내역 조회(inquire-ccnl, 현재 미연동)로 ODNO를 백필하지 말고,
+            // 갱신 키를 진짜 PK인 TB_TRADE_HISTORY.TRADE_ID로 바꾼다(항상 존재, 1:1 대응).
+            //   1) TradeHistoryDAO.Insert: void → int. "RETURNING TRADE_ID" + ExecuteScalar
+            //   2) DcaAccumulationEngine: 반환된 id를 trade.TradeId에 담는다 (DTO에 필드 이미 있음)
+            //   3) PendingOrder: OrderNo 한 개 → TradeIds 목록 (GroupBy로 뭉개지 않는다)
+            //   4) ReconcileAsync: UpdateStatusByOrderNo → TradeId 기반 갱신
+            // ⚠️ DCA_PENDING_SNAPSHOT의 JSON 구조가 바뀌므로, 이번 달 스냅샷이 남아 있는 상태로
+            //    배포하면 옛 형식을 못 읽는다. 구형식 폴백 또는 배포 시점 조정이 필요하다.
+            // ODNO 자체는 그대로 둔다 — 사람이 증권사 앱에서 대조할 때 쓰는 참고값이다.
+
             string orderNo = "";
             if (json.TryGetProperty("output", out var output)
                 && output.TryGetProperty("ODNO", out var odno))
@@ -385,8 +407,8 @@ namespace AutoInvest.Core
             string orderType = isBuy ? "매수" : "매도";
             if (string.IsNullOrEmpty(orderNo))
             {
-                Logger.Warn($"[KisBroker] {orderType} 주문 접수됐으나 ODNO 미수신: {ticker} {qty}주 @ ${price} " +
-                    "— 체결 대사가 불가하므로 증권사 앱에서 직접 확인이 필요하다");
+                Logger.Warn($"[KisBroker] {orderType} ODNO 미수신: {ticker} {qty}주 @ ${price} " +
+                    "체결 대사 확인이 불가능합니다. 증권사 앱에서 직접 확인하세요.");
             }
             else
             {
