@@ -53,6 +53,9 @@ namespace AutoInvest.Tests
 
         public Task<List<HoldingDto>> GetHoldingsAsync() => Task.FromResult(_holdings);
 
+        public Task<List<OrderFillDto>> GetOrderFillsAsync(string startDate, string endDate)
+            => Task.FromResult(new List<OrderFillDto>());
+
         public Task<decimal> GetCashBalanceAsync() => Task.FromResult(0m);
 
         public Task<string> PlaceBuyOrderAsync(string ticker, int qty, decimal price)

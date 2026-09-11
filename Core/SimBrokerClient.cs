@@ -27,6 +27,9 @@ namespace AutoInvest.Core
         private readonly Dictionary<string, (int Qty, decimal AvgPrice)> _holdings
             = new Dictionary<string, (int, decimal)>();
 
+        /// <summary>접수 주문을 전량 체결로 기록</summary>
+        private readonly List<OrderFillDto> _fills = new List<OrderFillDto>();
+
         public bool IsLoggedIn => _isLoggedIn;
 
         public Task<bool> LoginAsync()
@@ -96,6 +99,8 @@ namespace AutoInvest.Core
                 _holdings[ticker] = (qty, price);
             }
 
+            RecordFill(orderNo, ticker, qty);
+
             Logger.Info($"[SimBroker] 매수 주문 체결: {ticker} {qty}주 @ ${price} (주문번호: {orderNo})");
             return Task.FromResult(orderNo);
         }
@@ -115,8 +120,34 @@ namespace AutoInvest.Core
                     _holdings[ticker] = (remaining, prevAvg);
             }
 
+            RecordFill(orderNo, ticker, qty);
+
             Logger.Info($"[SimBroker] 매도 주문 체결: {ticker} {qty}주 @ ${price} (주문번호: {orderNo})");
             return Task.FromResult(orderNo);
+        }
+
+        /// <summary>
+        /// 기간별 주문 체결 내역 조회
+        /// </summary>
+        /// <param name="startDate">주문 시작일자 (yyyyMMdd)</param>
+        /// <param name="endDate">주문 종료일자 (yyyyMMdd)</param>
+        public Task<List<OrderFillDto>> GetOrderFillsAsync(string startDate, string endDate)
+        {
+            return Task.FromResult(new List<OrderFillDto>(_fills));
+        }
+
+        /// <summary>접수한 주문을 전량 체결로 기록</summary>
+        private void RecordFill(string orderNo, string ticker, int qty)
+        {
+            _fills.Add(new OrderFillDto
+            {
+                OrderNo = orderNo,
+                Ticker = ticker,
+                OrderQty = qty,
+                FilledQty = qty,
+                UnfilledQty = 0,
+                StatusName = "완료"
+            });
         }
 
         private decimal GetBasePrice(string ticker)

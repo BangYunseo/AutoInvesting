@@ -22,6 +22,9 @@ namespace AutoInvest.Core
         // 보유 종목 목록 조회
         Task<List<HoldingDto>> GetHoldingsAsync();
 
+        // 주문 체결 내역 조회
+        Task<List<OrderFillDto>> GetOrderFillsAsync(string startDate, string endDate);
+
         // 예수금 조회(USD)
         Task<decimal> GetCashBalanceAsync();
 

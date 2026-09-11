@@ -178,14 +178,7 @@ namespace AutoInvest.Core
             var responseString = await response.Content.ReadAsStringAsync();
             var json = JsonSerializer.Deserialize<JsonElement>(responseString);
 
-            // ⚠️ KIS는 업무 오류를 HTTP 200 + rt_cd≠"0"(output1 없음)으로 돌려준다 (2026-08-07 추가).
-            //    이걸 검사하지 않으면 빈 리스트가 "보유 0건"으로 조용히 통과한다. 그 결과가 위험한 건
-            //    체결 대사다 — ReconcileAsync가 없는 티커를 수량 0으로 읽어 전량 미체결로 오판하고,
-            //    수량 감소(anySold)도 없으니 실제로 체결된 달의 DCA_LAST_RUN_MONTH를 해제한다.
-            //    그러면 다음 크론이 템플릿 전량을 실자금으로 다시 매수하고, 스냅샷은 같은 패스에서
-            //    지워져 사후 재판정도 불가하다.
-            //    Polly(SendWithRetryAsync)는 예외/5xx/429/408만 재시도하므로 이 경로를 잡지 못한다.
-            //    → 예외로 올린다. 호출부의 catch가 스냅샷을 보존하고 다음 실행에서 재시도한다.
+            // rt_cd 검사
             string rtCd = json.TryGetProperty("rt_cd", out var rc) ? (rc.GetString() ?? "") : "";
             if (rtCd != "0")
             {
@@ -223,6 +216,99 @@ namespace AutoInvest.Core
             
             Logger.Info($"[KisBroker] 보유 종목 {list.Count}건 조회");
             return list;
+        }
+
+        /// <summary>
+        /// 기간별 주문 체결 내역 조회
+        /// </summary>
+        /// <param name="startDate">주문 시작일자 (yyyyMMdd)</param>
+        /// <param name="endDate">주문 종료일자 (yyyyMMdd)</param>
+        /// <returns>주문 체결 내역</returns>
+        public async Task<List<OrderFillDto>> GetOrderFillsAsync(string startDate, string endDate)
+        {
+            await _tokenManager.EnsureValidTokenAsync();
+            // Rate limit 방지 (초당 3건 제한)
+            await Task.Delay(400);
+
+            string trId = _isPaperTrading ? "VTTS3035R" : "TTTS3035R";
+
+            // 모의 : 실전 분기
+            string all = _isPaperTrading ? "" : "%";
+
+            // 주문번호(ODNO)로는 검색 불가(기간 필터 조회)
+            string path = "/uapi/overseas-stock/v1/trading/inquire-ccnl"
+                + $"?CANO={_accountNoPrefix}&ACNT_PRDT_CD={_accountNoSuffix}"
+                + $"&PDNO={all}"
+                + $"&ORD_STRT_DT={startDate}&ORD_END_DT={endDate}"
+                + "&SLL_BUY_DVSN=00"      // 전체(매도+매수)
+                + "&CCLD_NCCS_DVSN=00"    // 전체(체결+미체결)
+                + $"&OVRS_EXCG_CD={all}"
+                + "&SORT_SQN=DS"         
+                + "&ORD_DT=&ORD_GNO_BRNO=&ODNO="
+                + "&CTX_AREA_NK200=&CTX_AREA_FK200=";
+
+            var response = await SendWithRetryAsync(() => CreateRequest(HttpMethod.Get, path, trId));
+            response.EnsureSuccessStatusCode();
+
+            var responseString = await response.Content.ReadAsStringAsync();
+            var json = JsonSerializer.Deserialize<JsonElement>(responseString);
+
+            // rt_cd 검사
+            string rtCd = json.TryGetProperty("rt_cd", out var rc) ? (rc.GetString() ?? "") : "";
+            if (rtCd != "0")
+            {
+                string msg1 = json.TryGetProperty("msg1", out var m1) ? (m1.GetString() ?? "").Trim() : "";
+                throw new Exception($"주문 체결 내역 조회 에러 (rt_cd={rtCd}, msg1={msg1})");
+            }
+
+            var list = new List<OrderFillDto>();
+            if (json.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in output.EnumerateArray())
+                {
+                    list.Add(new OrderFillDto
+                    {
+                        OrderNo = ReadString(item, "odno"),
+                        Ticker = ReadString(item, "pdno"),
+                        OrderQty = ReadInt(item, "ft_ord_qty"),
+                        FilledQty = ReadInt(item, "ft_ccld_qty"),
+                        UnfilledQty = ReadInt(item, "nccs_qty"),
+                        StatusName = ReadString(item, "prcs_stat_name"),
+                        RejectReason = ReadString(item, "rjct_rson_name"),
+                    });
+                }
+            }
+
+            // 1페이지 조회(실전 20건/모의 15건). tr_cont가 M/F면 다음 페이지가 남았다는 뜻이다.
+            string cont = response.Headers.TryGetValues("tr_cont", out var contValues)
+                ? string.Join("", contValues).Trim()
+                : "";
+
+            if (cont == "M" || cont == "F")
+            {
+                Logger.Warn($"[KisBroker] 주문 체결 내역 조회: {startDate}~{endDate} {list.Count}건 - 일부 페이지가 조회되지 않았습니다.");
+            }
+            else
+            {
+                Logger.Info($"[KisBroker] 주문 체결 내역 조회: {startDate}~{endDate} {list.Count}건");
+            }
+
+            return list;
+        }
+
+        /// <summary>문자열 필드 조회</summary>
+        private static string ReadString(JsonElement item, string name)
+            => item.TryGetProperty(name, out var p) ? (p.GetString() ?? "").Trim() : "";
+
+        /// <summary>
+        /// 수량 필드 조회
+        /// </summary>
+        private static int ReadInt(JsonElement item, string name)
+        {
+            string raw = ReadString(item, name);
+            if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal d))
+                return (int)Math.Floor(d);
+            return 0;
         }
 
         public async Task<decimal> GetCashBalanceAsync()
