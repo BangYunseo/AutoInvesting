@@ -235,20 +235,12 @@ namespace AutoInvest.Core
         }
 
         /// <summary>
-        /// 장 마감 후 실제 체결 여부를 확인하고, 전량 미체결이면 그 달을 다시 열어 재시도하게 합니다.
-        ///
-        /// 접수를 완료로 세면 지정가가 안 붙어 소멸해도 그 달이 닫혀 적립이 조용히 누락된다.
-        /// 여기서 주문 전 보유 수량과 지금 보유 수량을 비교해 실제로 늘었는지 본다.
-        ///
-        /// ⚠️ 마커를 되돌리는 것은 다음 사이클의 실매수를 다시 허용한다는 뜻이다. 따라서
-        /// <b>전량 미체결이 확실할 때만</b> 되돌린다 — 한 종목이라도 수량이 늘었으면 그 달은 집행된
-        /// 것으로 두고, 수량이 줄어든 종목이 있으면(사람이 매도했을 가능성) 판정을 포기하고
-        /// 사람에게 넘긴다. 애매하면 아무것도 하지 않는 쪽이 중복 매수보다 낫다.
+        /// 체결 여부 확인 후 전량 미체결이면 재시도
         /// </summary>
-        /// <returns>사람이 읽을 결과 요약</returns>
+        /// <returns>결과 요약</returns>
         public async Task<string> ReconcileAsync()
         {
-            Logger.Info("[Reconcile] ▶ 체결 대사를 시작합니다.");
+            Logger.Info("[Reconcile] 체결 대사 시작");
 
             string raw = AppConfigManager.Get(PendingSnapshotKey, "");
             if (string.IsNullOrWhiteSpace(raw))
@@ -367,7 +359,7 @@ namespace AutoInvest.Core
             }
         }
 
-        /// <summary>체결 대사 결과를 메일 1통으로 발송합니다.</summary>
+        /// <summary>체결 대사 결과 메일 1통</summary>
         /// <param name="month">대상 월</param>
         /// <param name="lines">종목별 대사 결과 문구</param>
         /// <param name="note">종합 안내</param>
