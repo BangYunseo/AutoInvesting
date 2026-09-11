@@ -27,18 +27,8 @@ namespace AutoInvest
                 var builder = WebApplication.CreateBuilder(args);
                 builder.Host.UseSerilog();
 
-                // ── 로컬 시크릿 파일 명시적 로드 ──
-                // reloadOnChange: false — 감시 대상마다 리눅스 inotify instance를 1개 쓴다.
-                // Render 무료는 호스트 한도(128)를 이웃 컨테이너와 공유하므로, 자리를 못 얻으면
-                // CreateBuilder 단계에서 기동이 실패한다(2026-09-02 21:09 장애: 기동 1~2초 만에
-                // [FTL], 지수 백오프로 재시작 반복). 이 앱의 설정 변경 경로는 Render 환경변수 수정
-                // + 재배포뿐이라 재로드는 애초에 쓸 수 없는 기능이다 — true 로 되돌리지 말 것.
-                // CreateBuilder 가 자동 등록하는 appsettings.json·appsettings.Production.json 은
-                // 여기서 못 건드리므로 환경변수 DOTNET_hostBuilder__reloadConfigOnChange=false 로 끈다.
-                builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: false);
+                builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
-                // ── 설정 체계 초기화 ──
-                // 환경변수(민감정보) → appsettings.json → PostgreSQL DB 우선순위
                 AppConfigManager.Initialize(builder.Configuration);
                 NotificationService.Initialize(builder.Configuration);
 
