@@ -2,12 +2,8 @@ using AutoInvest.Data.DTO;
 using AutoInvest.Data;
 using AutoInvest.Data.DAO;
 using AutoInvest.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace AutoInvest.Core
 {
@@ -114,24 +110,11 @@ namespace AutoInvest.Core
                 }
                 else
                 {
-                    Dictionary<string, int> beforeQty;
-                    try
-                    {
-                        beforeQty = (await client.GetHoldingsAsync())
-                            .GroupBy(h => h.Ticker, StringComparer.OrdinalIgnoreCase)
-                            .ToDictionary(g => g.Key.ToUpper(), g => g.Sum(h => h.Qty), StringComparer.OrdinalIgnoreCase);
-                    }
-                    catch (Exception ex)
-                    {
-                        beforeQty = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                        Logger.Warn($"[DCA] 주문 전 보유 수량 조회 실패 : 체결 대사 불가: {ex.Message}");
-                    }
-
                     var engine = new DcaAccumulationEngine(client);
                     result = await engine.AccumulateAsync(quantities, budget);
                     Logger.Info($"[DCA] 주문 접수 완료 — {result.Accepted.Count}개 종목");
 
-                    SavePendingSnapshot(thisMonth, beforeQty, result);
+                    SavePendingSnapshot(thisMonth, result);
 
                     // 접수가 1건이라도 있으면 이번 달 적립 완료로 표시 → 남은 날 재실행 스킵.
                     // 접수 0건(전량 실패/장마감 등)이면 마커를 남기지 않아 다음 날 자동 재시도.
@@ -200,25 +183,21 @@ namespace AutoInvest.Core
         private sealed class PendingSnapshot
         {
             public string Month { get; set; } = string.Empty;
-            public Dictionary<string, int> Before { get; set; } = new Dictionary<string, int>();
             public List<PendingOrder> Ordered { get; set; } = new List<PendingOrder>();
         }
 
         /// <summary>
-        /// 장 마감 후 대사를 위해 "주문 전 보유 수량 + 이번에 접수한 주문"을 저장합니다.
-        /// 접수가 없으면 대사할 것이 없으므로 남기지 않습니다.
+        /// 주문 전 보유 수량 + 접수 주문
         /// </summary>
-        /// <param name="month">이번 적립의 대상 월 (KST, "yyyy-MM")</param>
-        /// <param name="beforeQty">주문 직전 종목별 보유 수량</param>
-        /// <param name="result">이번 사이클 결과</param>
-        private static void SavePendingSnapshot(string month, Dictionary<string, int> beforeQty, DcaCycleResult result)
+        /// <param name="month">적립 대상 월</param>
+        /// <param name="result">결과</param>
+        private static void SavePendingSnapshot(string month, DcaCycleResult result)
         {
             if (result.Accepted.Count == 0) return;
 
             var snapshot = new PendingSnapshot
             {
                 Month = month,
-                Before = beforeQty,
                 Ordered = result.Accepted
                     .GroupBy(f => f.Ticker.ToUpper())
                     .Select(g => new PendingOrder
@@ -286,42 +265,51 @@ namespace AutoInvest.Core
                     return "브로커 로그인 실패로 대사를 건너뛰었습니다. 스냅샷은 남겨 다음 실행에서 다시 시도합니다.";
                 }
 
-                var nowQty = (await client.GetHoldingsAsync())
-                    .GroupBy(h => h.Ticker, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.Key.ToUpper(), g => g.Sum(h => h.Qty), StringComparer.OrdinalIgnoreCase);
+                // 주문 단위 체결 수량 기록(정확한 값)
+                var kstNow = DateTime.UtcNow.AddHours(9);
+                string from = kstNow.AddDays(-3).ToString("yyyyMMdd"); 
+                string to = kstNow.ToString("yyyyMMdd");
+
+                var filledByOrderNo = (await client.GetOrderFillsAsync(from, to))
+                    .Where(f => !string.IsNullOrEmpty(f.OrderNo))
+                    .GroupBy(f => f.OrderNo)
+                    .ToDictionary(g => g.Key, g => g.Sum(x => x.FilledQty));
 
                 int totalOrdered = 0, totalFilled = 0;
-                bool anySold = false;
                 var lines = new List<string>();
 
                 foreach (var o in snap.Ordered)
                 {
-                    snap.Before.TryGetValue(o.Ticker, out int before);
-                    nowQty.TryGetValue(o.Ticker, out int now);
+                    if (string.IsNullOrEmpty(o.OrderNo)) Logger.Warn($"[Reconcile] {o.Ticker} 주문번호 미수신으로 체결 판정이 불가능합니다.");
 
-                    int delta = now - before;
-                    if (delta < 0) anySold = true;
+                    filledByOrderNo.TryGetValue(o.OrderNo ?? "", out int filled);
+                    filled = Math.Min(filled, o.Qty);
 
-                    int filled = Math.Max(0, Math.Min(delta, o.Qty));
                     totalOrdered += o.Qty;
                     totalFilled += filled;
 
-                    string status = filled >= o.Qty ? "FILLED" : filled > 0 ? "PARTIAL" : "FAILED";
+                    string status;
+                    if (filled == 0)
+                    {
+                        status = "FAILED";
+                    }
+                    else if (filled < o.Qty)
+                    {
+                        status = "PARTIAL";
+                    }
+                    else
+                    {
+                        status = "FILLED";
+                    }
                     TradeHistoryDAO.UpdateStatusByOrderNo(o.OrderNo, status);
 
-                    lines.Add($"{o.Ticker}: 주문 {o.Qty}주 · 체결 {filled}주 (보유 {before}→{now})");
-                    Logger.Info($"[Reconcile] {o.Ticker} 주문 {o.Qty}주 → 체결 {filled}주 (보유 {before}→{now}), 상태 {status}");
+                    lines.Add($"{o.Ticker} {o.Qty}주 — {status}");
+                    Logger.Info($"[Reconcile] {o.Ticker} 주문 {o.Qty}주 — {status}");
                 }
-
-                if (anySold)
+                
+                if (totalFilled == 0)
                 {
-                    note = "보유 수량이 줄어든 종목이 있어 체결 판정을 신뢰할 수 없습니다(대사 전 매도 가능성). "
-                        + "이번 달 적립 완료 표시는 그대로 두었습니다 — 증권사 앱에서 직접 확인하세요.";
-                    Logger.Warn("[Reconcile] 수량 감소 감지 — 마커를 건드리지 않습니다.");
-                }
-                else if (totalFilled == 0)
-                {
-                    // 전량 미체결이 확실하다 → 그 달을 다시 열어 다음 크론이 재시도하게 한다.
+                    // 전량 미체결
                     if (AppConfigManager.Set(LastRunMonthKey, ""))
                     {
                         // 완료를 되돌렸으면 표시용 집행 일자도 함께 지운다(남겨두면 화면이 집행됐다고 말한다).
