@@ -80,6 +80,12 @@ namespace AutoInvest.Core
                 if (px <= 0)
                 {
                     Logger.Warn($"[DCA] {ticker} 조회 실패 : {ticker}는 매수를 건너뜁니다.");
+                    result.Failures.Add(new DcaBuyFailure
+                    {
+                        Ticker = ticker,
+                        Qty = quantities[ticker],
+                        Error = "현재가 조회 실패 : 매수를 건너뜁니다."
+                    });
                     continue;
                 }
                 priceUsd[ticker] = px;
