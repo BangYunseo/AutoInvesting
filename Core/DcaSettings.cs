@@ -12,9 +12,11 @@ namespace AutoInvest.Core
     /// 적립 사이클은 현재(KST) 월에 배정된 템플릿대로 매수합니다. 월배정이 비어 있으면 첫
     /// 템플릿을 매월 사용(기존 단일 설정 동작 유지), 배정된 월에 템플릿이 없으면 매수를 스킵합니다.
     ///
-    /// 우선순위: DB(TB_APP_CONFIG: DCA_TEMPLATES / DCA_MONTH_MAP) → 레거시 단일 설정
-    /// (DCA_QTYS/DCA_BUDGET_KRW) → appsettings.json(Dca 섹션). 레거시 설정은 자동으로 "기본"
-    /// 템플릿 하나로 이관되어 읽힙니다(저장 시 템플릿 형식으로 기록).
+    /// 설정의 유일한 출처는 DB(TB_APP_CONFIG: DCA_TEMPLATES / DCA_MONTH_MAP)입니다.
+    /// 읽지 못하면 종목이 빈 "기본" 템플릿이 되어 그 사이클은 매수를 건너뜁니다 — 조회 실패가
+    /// 곧 "의도하지 않은 종목·수량을 실계좌에 매수"로 이어지지 않게 하기 위한 fail-closed입니다.
+    /// (2026-06-29 템플릿 이관 완료 후 남아 있던 레거시 단일 설정 폴백 DCA_QTYS/DCA_BUDGET_KRW는
+    ///  2026-09-23에 제거했습니다. 낡은 바스켓을 되살려 매수할 위험만 남아 있었습니다.)
     /// </summary>
     public static class DcaSettings
     {
@@ -23,12 +25,6 @@ namespace AutoInvest.Core
 
         /// <summary>DB 키 — 월(1~12)→템플릿Id 배정 JSON.</summary>
         public const string MonthMapKey = "DCA_MONTH_MAP";
-
-        /// <summary>DB 키 — 레거시 단일 설정 수량 JSON (마이그레이션 폴백).</summary>
-        public const string QuantitiesKey = "DCA_QTYS";
-
-        /// <summary>DB 키 — 레거시 단일 설정 예산(원) (마이그레이션 폴백).</summary>
-        public const string BudgetKey = "DCA_BUDGET_KRW";
 
         /// <summary>
         /// DB 키 — 매월 적립을 시작할 날짜(KST, 1~31). 비어 있으면 월초부터 시도(기존 동작).
@@ -121,19 +117,20 @@ namespace AutoInvest.Core
                 }
                 catch (Exception ex)
                 {
-                    Logger.Error($"[DCA] DCA_TEMPLATES 파싱 실패 : 레거시/appsettings로 폴백: {ex.Message}");
+                    Logger.Error($"[DCA] DCA_TEMPLATES 파싱 실패 : 종목 없는 기본 템플릿으로 폴백(매수 스킵): {ex.Message}");
                 }
             }
 
-            // 기본 템플릿
+            // 기본 템플릿 — 종목을 일부러 비워 둔다. 여기에 수량이 채워지면 DB 조회 실패만으로
+            // 의도하지 않은 바스켓이 실계좌에 매수된다. 종목은 적립설정 화면에서만 들어온다.
             return new List<DcaTemplate>
             {
                 new DcaTemplate
                 {
                     Id = "default",
                     Name = "기본",
-                    BudgetKrw = LoadLegacyBudget(),
-                    Quantities = LoadLegacyQuantities()
+                    BudgetKrw = DefaultBudgetKrw,
+                    Quantities = new Dictionary<string, int>()
                 }
             };
         }
@@ -246,49 +243,6 @@ namespace AutoInvest.Core
                         .ToDictionary(kv => kv.Key.Trim().ToUpper(), kv => kv.Value)
                 })
                 .ToList();
-        }
-
-        // ── 레거시 단일 설정 로딩 (마이그레이션용) ──
-        private static Dictionary<string, int> LoadLegacyQuantities()
-        {
-            var qtys = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            string dbJson = AppConfigManager.Get(QuantitiesKey, "");
-            if (!string.IsNullOrWhiteSpace(dbJson))
-            {
-                try
-                {
-                    var parsed = JsonSerializer.Deserialize<Dictionary<string, int>>(dbJson);
-                    if (parsed != null)
-                    {
-                        foreach (var kv in parsed)
-                            if (kv.Value > 0) qtys[kv.Key] = kv.Value;
-                        if (qtys.Count > 0) return qtys;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error($"[DcaSettings] 레거시 DCA_QTYS 파싱 실패: {ex.Message}");
-                }
-            }
-
-            foreach (var kv in AppConfigManager.GetMap("Dca:Quantities"))
-                if (int.TryParse(kv.Value, out int q) && q > 0) qtys[kv.Key] = q;
-
-            return qtys;
-        }
-
-        private static decimal LoadLegacyBudget()
-        {
-            string dbVal = AppConfigManager.Get(BudgetKey, "");
-            if (!string.IsNullOrWhiteSpace(dbVal) && decimal.TryParse(dbVal, out decimal b) && b > 0)
-                return b;
-
-            var cfg = AppConfigManager.GetMap("Dca");
-            if (cfg.TryGetValue("MonthlyBudgetKrw", out var mb) && decimal.TryParse(mb, out var mv) && mv > 0)
-                return mv;
-
-            return DefaultBudgetKrw;
         }
 
         private static DateTime KstNow() => DateTime.UtcNow.AddHours(9);

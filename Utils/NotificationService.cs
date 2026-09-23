@@ -32,28 +32,24 @@ namespace AutoInvest.Utils
         public static void Initialize(Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
             var resendSection = configuration.GetSection("Resend");
-            var smtpSection = configuration.GetSection("Smtp"); // 수신 주소는 기존 설정과 호환 유지
 
             // API 키는 환경변수 우선 (시크릿)
             _apiKey = Coalesce(Environment.GetEnvironmentVariable("RESEND_API_KEY"), resendSection["ApiKey"]);
 
-            // 수신자(관리자) — 환경변수 ADMIN_EMAIL 우선(개인정보를 소스에 두지 않음),
-            // 없으면 Resend:AdminEmail → 기존 Smtp:AdminEmail 순으로 폴백.
+            // 수신자(관리자) — 환경변수 ADMIN_EMAIL 우선(개인정보를 소스에 두지 않음).
             _adminEmail = Coalesce(
                 Environment.GetEnvironmentVariable("ADMIN_EMAIL"),
-                resendSection["AdminEmail"],
-                smtpSection["AdminEmail"]);
+                resendSection["AdminEmail"]);
 
             // 발신자 이메일 — 자체 도메인을 Resend에 인증했다면 그 주소, 아니면 기본 테스트 도메인 사용
             _senderEmail = Coalesce(resendSection["SenderEmail"], DefaultSender);
 
-            _senderName = Coalesce(resendSection["SenderName"], smtpSection["SenderName"], _senderName);
+            _senderName = Coalesce(resendSection["SenderName"], _senderName);
         }
 
         /// <summary>
         /// 관리자에게 알림 메일을 발송합니다. (운영 경로용 — 절대 예외를 전파하지 않음)
-        /// 일일 사이클 등 메일 실패가 본 흐름을 죽이면 안 되는 곳에서 사용합니다.
-        /// 발송 성공 여부를 응답으로 확인해야 하면 <see cref="SendEmailOrThrowAsync"/>를 사용하세요.
+        /// 메일 실패가 적립 사이클 본 흐름을 죽이면 안 되므로 예외를 여기서 삼킵니다.
         /// </summary>
         /// <param name="subject">메일 제목</param>
         /// <param name="messageBody">HTML 본문</param>
@@ -75,19 +71,19 @@ namespace AutoInvest.Utils
         }
 
         /// <summary>
-        /// 관리자에게 알림 메일을 Resend HTTP API로 발송합니다. (진단용 — 실패 시 예외를 그대로 전파)
-        /// 설정 누락 시 <see cref="InvalidOperationException"/>, API 호출 실패 시 응답 본문을 담은 예외를 던집니다.
-        /// 테스트/헬스체크 엔드포인트처럼 "실제 실패 원인"을 응답으로 확인해야 하는 곳에서 사용합니다.
+        /// Resend HTTP API로 실제 발송을 수행합니다.
+        /// 설정 누락 시 <see cref="InvalidOperationException"/>, API 호출 실패 시 응답 본문을 담은 예외를 던지며,
+        /// 호출부(<see cref="SendEmailAsync"/>)가 사유별로 로그 수준을 나눠 기록합니다.
         /// </summary>
         /// <param name="subject">메일 제목</param>
         /// <param name="messageBody">HTML 본문</param>
-        public static async Task SendEmailOrThrowAsync(string subject, string messageBody)
+        private static async Task SendEmailOrThrowAsync(string subject, string messageBody)
         {
             if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_senderEmail) || string.IsNullOrEmpty(_adminEmail))
             {
                 throw new InvalidOperationException(
                     "이메일 설정(Resend ApiKey / SenderEmail / AdminEmail)이 비어 있어 알림 메일을 발송할 수 없습니다. " +
-                    "Render 환경변수 RESEND_API_KEY 및 appsettings의 Smtp:AdminEmail(또는 Resend:AdminEmail)을 확인하세요.");
+                    "Render 환경변수 RESEND_API_KEY·ADMIN_EMAIL을 확인하세요.");
             }
 
             // ── Resend 요청 본문 구성 ──
