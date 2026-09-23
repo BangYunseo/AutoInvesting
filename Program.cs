@@ -65,6 +65,12 @@ namespace AutoInvest
                 // Logger는 Data를 참조하지 않으므로 여기서 SystemLogDAO.Insert를 훅으로 주입한다.
                 AutoInvest.Utils.Logger.DbSink = AutoInvest.Data.DAO.SystemLogDAO.Insert;
                 AutoInvest.Data.DAO.SystemLogDAO.PruneOlderThan(90); // 오래된 로그 정리(무한 증가 방지)
+
+                // ── 로컬 개발용 관리자 계정 자동 생성 (Development 전용) ──
+                if (builder.Environment.IsDevelopment())
+                {
+                    SeedLocalAdmin(builder.Configuration);
+                }
                 builder.Services.AddSingleton<AutoInvest.Core.SessionManager>();
                 builder.Services.AddScoped<AutoInvest.Core.DailyExecutionService>();
 
@@ -106,6 +112,61 @@ namespace AutoInvest
             {
                 Logger.FlushAndClose();
             }
+        }
+
+        /// <summary>
+        /// 로컬 개발 환경에서 관리자 계정이 아직 없을 때, <c>appsettings.local.json</c>의
+        /// <c>Admin:Username</c>·<c>Admin:Password</c>로 계정을 한 번 생성합니다.
+        ///
+        /// 최초 설정(<c>POST /api/auth/setup</c>)은 전역 인증 필터를 타므로 <c>x-api-key</c>를 붙여
+        /// 직접 호출해야 하는데, 로컬 DB를 새로 만들 때마다 반복하기엔 번거롭습니다. 그 한 번을
+        /// 대신합니다. 운영의 최초 설정 경로는 그대로 두며, 이 메서드는 아래 셋을 모두 만족할 때만
+        /// 동작합니다 — 하나라도 어긋나면 아무 일도 하지 않습니다.
+        ///
+        /// <list type="number">
+        /// <item><description><c>Development</c> 환경일 것 (호출부에서 검사).</description></item>
+        /// <item><description>설정에 아이디·비밀번호가 둘 다 있을 것. 값은 <c>appsettings.local.json</c>에만
+        /// 두며, 이 파일은 <c>.gitignore</c>·<c>.dockerignore</c> 대상이라 저장소(공개)와 배포 이미지
+        /// 어느 쪽에도 들어가지 않는다 — 그래서 소스에 자격증명을 박지 않는다.</description></item>
+        /// <item><description>DB에 관리자 해시가 아직 없을 것. 조회에 실패하면 "없음"으로 오판하지 않고
+        /// 건너뛴다(fail-closed) — 기존 계정을 덮어쓰지 않기 위함이다.</description></item>
+        /// </list>
+        /// </summary>
+        /// <param name="config">아이디·비밀번호를 읽을 설정 소스</param>
+        private static void SeedLocalAdmin(IConfiguration config)
+        {
+            string username = (config["Admin:Username"] ?? string.Empty).Trim();
+            string password = config["Admin:Password"] ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                return;
+            }
+
+            if (!AppConfigManager.TryReadDb("ADMIN_PASSWORD_HASH", out string? existingHash))
+            {
+                Logger.Warn("[Seed] 관리자 설정 여부를 확인할 수 없어 로컬 계정 생성을 건너뜁니다 (DB 조회 실패).");
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(existingHash))
+            {
+                return; // 이미 있는 계정은 덮어쓰지 않는다
+            }
+
+            // 사용자명 → 해시 순서를 지킨다(AuthController.Setup과 동일). 뒤집으면 도중 실패 시
+            // 해시만 남아 setup은 409, 로그인은 사용자명 공백으로 거부되는 잠김이 된다.
+            bool userSaved = AppConfigManager.Set("ADMIN_USERNAME", username);
+            bool hashSaved = AppConfigManager.Set("ADMIN_PASSWORD_HASH", CryptoUtil.HashPassword(password));
+
+            if (!userSaved || !hashSaved)
+            {
+                Logger.Error("[Seed] 로컬 관리자 계정 저장 실패 — 설정이 반영되지 않았습니다.");
+                return;
+            }
+
+            // 아이디·비밀번호는 로그에 남기지 않는다. TB_SYSTEM_LOG는 영구 저장소다.
+            Logger.Warn("[Seed] 로컬 개발용 관리자 계정을 생성했습니다. 이 경로는 Development에서만 동작합니다.");
         }
     }
 }

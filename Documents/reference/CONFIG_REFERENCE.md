@@ -48,15 +48,17 @@ status: draft
 
 ### 부트스트랩 키
 
-아래 3개는 **환경변수여야 한다.** DB에 둘 수 없는 구조적 이유가 있다 — DB에 접속하려면 접속 문자열이 필요하고, DB의 암호화 시크릿을 풀려면 복호화 키가 필요하다.
+아래 3개는 **환경변수여야 한다.** DB에 접속하려면 접속 문자열이 필요하고, 로그인 토큰을 서명하려면 서명 키가 먼저 있어야 한다 — DB에 둘 수 없는 구조적 이유다.
 
 | 키 | 읽는 곳 | 없으면 |
 |---|---|---|
 | `DATABASE_URL` | `Data/DBManager.cs` | 로컬 기본 접속 문자열로 폴백 (배포 DB는 **Neon**, `*.neon.tech`) |
-| `MASTER_KEY` | `Utils/CryptoUtil.cs` | 시크릿을 평문 저장하고 경고만 남김. 기동은 계속 |
+| `MASTER_KEY` | `Utils/CryptoUtil.cs` | **기동 중단**(`Program.cs`가 `IsConfigured`를 검사해 종료 코드 1) |
 | `AUTH_TOKEN_SECRET` | `Utils/CryptoUtil.cs` | `MASTER_KEY` 파생으로 대체. 둘 다 없으면 세션 토큰 서명 불가 → 로그인 불가 |
 
-`MASTER_KEY`는 **재암호화(rekey) 경로가 코드에 없다.** 분실과 교체가 같은 비용이며, 분실하면 DB의 `enc:v1:` 값은 복구 수단이 없다. 오프라인 백업이 필요하다.
+`MASTER_KEY`의 용도는 **세션 토큰 서명 키 파생 하나뿐**이다. 시크릿 DB 암복호화(`enc:v1:`, AES-256-GCM)는 2026-09-23에 코드째 제거했다 — 유일한 쓰기 경로였던 설정 화면·`ConfigController`가 2026-08-06에 사라져 호출자가 0이었고, 운영 DB에 암호문 행이 0건임을 확인했다. 따라서 `MASTER_KEY`를 분실해도 복호화 불가로 잃는 데이터는 없다. 다만 교체하면 **기존 세션 토큰이 전부 무효**가 되어 다시 로그인해야 한다.
+
+기동 가드는 실제 필요보다 한 칸 엄격하다. `AUTH_TOKEN_SECRET`만 있어도 서명은 가능하지만 `Program.cs`는 `MASTER_KEY` 부재만으로 기동을 거부한다. 배포에 두 키가 모두 있어 현재는 무해하며, 느슨하게 푸는 변경은 별도 판단 대상으로 남겨 뒀다.
 
 ### 운영 시크릿
 
@@ -173,12 +175,38 @@ IS_PAPER_TRADING = 0
 | PostgreSQL (localhost / `autoinvest`) | **필수** | `DBManager`가 실패 시 `Logger.Fatal` + rethrow → 기동 불가 |
 | .NET 8 SDK | **필수** | |
 | Node + `npm install` | 프론트 사용 시 | 백엔드를 Vite 프록시 대상 포트에 바인딩 |
-| `MASTER_KEY` | 권장 | 없으면 시크릿 평문 저장. `AUTH_TOKEN_SECRET`까지 없으면 로그인 불가 |
+| `MASTER_KEY` | **필수** | 없으면 기동 중단. 로컬은 base64 32바이트면 아무 값이나 되며 운영과 다른 값을 쓴다 |
 | KIS 키 | 불필요 | 없으면 `SimBrokerClient` |
-| `API_ACCESS_KEY` | **사실상 필수** | 크론 트리거뿐 아니라 **최초 관리자 설정(`POST /api/auth/setup`)의 유일한 통과 수단**이다. 관리자가 없는 새 환경에서 이 값이 없으면 Bearer도 못 받고 `x-api-key`도 못 써 관리자를 만들 수 없다(복구: 환경변수/`appsettings.local.json`에 추가 후 재기동, 또는 `TB_APP_CONFIG`에 행 직접 삽입) |
+| `Admin:Username` / `Admin:Password` | 권장 | 로컬 관리자 계정 자동 생성용. 아래 참조 |
+| `API_ACCESS_KEY` | 상황에 따라 | 크론 트리거 호출용. 위 `Admin:*`를 쓰면 최초 관리자 설정에는 더 이상 필요하지 않다 |
 | Resend 키 | 불필요 | 알림 미사용 시 |
 
-로컬 시크릿은 `appsettings.local.json`에 둔다. `.gitignore`와 `.dockerignore` 양쪽에서 제외된다. 템플릿 파일은 없다 — 위 표의 키만 넣으면 되고, 필요한 최소 항목은 `MASTER_KEY` 하나다.
+로컬 시크릿은 `appsettings.local.json`에 둔다. `.gitignore`와 `.dockerignore` 양쪽에서 제외된다. 템플릿 파일은 없다 — 위 표의 키만 넣으면 된다.
+
+#### 로컬 관리자 계정 자동 생성
+
+`POST /api/auth/setup`은 전역 인증 필터를 타므로 `x-api-key`를 붙여 직접 호출해야 한다(2026-08-04 조치 — 관리자 자리가 비어 보이는 순간 누구나 선점해 실주문을 낼 수 있었다). 운영에서는 옳지만, 로컬 DB를 새로 만들 때마다 반복하기엔 번거롭다.
+
+그래서 `Program.SeedLocalAdmin`이 그 한 번을 대신한다. `appsettings.local.json`에 아래를 넣고 기동하면 계정이 만들어지고, 이후 로그인 화면에서 바로 들어갈 수 있다.
+
+```json
+{
+  "Admin": {
+    "Username": "로컬전용_아이디",
+    "Password": "8자이상_로컬전용_비밀번호"
+  }
+}
+```
+
+동작 조건은 셋이며 하나라도 어긋나면 아무 일도 하지 않는다.
+
+| 조건 | 배포에서 왜 성립하지 않나 |
+|---|---|
+| `ASPNETCORE_ENVIRONMENT=Development` | `Dockerfile`이 설정하지 않아 ASP.NET 기본값 `Production`이다 |
+| 설정에 아이디·비밀번호가 둘 다 있을 것 | `.dockerignore`가 `*.local.json`을 빼므로 **배포 이미지에 파일 자체가 없다** |
+| DB에 관리자 해시가 없을 것 | 운영 DB에는 이미 있다. 조회 실패 시에도 건너뛴다(fail-closed) |
+
+값은 `appsettings.local.json`에만 둔다 — 저장소가 **공개**이므로 소스에 박지 않는다. 운영 계정과 다른 값을 쓴다.
 
 > `appsettings.example.json`은 2026-08-07에 삭제했다. 스스로를 `appsettings.local.json`으로 복사하라고 지시하면서 `Dca.Quantities`에 실제 종목·수량(`SPLG`/`QQQ`)을 담고 있었다 — 복사하면 로드되는 파일이 되고, DB 조회 실패 시 그 값으로 폴백해 의도하지 않은 종목을 실계좌에 매수할 수 있었다. 키 목록은 이 문서가 더 정확하므로 템플릿을 따로 두지 않는다.
 
