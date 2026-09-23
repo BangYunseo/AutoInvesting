@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace AutoInvest.Controllers
 {
     /// <summary>
-    /// 보유 잔고·예수금·대시보드 요약을 조회하는 API.
+    /// 보유 잔고·예수금·대시보드 요약을 조회하는 API
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -21,7 +21,7 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
-        /// 현재 보유 종목 목록을 조회합니다.
+        /// 현재 보유 종목 목록 조회
         /// </summary>
         [HttpGet("holdings")]
         public async Task<IActionResult> GetHoldings()
@@ -45,8 +45,8 @@ namespace AutoInvest.Controllers
         }
 
         /// <summary>
-        /// 대시보드 요약 정보를 한 번에 조회합니다.
-        /// 보유 종목, 예수금(현금 잔고), 환율, 계좌 모드(SIM/PAPER/LIVE)와 마스킹 계좌번호를 포함합니다.
+        /// 대시보드 요약 정보 조회
+        /// 보유 종목, 예수금(현금 잔고), 환율, 계좌 모드(SIM/PAPER/LIVE)와 마스킹 계좌번호
         /// </summary>
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary()
