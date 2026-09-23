@@ -104,8 +104,43 @@ namespace AutoInvest.Core
             ["AMS"] = "AMEX",
         };
 
-        /// <summary>종목별로 현재가 조회 시 확인된 EXCD 캐시 — 주문 시 올바른 거래소 코드 결정에 재사용.</summary>
+        /// <summary>
+        /// 종목별로 현재가 조회 시 확인된 EXCD 캐시 — 주문 시 올바른 거래소 코드 결정에 재사용하고,
+        /// 다음 현재가 조회에서 그 거래소를 먼저 시도해 헛조회를 건너뛴다(<see cref="ExchangesToTry"/>).
+        /// </summary>
         private readonly ConcurrentDictionary<string, string> _tickerPriceExchange = new();
+
+        /// <summary>
+        /// 현재가를 찾을 거래소(EXCD) 시도 순서를 돌려줍니다 (순수 함수 — 외부 I/O 없음, 검증 대상).
+        ///
+        /// 이전 조회에서 확인된 거래소를 넘기면 그것부터 시도하고 나머지를 기존 순서대로 이어 붙입니다.
+        /// 넘기지 않으면 기존과 똑같이 NAS→NYS→AMS 순입니다. <b>어느 경우에도
+        /// <see cref="UsPriceExchanges"/>의 거래소는 전부 한 번씩 포함됩니다</b> — 그래서 캐시가
+        /// 틀렸거나 목록에 없는 값이어도 결과는 기존과 같고, 헛조회 한 번이 더 붙을 뿐입니다.
+        ///
+        /// 이렇게 하는 이유: KIS 현재가 API는 EXCD를 요구하는데 종목이 어느 거래소에 있는지 알 수 없어
+        /// 차례로 찔러보는 구조이고, 각 시도 앞에 Rate limit 방어용 400ms 지연이 있습니다. 그래서 AMS
+        /// 종목(예: GLD)은 매번 1,200ms가 들었습니다 — 답을 이미 알고 있는데 처음부터 다시 찾기 때문입니다.
+        /// </summary>
+        /// <param name="knownExchange">이전 조회에서 확인된 거래소 코드. 모르면 null 또는 빈 문자열.</param>
+        public static IEnumerable<string> OrderExchanges(string? knownExchange)
+        {
+            if (!string.IsNullOrEmpty(knownExchange))
+            {
+                yield return knownExchange;
+
+                foreach (string excd in UsPriceExchanges)
+                {
+                    if (excd != knownExchange) yield return excd;
+                }
+                yield break;
+            }
+
+            foreach (string excd in UsPriceExchanges)
+            {
+                yield return excd;
+            }
+        }
 
         public async Task<decimal> GetCurrentPriceAsync(string ticker)
         {
@@ -114,7 +149,11 @@ namespace AutoInvest.Core
             // KIS 현재가 API는 거래소 코드(EXCD)가 필요하다. 종목이 어느 거래소에 있는지
             // 모르므로 NAS(나스닥)→NYS(뉴욕)→AMS(아멕스/NYSE Arca) 순으로 조회해 가격이
             // 잡히는 거래소를 찾는다. (예: GLD는 NAS에 없고 AMS에서 조회됨)
-            foreach (var excd in UsPriceExchanges)
+            // 단, 이전에 확인된 거래소가 있으면 그것부터 시도한다 — 헛조회 1회가 400ms다.
+            // 캐시는 인스턴스 메모리라 재기동하면 비고, 그 종목의 첫 조회는 여전히 전체를 훑는다.
+            _tickerPriceExchange.TryGetValue(ticker, out string? knownExcd);
+
+            foreach (var excd in OrderExchanges(knownExcd))
             {
                 // 한 거래소 조회가 실패해도 전체를 중단(500)하지 않고 다음 거래소를 시도한다.
                 try
