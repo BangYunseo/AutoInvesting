@@ -7,21 +7,22 @@ using Microsoft.Extensions.Configuration;
 namespace AutoInvest.Utils
 {
     /// <summary>
-    /// 시크릿 암복호화 · 비밀번호 해시 · 세션 토큰 발급/검증을 담당하는 공용 암호화 유틸리티입니다.
+    /// 비밀번호 해시 · 세션 토큰 발급/검증을 담당하는 공용 암호화 유틸리티입니다.
     /// 외부 NuGet 없이 <c>System.Security.Cryptography</c>만 사용합니다.
     ///
-    /// - 시크릿 저장: AES-256-GCM (마스터 키 = 환경변수/appsettings.local.json의 <c>MASTER_KEY</c>, base64 32바이트)
     /// - 비밀번호: PBKDF2(SHA256)
-    /// - 세션 토큰: HMAC-SHA256 서명 (stateless)
+    /// - 세션 토큰: HMAC-SHA256 서명 (stateless). 서명 키는 <c>AUTH_TOKEN_SECRET</c>,
+    ///   없으면 <c>MASTER_KEY</c>(base64 32바이트)에서 파생합니다.
+    ///
+    /// 시크릿 AES-256-GCM 암복호화(<c>enc:v1:</c> 형식)는 2026-09-23에 제거했습니다. 유일한 쓰기 경로였던
+    /// 설정 화면·ConfigController가 2026-08-06에 사라져 호출자가 0이 됐고, 운영 DB에 암호문 행이
+    /// 0건임을 확인했습니다. 시크릿은 환경변수로만 주입합니다(<c>security.md</c>).
     /// </summary>
     public static class CryptoUtil
     {
-        private const string EncPrefix = "enc:v1:";   // 암호문 식별 접두사 (없으면 레거시 평문으로 간주)
         private const int PbkdfIterations = 120_000;
         private const int SaltSize = 16;
-        private const int KeySize = 32;               // AES-256
-        private const int NonceSize = 12;             // GCM 표준 nonce
-        private const int TagSize = 16;               // GCM 인증 태그
+        private const int KeySize = 32;               // MASTER_KEY 길이 (base64 디코딩 후 32바이트)
 
         private static IConfiguration? _config;
         private static byte[]? _masterKey;
@@ -59,7 +60,7 @@ namespace AutoInvest.Utils
                     byte[] bytes = Convert.FromBase64String(raw.Trim());
                     if (bytes.Length != KeySize)
                     {
-                        Logger.Error($"[Crypto] MASTER_KEY 길이 오류: {bytes.Length}바이트 (32 필요). 암호화 비활성.");
+                        Logger.Error($"[Crypto] MASTER_KEY 길이 오류: {bytes.Length}바이트 (32 필요).");
                         return null;
                     }
                     _masterKey = bytes;
@@ -67,83 +68,14 @@ namespace AutoInvest.Utils
                 }
                 catch (FormatException)
                 {
-                    Logger.Error("[Crypto] MASTER_KEY base64 디코딩 실패. 암호화 비활성.");
+                    Logger.Error("[Crypto] MASTER_KEY base64 디코딩 실패.");
                     return null;
                 }
             }
         }
 
-        /// <summary>마스터 키가 설정되어 암호화가 가능한지 여부.</summary>
+        /// <summary>MASTER_KEY가 올바른 형식으로 설정되어 있는지 여부 (기동 시 Program.cs가 검사).</summary>
         public static bool IsConfigured => MasterKey != null;
-
-        // ─────────────────────────────────────────────────────────────
-        //  시크릿 암복호화 (AES-256-GCM)
-        // ─────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// 평문 시크릿을 암호화해 "enc:v1:..." 형식으로 반환합니다.
-        /// 마스터 키가 없으면 평문을 그대로 반환합니다(호출부가 경고 로깅).
-        /// </summary>
-        public static string EncryptSecret(string plaintext)
-        {
-            byte[]? key = MasterKey;
-            if (key == null || string.IsNullOrEmpty(plaintext)) return plaintext;
-
-            byte[] nonce = RandomNumberGenerator.GetBytes(NonceSize);
-            byte[] pt = Encoding.UTF8.GetBytes(plaintext);
-            byte[] ct = new byte[pt.Length];
-            byte[] tag = new byte[TagSize];
-
-            using (var gcm = new AesGcm(key, TagSize))
-                gcm.Encrypt(nonce, pt, ct, tag);
-
-            byte[] blob = new byte[NonceSize + TagSize + ct.Length];
-            Buffer.BlockCopy(nonce, 0, blob, 0, NonceSize);
-            Buffer.BlockCopy(tag, 0, blob, NonceSize, TagSize);
-            Buffer.BlockCopy(ct, 0, blob, NonceSize + TagSize, ct.Length);
-
-            return EncPrefix + Convert.ToBase64String(blob);
-        }
-
-        /// <summary>
-        /// "enc:v1:..." 형식이면 복호화하고, 아니면(레거시 평문) 그대로 반환합니다.
-        /// 복호화 실패 시 빈 문자열을 반환해 암호문이 시크릿으로 오용되지 않게 합니다.
-        /// </summary>
-        public static string DecryptSecret(string stored)
-        {
-            if (string.IsNullOrEmpty(stored) || !stored.StartsWith(EncPrefix, StringComparison.Ordinal))
-                return stored;
-
-            byte[]? key = MasterKey;
-            if (key == null)
-            {
-                Logger.Error("[Crypto] 암호문을 발견했으나 MASTER_KEY가 없어 복호화할 수 없습니다.");
-                return string.Empty;
-            }
-
-            try
-            {
-                byte[] blob = Convert.FromBase64String(stored.Substring(EncPrefix.Length));
-                var nonce = blob.AsSpan(0, NonceSize);
-                var tag = blob.AsSpan(NonceSize, TagSize);
-                var ct = blob.AsSpan(NonceSize + TagSize);
-                byte[] pt = new byte[ct.Length];
-
-                using (var gcm = new AesGcm(key, TagSize))
-                    gcm.Decrypt(nonce, ct, tag, pt);
-
-                return Encoding.UTF8.GetString(pt);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"[Crypto] 시크릿 복호화 실패: {ex.Message}");
-                return string.Empty;
-            }
-        }
-
-        /// <summary>값이 암호화된 시크릿인지 여부.</summary>
-        public static bool IsEncrypted(string value)
-            => !string.IsNullOrEmpty(value) && value.StartsWith(EncPrefix, StringComparison.Ordinal);
 
         // ─────────────────────────────────────────────────────────────
         //  비밀번호 해시 (PBKDF2-SHA256)

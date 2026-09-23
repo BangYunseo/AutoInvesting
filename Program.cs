@@ -32,13 +32,15 @@ namespace AutoInvest
                 AppConfigManager.Initialize(builder.Configuration);
                 NotificationService.Initialize(builder.Configuration);
 
-                // ── 암호화 유틸 초기화 (MASTER_KEY: 시크릿 암복호화 + 토큰 서명) ──
-                // 키가 없으면 경고만 남기고 뜨던 것을 기동 중단으로 바꿨다. 이 상태로 떠 있는 편이
-                // 더 위험하기 때문이다: 저장된 암호문을 복호화하지 못해 빈 값이 되고
-                // (CryptoUtil.DecryptSecret), SessionManager가 "앱키 없음"으로 판단해 조용히
-                // SimBrokerClient로 폴백한다 — 화면에는 체결이 찍히지만 실제로는 아무것도 사지 않는다.
-                // 사람 로그인도 토큰 서명 키가 없어 이미 500이 되므로, 반쪽으로 떠 있을 이유가 없다.
+                // ── 암호화 유틸 초기화 (MASTER_KEY: 세션 토큰 서명 키의 파생 원본) ──
+                // 키가 없으면 경고만 남기고 뜨던 것을 기동 중단으로 바꿨다. 토큰 서명 키가 없으면
+                // 사람 로그인이 전부 500이 되어, 화면은 열리는데 아무도 들어갈 수 없는 반쪽 상태로
+                // 뜬다. 그 상태로 떠 있느니 기동을 거부하고 원인을 로그 한 줄로 남기는 편이 낫다.
                 // 로컬 개발은 appsettings.local.json에 MASTER_KEY 한 줄로 해결된다(.gitignore 대상).
+                //
+                // 참고: AUTH_TOKEN_SECRET만 있어도 토큰 서명은 가능하므로(CryptoUtil.GetTokenKey)
+                // 이 검사는 실제 필요보다 한 칸 엄격하다. 배포 환경에 두 키가 모두 있어 지금은
+                // 무해하며, 느슨하게 푸는 변경은 별도 판단 대상으로 남긴다.
                 CryptoUtil.Initialize(builder.Configuration);
                 if (!CryptoUtil.IsConfigured)
                 {

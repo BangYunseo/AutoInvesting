@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Npgsql;
 using AutoInvest.Utils;
@@ -9,27 +9,13 @@ namespace AutoInvest.Data
     /// <summary>
     /// 애플리케이션 설정값 통합 관리
     /// 우선순위 : 환경변수 > DB 테이블(TB_APP_CONFIG) > appsettings.json
-    /// 민감정보 : (KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NO) -> 환경변수 전용
-    /// DB 테이블 : 런타임에 UI 저장값 보관, appsettings.json 기본값 덮어쓰기(Always)
+    /// 시크릿(KIS 앱키·시크릿·계좌번호, RESEND_API_KEY, API_ACCESS_KEY)은 <b>환경변수 전용</b>이며
+    /// 이 클래스는 시크릿을 DB에 쓰지 않는다(security.md). DB에 담는 것은 적립 마커·템플릿·관리자
+    /// 계정 해시처럼 화면·엔진이 런타임에 갱신하는 값뿐이다.
     /// </summary>
     public static class AppConfigManager
     {
         private static IConfiguration? _configuration;
-
-        /// <summary>
-        /// DB 테이블(TB_APP_CONFIG) 민감 키 목록
-        /// (1) 저장 시 암호화 
-        /// (2) 조회 시 복호화
-        /// 환경변수는 그대로 사용(암호화/복호화 불필요)
-        /// </summary>
-        private static readonly HashSet<string> SensitiveKeys = new(StringComparer.Ordinal)
-        {
-            "KIS_APP_KEY",
-            "KIS_APP_SECRET",
-            "KIS_ACCOUNT_NO",
-            "RESEND_API_KEY",
-            "API_ACCESS_KEY"
-        };
 
         /// <summary>
         /// ASP.NET Core IConfiguration 주입
@@ -110,14 +96,7 @@ namespace AutoInvest.Data
                     "SELECT CONFIG_VALUE FROM TB_APP_CONFIG WHERE CONFIG_KEY=@k", conn))
                 {
                     cmd.Parameters.AddWithValue("@k", key);
-                    string? raw = cmd.ExecuteScalar()?.ToString();
-
-                    // (1) 암호문(enc:v1:...) -> 복호화
-                    // (2) 평문/비민감 키 -> 통과
-                    value = CryptoUtil.IsEncrypted(raw ?? string.Empty)
-                        ? CryptoUtil.DecryptSecret(raw!)
-                        : raw;
-
+                    value = cmd.ExecuteScalar()?.ToString();
                     return true;
                 }
             }
@@ -135,35 +114,18 @@ namespace AutoInvest.Data
         /// "저장했다"는 로그와 성공 응답만 남고 값은 바뀌지 않는 조용한 거짓 성공이 됩니다 —
         /// 관리자 계정 설정이나 월 1회 적립 마커처럼 되돌리기 어려운 값은 반드시 반환값을 확인하세요.
         /// </summary>
-        /// <param name="key">설정 키</param>
-        /// <param name="value">저장할 값 (민감 키는 저장 직전 암호화)</param>
+        /// <param name="key">설정 키. 시크릿 키를 넘기지 말 것 — 시크릿은 환경변수 전용이다(security.md).</param>
+        /// <param name="value">저장할 값</param>
         /// <returns>저장에 성공하면 true</returns>
         public static bool Set(string key, string value)
         {
             try
             {
-                // 민감 키의 경우 저장 직전 암호화
-                string storedValue = value;
-                if (SensitiveKeys.Contains(key) && !string.IsNullOrEmpty(value))
-                {
-                    if (!CryptoUtil.IsConfigured)
-                    {
-                        // 예전에는 경고만 남기고 평문으로 저장했다. Neon은 스냅샷·백업을 뜨므로 한 번
-                        // 들어간 평문은 회수할 수 없고, 계좌번호는 개인정보 취급 대상이다. 저장을 거부한다.
-                        // Program.cs가 MASTER_KEY 없이는 기동조차 막지만, 그 검사를 누가 느슨하게 풀어도
-                        // 평문이 DB에 닿지 않도록 여기서 한 번 더 막는다.
-                        Logger.Error($"[AppConfig] MASTER_KEY 미설정 — 민감 키 저장 거부 [{key}]. MASTER_KEY를 설정하세요.");
-                        return false;
-                    }
-
-                    storedValue = CryptoUtil.EncryptSecret(value);
-                }
-
                 using (var conn = DBManager.Instance.GetConnection())
                 using (var cmd = new NpgsqlCommand(
                     "UPDATE TB_APP_CONFIG SET CONFIG_VALUE=@v WHERE CONFIG_KEY=@k", conn))
                 {
-                    cmd.Parameters.AddWithValue("@v", storedValue);
+                    cmd.Parameters.AddWithValue("@v", value);
                     cmd.Parameters.AddWithValue("@k", key);
                     int affected = cmd.ExecuteNonQuery();
 
@@ -173,7 +135,7 @@ namespace AutoInvest.Data
                         using var insertCmd = new NpgsqlCommand(
                             "INSERT INTO TB_APP_CONFIG (CONFIG_KEY, CONFIG_VALUE) VALUES (@k, @v)", conn);
                         insertCmd.Parameters.AddWithValue("@k", key);
-                        insertCmd.Parameters.AddWithValue("@v", storedValue);
+                        insertCmd.Parameters.AddWithValue("@v", value);
                         insertCmd.ExecuteNonQuery();
                     }
                 }
