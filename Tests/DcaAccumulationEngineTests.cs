@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using AutoInvest.Core;
+using AutoInvest.Data.DTO;
 using Xunit;
 
 namespace AutoInvest.Tests
@@ -103,6 +105,34 @@ namespace AutoInvest.Tests
 
             Assert.Empty(plan);
             Assert.Equal(0m, total);
+        }
+
+        /// <summary>
+        /// 현재가 조회에 실패한 종목은 실패 목록에 남아야 한다.
+        ///
+        /// 조회에 실패한 종목은 계획에서 빠지고 주문을 시도하지 않으므로 예외도 나지 않는다.
+        /// 예전에는 그래서 <c>Failures</c>에도 들어가지 않았고, 나머지 종목이 접수되면 그 달 마커가
+        /// 찍혀 재시도가 막히는데 메일에는 '정상 매수'로만 보였다 — 적립 누락이 조용히 지나갔다.
+        /// 그 회귀를 못 박는다.
+        ///
+        /// 전 종목을 실패시키는 이유는 <see cref="DcaAccumulationEngine.AccumulateAsync"/>가
+        /// 유효한 현재가가 하나도 없으면 주문·DB 기록 이전에 반환하기 때문이다 — 덕분에 DB 없이
+        /// 검증된다. 일부만 실패하는 경우는 <c>TradeHistoryDAO</c>를 타므로 여기서 다루지 않는다.
+        /// </summary>
+        [Fact]
+        public async Task AccumulateAsync_현재가_조회실패_종목은_실패목록에_담긴다()
+        {
+            // 현재가 0 = 전 종목 조회 실패
+            var broker = new FakeBrokerClient(new List<HoldingDto>(), currentPrice: 0m, exchangeRate: Rate);
+            var engine = new DcaAccumulationEngine(broker);
+            var quantities = new Dictionary<string, int> { ["SPY"] = 1, ["QQQM"] = 2 };
+
+            var result = await engine.AccumulateAsync(quantities, budgetKrw: 1_000_000m);
+
+            Assert.Empty(result.Accepted);
+            Assert.Equal(2, result.Failures.Count);
+            Assert.Contains(result.Failures, f => f.Ticker == "SPY" && f.Qty == 1);
+            Assert.Contains(result.Failures, f => f.Ticker == "QQQM" && f.Qty == 2);
         }
     }
 }
