@@ -26,6 +26,12 @@ namespace AutoInvest.Tests
         public int SellOrderCallCount { get; private set; }
 
         /// <summary>
+        /// GetCurrentPriceAsync가 호출된 횟수. PriceController의 캐시가 실제로 브로커 호출을
+        /// 건너뛰는지를 이 값으로 검증합니다(캐시 적중이면 늘지 않아야 함).
+        /// </summary>
+        public int PriceCallCount { get; private set; }
+
+        /// <summary>
         /// 가짜 브로커를 만듭니다.
         /// </summary>
         /// <param name="holdings">GetHoldingsAsync가 반환할 보유종목(시드값)</param>
@@ -47,7 +53,11 @@ namespace AutoInvest.Tests
             return Task.FromResult(true);
         }
 
-        public Task<decimal> GetCurrentPriceAsync(string ticker) => Task.FromResult(_price);
+        public Task<decimal> GetCurrentPriceAsync(string ticker)
+        {
+            PriceCallCount++;
+            return Task.FromResult(_price);
+        }
 
         public Task<decimal> GetExchangeRateAsync() => Task.FromResult(_fx);
 

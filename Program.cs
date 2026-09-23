@@ -58,6 +58,9 @@ namespace AutoInvest
                 builder.Services.AddSwaggerGen();
                 builder.Services.AddHealthChecks();
 
+                // PriceController의 현재가 캐시(표시·검증 전용). 주문가 경로는 캐시를 타지 않는다.
+                builder.Services.AddMemoryCache();
+
                 // ── 의존성 주입 ──
                 builder.Services.AddSingleton(DBManager.Instance);
 
