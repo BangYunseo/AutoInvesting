@@ -112,14 +112,5 @@ namespace AutoInvest.Core
             var maskedLen = Math.Max(0, digits.Length - head.Length - tail.Length);
             return $"{head}{new string('*', maskedLen)}{tail}";
         }
-
-        /// <summary>
-        /// 클라이언트를 초기화합니다 (설정 변경 시 호출).
-        /// </summary>
-        public void Reset()
-        {
-            _client = null;
-            Logger.Info("[Session] 세션 초기화");
-        }
     }
 }
