@@ -3,7 +3,7 @@ title: AutoInvesting
 date: 2026-07-23
 company: [개인]
 tags: [프로젝트개요, DCA적립, ETF, KIS]
-status: done
+status: draft
 ---
 
 # AutoInvesting
