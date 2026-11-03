@@ -10,8 +10,6 @@ status: done
 
 ## 개요
 
-[프로젝트 소개](https://bangyunseo.github.io/AutoInvesting/)
-
 ### 핵심 목적
 
 | 목적       | 설명               |
